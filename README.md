@@ -47,9 +47,9 @@ This application provides functionality to manage user permissions and access le
    npm start
    ```
 
-2. Open your browser and navigate to `http://localhost:3000`
+2. Open your browser and navigate to `http://localhost:8080/index.html`
 
-3. Access the user management interface through `index.html`
+
 
 ## Project Structure
 
