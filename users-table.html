@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title style="font-family: 'Artifact Elements', Arial, sans-serif;">User Management</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Artifact Elements', Arial, sans-serif;
+            margin: 20px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 1200px;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-weight: 700;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .editable {
+            min-width: 200px;
+        }
+        .table-actions {
+            margin-bottom: 20px;
+        }
+        
+        /* Unified button styling */
+        button, .btn {
+            background-color: #0696D7 !important;
+            color: white !important;
+            padding: 12px 20px !important;
+            border: none !important;
+            border-radius: 5px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            font-family: 'Artifact Elements', Arial, sans-serif !important;
+            font-weight: 400 !important;
+            min-width: 140px !important;
+            height: 44px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: background-color 0.2s ease !important;
+            margin: 4px !important;
+        }
+        
+        button:hover, .btn:hover {
+            background-color: #0580C0 !important;
+        }
+        
+        button:active, .btn:active {
+            background-color: #046BA5 !important;
+        }
+        
+        .access-cell {
+            background: white;
+            cursor: pointer;
+            user-select: none;
+            text-align: center;
+        }
+        .access-cell.selected {
+            background-color: #e3f2fd;
+            border: 1px solid #2196F3;
+        }
+        .access-cell.selecting {
+            background-color: #bbdefb;
+        }
+        .access-cell.error {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        .access-cell.administrator {
+            background-color: #e8f5e9;
+            font-weight: bold;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: #d32f2f;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-family: 'Artifact Elements', Arial, sans-serif;
+        }
+        .table-summary {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+        }
+        .error-cell {
+            background-color: #ffebee;
+            border: 1px solid #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="table-actions" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <button onclick="addRow()">Add Row</button>
+            <button onclick="deleteSelectedRows()">Delete Row</button>
+            <button onclick="clearTable()">Clear Table</button>
+        </div>
+        <div>
+            <button onclick="saveTableToJson()">Save</button>
+        </div>
+        <a id="downloadAnchor" style="display:none"></a>
+    </div>
+    <div class="table-summary" id="tableSummary">
+        Total Users: 0
+    </div>
+
+    <div class="table-container">
+        <table id="userTable">
+            <thead>
+                <tr>
+                    <th class="editable">Email</th>
+                    <th class="editable">Company</th>
+                    <th class="editable">Role</th>
+                    <th>Project Admin</th>
+                    <th>Insight</th>
+                    <th>Docs</th>
+                    <th>Design Collaboration</th>
+                    <th>Model Coordination</th>
+                    <th>Build</th>
+                    <th>Cost</th>
+                    <th>Forma</th>
+                    <th>Take Off</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let isSelecting = false;
+        let startCell = null;
+        let startRow = null;
+        let startColumn = null;
+        let selectedCells = new Set();
+        let lastEditedValue = null;
+        const ALLOWED_VALUES = ['none', 'member', 'administrator'];
+        const INSIGHT_VALUES = ['member', 'administrator'];
+        const PROJECT_ADMIN_VALUES = ['none', 'administrator'];
+        let activeTooltip = null;
+        const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        const existingEmails = new Set();
+        let saveTimeout = null;
+
+        // Save table data to localStorage
+        function saveTableData() {
+            const tbody = document.getElementById('tableBody');
+            const data = Array.from(tbody.rows).map(row => {
+                return Array.from(row.cells).map(cell => cell.textContent.trim());
+            });
+            localStorage.setItem('tableData', JSON.stringify(data));
+        }
+
+        // Load table data from JSON file
+        function loadTableData() {
+            fetch('http://localhost:3000/load')
+                .then(response => response.json())
+                .then(jsonData => {
+                    if (jsonData.users) {
+                        const tbody = document.getElementById('tableBody');
+                        tbody.innerHTML = ''; // Clear existing rows
+                        
+                        // Convert API format back to table format
+                        jsonData.users.forEach(user => {
+                            const row = document.createElement('tr');
+                            
+                            // Create email cell
+                            const emailCell = document.createElement('td');
+                            emailCell.textContent = user.email;
+                            emailCell.contentEditable = true;
+                            emailCell.className = 'editable';
+                            emailCell.addEventListener('paste', handlePaste);
+                            emailCell.addEventListener('blur', (e) => {
+                                const email = e.target.textContent.trim();
+                                if (email !== '') {
+                                    if (!validateEmail(email, e.target)) {
+                                        e.target.textContent = e.target.getAttribute('data-previous-value') || '';
+                                    } else {
+                                        e.target.setAttribute('data-previous-value', email);
+                                    }
+                                }
+                                updateUserCount();
+                                debounceSave();
+                            });
+                            emailCell.addEventListener('focus', (e) => {
+                                e.target.setAttribute('data-previous-value', e.target.textContent.trim());
+                            });
+                            if (user.email) {
+                                existingEmails.add(user.email);
+                            }
+                            row.appendChild(emailCell);
+                            
+                            // Create company and role cells with saved values
+                            // Company cell
+                            const companyCell = document.createElement('td');
+                            companyCell.contentEditable = true;
+                            companyCell.className = 'editable';  // Removed access-cell class
+                            companyCell.setAttribute('data-column', 1);
+                            companyCell.setAttribute('data-row', tbody.children.length);
+                            // Check both metadata and direct properties for backward compatibility
+                            companyCell.textContent = (user.metadata && user.metadata.company) || user.company || '';
+                            companyCell.addEventListener('paste', handlePaste);
+                            row.appendChild(companyCell);
+
+                            // Role cell
+                            const roleCell = document.createElement('td');
+                            roleCell.contentEditable = true;
+                            roleCell.className = 'editable';  // Removed access-cell class
+                            roleCell.setAttribute('data-column', 2);
+                            roleCell.setAttribute('data-row', tbody.children.length);
+                            // Check both metadata and direct properties for backward compatibility
+                            roleCell.textContent = (user.metadata && user.metadata.role) || user.role || '';
+                            roleCell.addEventListener('paste', handlePaste);
+                            row.appendChild(roleCell);
+
+                            // Debug log to verify data
+                            console.log('Loading user data:', {
+                                email: user.email,
+                                company: companyCell.textContent,
+                                role: roleCell.textContent,
+                                metadata: user.metadata
+                            });
+                            
+                            // Map API product keys back to table columns
+                            const productKeyMap = {
+                                'projectAdministration': 'Project Admin',
+                                'insight': 'Insight',
+                                'docs': 'Docs',
+                                'designCollaboration': 'Design Collaboration',
+                                'modelCoordination': 'Model Coordination',
+                                'build': 'Build',
+                                'cost': 'Cost',
+                                'forma': 'Forma',
+                                'takeoff': 'Take Off'
+                            };
+                            
+                            // Create access level cells
+                            const columnOrder = [
+                                'Project Admin', 'Insight', 'Docs', 
+                                'Design Collaboration', 'Model Coordination',
+                                'Build', 'Cost', 'Forma', 'Take Off'
+                            ];
+                            
+                            columnOrder.forEach((columnName, index) => {
+                                const cell = document.createElement('td');
+                                cell.className = 'access-cell';
+                                cell.contentEditable = true;
+                                cell.setAttribute('data-column', index + 3);
+                                cell.setAttribute('data-row', tbody.children.length);
+                                
+                                // Find matching product in user data
+                                const product = user.products.find(p => 
+                                    productKeyMap[p.key] === columnName
+                                );
+                                
+                                // Set default values
+                                if (columnName === 'Project Admin') {
+                                    cell.textContent = product ? product.access : 'none';
+                                } else {
+                                    cell.textContent = product ? product.access : 'member';
+                                }
+                                
+                                initializeAccessCell(cell);
+                                cell.classList.toggle('administrator', cell.textContent === 'administrator');
+                                row.appendChild(cell);
+                            });
+                            
+                            tbody.appendChild(row);
+                        });
+                        updateUserCount();
+                    } else {
+                        addRow(); // Add default row if no saved data
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    addRow(); // Add default row if loading fails
+                });
+        }
+
+        // Debounced save function
+        function debounceSave() {
+            if (saveTimeout) {
+                clearTimeout(saveTimeout);
+            }
+            saveTimeout = setTimeout(saveToFile, 1000); // Save after 1 second of inactivity
+        }
+
+        function validateEmail(email, cell) {
+            email = email.trim();
+            if (!emailRegex.test(email)) {
+                cell.classList.add('error-cell');
+                showTooltip(cell, 'Invalid email format');
+                return false;
+            }
+            
+            // Check for duplicates, excluding the current cell's previous value
+            const previousValue = cell.getAttribute('data-previous-value');
+            if (previousValue) existingEmails.delete(previousValue);
+            
+            if (existingEmails.has(email)) {
+                cell.classList.add('error-cell');
+                showTooltip(cell, 'Duplicate email address');
+                return false;
+            }
+            
+            cell.classList.remove('error-cell');
+            existingEmails.add(email);
+            return true;
+        }
+
+        function updateUserCount() {
+            const tbody = document.getElementById('tableBody');
+            const validRows = Array.from(tbody.rows).filter(row => {
+                const emailCell = row.cells[0];
+                return emailCell.textContent.trim() !== '' && 
+                       !emailCell.classList.contains('error-cell');
+            });
+            document.getElementById('tableSummary').textContent = 
+                `Total Users: ${validRows.length}`;
+        }
+
+        window.onload = function() {
+            loadTableData();
+            setupSelectionHandlers();
+        };
+
+        function setupSelectionHandlers() {
+            document.addEventListener('mouseup', () => {
+                if (isSelecting) {
+                    isSelecting = false;
+                    startCell = null;
+                    document.querySelectorAll('.selecting').forEach(cell => {
+                        cell.classList.remove('selecting');
+                    });
+                    if (lastEditedValue !== null && selectedCells.size > 0) {
+                        fillSelection(lastEditedValue);
+                        lastEditedValue = null;
+                    }
+                }
+            });
+
+            document.addEventListener('selectstart', (e) => {
+                if (isSelecting) e.preventDefault();
+            });
+        }
+
+        function showTooltip(cell, message) {
+            removeTooltip();
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.textContent = message;
+            document.body.appendChild(tooltip);
+
+            const rect = cell.getBoundingClientRect();
+            tooltip.style.top = rect.bottom + window.scrollY + 5 + 'px';
+            tooltip.style.left = rect.left + window.scrollX + 'px';
+
+            activeTooltip = tooltip;
+
+            setTimeout(removeTooltip, 3000);
+        }
+
+        function removeTooltip() {
+            if (activeTooltip) {
+                activeTooltip.remove();
+                activeTooltip = null;
+            }
+        }
+
+        function validateAccessValue(cell, value) {
+            const trimmedValue = value.trim().toLowerCase();
+            if (!trimmedValue) {
+                return false;
+            }
+
+            const columnIndex = parseInt(cell.getAttribute('data-column'));
+            let allowedValues, errorMessage;
+
+            if (columnIndex === 3) { // Project Admin
+                allowedValues = PROJECT_ADMIN_VALUES;
+                errorMessage = 'Invalid value. Project Admin can only be none or administrator';
+            } else if (columnIndex === 4) { // Insight
+                allowedValues = INSIGHT_VALUES;
+                errorMessage = 'Invalid value. Allowed values: member or administrator';
+            } else {
+                allowedValues = ALLOWED_VALUES;
+                errorMessage = 'Invalid value. Allowed values: none, member, or administrator';
+            }
+
+            if (!allowedValues.includes(trimmedValue)) {
+                cell.classList.add('error');
+                showTooltip(cell, errorMessage);
+                return false;
+            }
+            
+            cell.classList.remove('error');
+            removeTooltip();
+            return trimmedValue;
+        }
+
+        function handleProjectAdminChange(row, newValue) {
+            const cells = Array.from(row.cells);
+            if (newValue === 'administrator') {
+                // Set all access permission cells to administrator (starting from Project Admin)
+                cells.slice(3).forEach((cell, index) => {
+                    if (cell.classList.contains('access-cell')) {
+                        cell.textContent = 'administrator';
+                        cell.classList.add('administrator');
+                    }
+                });
+            } else if (newValue === 'none') {
+                // Set all other cells to member (except Project Admin)
+                cells.slice(3).forEach((cell, index) => {
+                    if (cell.classList.contains('access-cell') && index !== 0) { // index 0 is Project Admin in the sliced array
+                        if (index === 1) { // Insight (index 4 in original array)
+                            cell.textContent = 'member';
+                        } else {
+                            cell.textContent = 'member';
+                        }
+                        cell.classList.remove('administrator');
+                    }
+                });
+            }
+            return true;
+        }
+
+        function updateRowAccessLevels(row, newValue, sourceCell) {
+            const columnIndex = parseInt(sourceCell.getAttribute('data-column'));
+            
+            // Skip propagation for Company and Role columns
+            if (columnIndex === 1 || columnIndex === 2) {
+                return true;
+            }
+            
+            // If change is in Project Admin column, handle specially
+            if (columnIndex === 3) {
+                return handleProjectAdminChange(row, newValue);
+            }
+
+            // Check if we're changing from administrator to something else in access columns (3 and above)
+            const wasAdmin = Array.from(row.cells)
+                .slice(3) // Start from Project Admin column
+                .some(cell => cell.classList.contains('access-cell') && 
+                      cell.textContent.toLowerCase() === 'administrator');
+
+            // If Project Admin is administrator, prevent changes to other access columns
+            const projectAdminCell = row.cells[3];
+            if (projectAdminCell.textContent.toLowerCase() === 'administrator' && 
+                newValue !== 'administrator') {
+                showTooltip(sourceCell, 
+                    'Cannot change access level when Project Admin is administrator');
+                return false;
+            }
+
+            if (newValue === 'administrator' || wasAdmin) {
+                // Apply the new value only to access permission cells (starting from Project Admin)
+                for (let i = 3; i < row.cells.length; i++) {
+                    const cell = row.cells[i];
+                    if (cell.classList.contains('access-cell')) {
+                        if (i === 3) { // Project Admin
+                            cell.textContent = newValue === 'administrator' ? 'administrator' : 'none';
+                        } else if (i === 4 && newValue === 'none') { // Insight
+                            cell.textContent = 'member';
+                        } else {
+                            cell.textContent = newValue;
+                        }
+                        cell.classList.toggle('administrator', cell.textContent === 'administrator');
+                    }
+                }
+            }
+            return true;
+        }
+
+        function addRow() {
+            const tbody = document.getElementById('tableBody');
+            const row = document.createElement('tr');
+            
+            for (let i = 0; i < 12; i++) {
+                const cell = document.createElement('td');
+                if (i === 0) { // Email column
+                    cell.contentEditable = true;
+                    cell.className = 'editable';
+                    cell.addEventListener('paste', handlePaste);
+                    cell.addEventListener('blur', (e) => {
+                        const email = e.target.textContent.trim();
+                        if (email !== '') {
+                            if (!validateEmail(email, cell)) {
+                                cell.textContent = cell.getAttribute('data-previous-value') || '';
+                            } else {
+                                cell.setAttribute('data-previous-value', email);
+                            }
+                        }
+                        updateUserCount();
+                        debounceSave();
+                    });
+                    cell.addEventListener('focus', (e) => {
+                        cell.setAttribute('data-previous-value', cell.textContent.trim());
+                    });
+                } else if (i === 1 || i === 2) { // Company and Role columns
+                    cell.contentEditable = true;
+                    cell.className = 'editable access-cell';
+                    cell.setAttribute('data-column', i);
+                    cell.setAttribute('data-row', tbody.children.length);
+                    initializeAccessCell(cell);
+                    cell.addEventListener('paste', handlePaste);
+                } else {
+                    cell.className = 'access-cell';
+                    cell.contentEditable = true;
+                    cell.setAttribute('data-column', i);
+                    cell.setAttribute('data-row', tbody.children.length);
+                    // Set default values
+                    if (i === 3) { // Project Admin
+                        cell.textContent = 'none';
+                    } else {
+                        cell.textContent = 'member';
+                    }
+                    initializeAccessCell(cell);
+                }
+                row.appendChild(cell);
+            }
+
+            tbody.appendChild(row);
+        }
+
+        function initializeAccessCell(cell) {
+            cell.addEventListener('mousedown', (e) => {
+                if (document.activeElement === cell) {
+                    return;
+                }
+                isSelecting = true;
+                startCell = cell;
+                startRow = parseInt(cell.getAttribute('data-row'));
+                startColumn = parseInt(cell.getAttribute('data-column'));
+                clearSelection();
+                toggleCellSelection(cell);
+            });
+
+            cell.addEventListener('mouseenter', (e) => {
+                if (isSelecting && startCell) {
+                    const currentRow = parseInt(cell.getAttribute('data-row'));
+                    const currentColumn = parseInt(cell.getAttribute('data-column'));
+                    updateSelection(startRow, currentRow, startColumn, currentColumn);
+                }
+            });
+
+            cell.addEventListener('input', (e) => {
+                const columnIndex = parseInt(cell.getAttribute('data-column'));
+                if (columnIndex === 1 || columnIndex === 2) { // Company or Role
+                    lastEditedValue = e.target.textContent;
+                } else {
+                    const validValue = validateAccessValue(cell, e.target.textContent);
+                    if (validValue) {
+                        if (updateRowAccessLevels(cell.parentElement, validValue, cell)) {
+                            lastEditedValue = validValue;
+                            cell.textContent = validValue;
+                            cell.classList.toggle('administrator', validValue === 'administrator');
+                        } else {
+                            cell.textContent = cell.getAttribute('data-previous-value') || 'member';
+                        }
+                    }
+                }
+            });
+
+            cell.addEventListener('focus', (e) => {
+                cell.setAttribute('data-previous-value', cell.textContent);
+            });
+
+            cell.addEventListener('blur', (e) => {
+                if (!isSelecting) {
+                    lastEditedValue = null;
+                }
+                const columnIndex = parseInt(cell.getAttribute('data-column'));
+                if (columnIndex === 1 || columnIndex === 2) return; // Skip validation for Company and Role
+                const value = e.target.textContent.trim().toLowerCase();
+                
+                let defaultValue = 'member';
+                if (columnIndex === 3) { // Project Admin
+                    defaultValue = 'none';
+                }
+
+                if (!value || 
+                    (columnIndex === 3 && !PROJECT_ADMIN_VALUES.includes(value)) ||
+                    (columnIndex === 4 && !INSIGHT_VALUES.includes(value)) ||
+                    (!ALLOWED_VALUES.includes(value) && columnIndex > 4)) {
+                    const previousValue = cell.getAttribute('data-previous-value');
+                    e.target.textContent = previousValue || defaultValue;
+                } else {
+                    updateRowAccessLevels(cell.parentElement, value, cell);
+                }
+                
+                cell.classList.toggle('administrator', e.target.textContent === 'administrator');
+            });
+
+            cell.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cell.blur();
+                }
+            });
+        }
+
+        // [Rest of the code remains the same: toggleCellSelection, updateSelection, 
+        // fillSelection, clearSelection, handlePaste, clearTable functions]
+        
+        function toggleCellSelection(cell) {
+            if (selectedCells.has(cell)) {
+                selectedCells.delete(cell);
+                cell.classList.remove('selected');
+            } else {
+                selectedCells.add(cell);
+                cell.classList.add('selected');
+            }
+        }
+
+        function updateSelection(startRow, currentRow, startColumn, currentColumn) {
+            clearSelection();
+            
+            const tbody = document.getElementById('tableBody');
+            const rowStart = Math.min(startRow, currentRow);
+            const rowEnd = Math.max(startRow, currentRow);
+            const colStart = Math.min(startColumn, currentColumn);
+            const colEnd = Math.max(startColumn, currentColumn);
+
+            for (let i = rowStart; i <= rowEnd; i++) {
+                const row = tbody.rows[i];
+                for (let j = colStart; j <= colEnd; j++) {
+                    const cell = row.cells[j];
+                    if (cell.classList.contains('access-cell')) {
+                        selectedCells.add(cell);
+                        cell.classList.add('selected');
+                        cell.classList.add('selecting');
+                    }
+                }
+            }
+        }
+
+        function fillSelection(value) {
+            const affectedRows = new Set();
+            
+            selectedCells.forEach(cell => {
+                affectedRows.add(cell.parentElement);
+            });
+
+            selectedCells.forEach(cell => {
+                const columnIndex = parseInt(cell.getAttribute('data-column'));
+                if (columnIndex === 3) { // Project Admin
+                    if (value === 'member') {
+                        cell.textContent = 'none';
+                    } else {
+                        cell.textContent = value;
+                    }
+                    handleProjectAdminChange(cell.parentElement, cell.textContent);
+                } else if (columnIndex === 4 && value === 'none') { // Insight
+                    cell.textContent = 'member';
+                } else {
+                    cell.textContent = value;
+                }
+                cell.classList.remove('error');
+                cell.classList.toggle('administrator', cell.textContent === 'administrator');
+            });
+            debounceSave();
+        }
+
+        function clearSelection() {
+            selectedCells.forEach(cell => {
+                cell.classList.remove('selected');
+                cell.classList.remove('selecting');
+            });
+            selectedCells.clear();
+        }
+
+        function handlePaste(e) {
+            e.preventDefault();
+            const pasteData = e.clipboardData.getData('text');
+            const values = pasteData
+                .split(/[\r\n]+/)
+                .map(value => value.trim())
+                .filter(value => value.length > 0);
+
+            const tbody = document.getElementById('tableBody');
+            const currentRow = e.target.parentElement;
+            const currentRowIndex = Array.from(tbody.children).indexOf(currentRow);
+            const columnIndex = Array.from(currentRow.children).indexOf(e.target);
+
+            if (values.length > 0) {
+                e.target.textContent = values[0];
+            }
+
+            for (let i = 1; i < values.length; i++) {
+                let targetRow;
+                if (currentRowIndex + i >= tbody.children.length) {
+                    addRow();
+                    targetRow = tbody.lastElementChild;
+                } else {
+                    targetRow = tbody.children[currentRowIndex + i];
+                }
+                const targetCell = targetRow.children[columnIndex];
+                if (targetCell) {
+                    targetCell.textContent = values[i];
+                }
+            }
+        }
+
+        function deleteSelectedRows() {
+            const rowsToDelete = new Set();
+            selectedCells.forEach(cell => {
+                rowsToDelete.add(cell.parentElement);
+            });
+
+            if (rowsToDelete.size === 0) {
+                alert('Please select at least one cell in the row you want to delete');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to delete ${rowsToDelete.size} row(s)?`)) {
+                rowsToDelete.forEach(row => {
+                    // Remove email from tracking
+                    const emailCell = row.cells[0];
+                    if (emailCell) {
+                        existingEmails.delete(emailCell.textContent.trim());
+                    }
+                    // Remove the row
+                    row.remove();
+                });
+
+                // Clear selection
+                clearSelection();
+
+                // If no rows left, add an empty one
+                const tbody = document.getElementById('tableBody');
+                if (tbody.children.length === 0) {
+                    addRow();
+                }
+
+                updateUserCount();
+                debounceSave();
+            }
+        }
+
+        function clearTable() {
+            if (confirm('Are you sure you want to clear the table?')) {
+                document.getElementById('tableBody').innerHTML = '';
+                existingEmails.clear();
+                addRow();
+                updateUserCount();
+                debounceSave();
+            }
+        }
+
+        function saveTableToJson() {
+            const tbody = document.getElementById('tableBody');
+            
+            // Map table columns to API product keys
+            const productKeyMap = {
+                'Project Admin': 'projectAdministration',
+                'Insight': 'insight',
+                'Docs': 'docs',
+                'Design Collaboration': 'designCollaboration',
+                'Model Coordination': 'modelCoordination',
+                'Build': 'build',
+                'Cost': 'cost',
+                'Forma': 'forma',
+                'Take Off': 'takeoff'
+            };
+
+            // Convert table to API format
+            const users = Array.from(tbody.rows)
+                .filter(row => row.cells[0].textContent.trim() !== '') // Filter out empty emails
+                .map(row => {
+                    // Create products array with access levels
+                    const products = [];
+                    for (let i = 3; i < row.cells.length; i++) {
+                        const columnName = tbody.parentElement.querySelector('th:nth-child(' + (i + 1) + ')').textContent;
+                        const access = row.cells[i].textContent.trim().toLowerCase();
+                        if (productKeyMap[columnName]) {
+                            products.push({
+                                key: productKeyMap[columnName],
+                                access: access
+                            });
+                        }
+                    }
+
+                    // Create user object with metadata
+                    const userData = {
+                        email: row.cells[0].textContent.trim(),
+                        companyId: "", // Required by API
+                        roleIds: [], // Required by API
+                        products: products,
+                        metadata: {
+                            company: row.cells[1].textContent.trim(),
+                            role: row.cells[2].textContent.trim()
+                        }
+                    };
+                    return userData;
+                });
+
+            // Create final JSON structure
+            const jsonData = {
+                users: users
+            };
+
+            // Save JSON file to local folder through server endpoint
+            fetch('http://localhost:3000/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('File saved successfully to c:\\MCPServer\\github_AI\\user_permissions_import.json');
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error saving file: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>
