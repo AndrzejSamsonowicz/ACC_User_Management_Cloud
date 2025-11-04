@@ -1,99 +1,54 @@
 {
   "users": [
     {
-      "email": "andrzej.jan.samsonowicz@gmail.com",
+      "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
-        "company": "GoldenInvestment Inc",
+        "company": "BIM Consulting",
         "role": "General Contractor"
       },
       "products": [
         {
           "key": "projectAdministration",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "insight",
-          "access": "member"
+          "access": "administrator"
         },
         {
           "key": "docs",
-          "access": "member"
+          "access": "administrator"
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "modelCoordination",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "build",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "cost",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "forma",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "takeoff",
-          "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@gazeta.pl",
-      "metadata": {
-        "company": "Structural Engineers Inc",
-        "role": "Architect"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
+          "access": "administrator"
         }
       ]
     },
     {
       "email": "samson090281@yahoo.com",
       "metadata": {
-        "company": "General Electric Inc",
+        "company": "Architekten AG",
         "role": "Electrical Engineer"
       },
       "products": [
@@ -111,15 +66,15 @@
         },
         {
           "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
           "access": "none"
         },
         {
-          "key": "build",
+          "key": "modelCoordination",
           "access": "member"
+        },
+        {
+          "key": "build",
+          "access": "none"
         },
         {
           "key": "cost",
@@ -138,8 +93,8 @@
     {
       "email": "samson090281@wp.pl",
       "metadata": {
-        "company": "BIM Consulting",
-        "role": "Investor"
+        "company": "Bau AG",
+        "role": "Structural Engineer"
       },
       "products": [
         {
@@ -156,11 +111,11 @@
         },
         {
           "key": "designCollaboration",
-          "access": "member"
+          "access": "none"
         },
         {
           "key": "modelCoordination",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "build",
@@ -184,6 +139,51 @@
       "email": "samson090281@op.pl",
       "metadata": {
         "company": "Solid Structures Inc",
+        "role": "Architect"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@gmail.com",
+      "metadata": {
+        "company": "Bau AG",
         "role": "Investor"
       },
       "products": [
@@ -201,11 +201,56 @@
         },
         {
           "key": "designCollaboration",
+          "access": "member"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "member"
+        },
+        {
+          "key": "build",
+          "access": "member"
+        },
+        {
+          "key": "cost",
+          "access": "member"
+        },
+        {
+          "key": "forma",
+          "access": "member"
+        },
+        {
+          "key": "takeoff",
+          "access": "member"
+        }
+      ]
+    },
+    {
+      "email": "andrzej.jan.samsonowicz@gmail.com",
+      "metadata": {
+        "company": "General Electric",
+        "role": "General Contractor"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
           "access": "none"
         },
         {
           "key": "modelCoordination",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "build",
@@ -226,55 +271,55 @@
       ]
     },
     {
-      "email": "andrzej.samsonowicz@autodesk.com",
+      "email": "samson090281@gazeta.pl",
       "metadata": {
-        "company": "Autodesk",
-        "role": "BIM Manager"
+        "company": "BIM Consulting",
+        "role": "Architect"
       },
       "products": [
         {
           "key": "projectAdministration",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "insight",
-          "access": "administrator"
+          "access": "member"
         },
         {
           "key": "docs",
-          "access": "administrator"
+          "access": "member"
         },
         {
           "key": "designCollaboration",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "modelCoordination",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "build",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "cost",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "forma",
-          "access": "administrator"
+          "access": "none"
         },
         {
           "key": "takeoff",
-          "access": "administrator"
+          "access": "none"
         }
       ]
     },
     {
       "email": "mateja.kovacic@autodesk.com",
       "metadata": {
-        "company": "Autodesk",
-        "role": "BIM Manager"
+        "company": "BIM Consulting",
+        "role": "Structural Engineer"
       },
       "products": [
         {
@@ -316,5 +361,5 @@
       ]
     }
   ],
-  "exportDate": "2025-11-02T07:35:04.436Z"
+  "exportDate": "2025-11-03T12:07:24.661Z"
 }

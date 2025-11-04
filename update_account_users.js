@@ -84,39 +84,67 @@ async function fetchAllCompanies(accountId, twoLeggedToken) {
 // Create companies in batch via HQ companies import
 async function createCompanies(accountId, twoLeggedToken, companies) {
     if (!companies || companies.length === 0) return [];
-    const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/companies/import`;
     
-    // Format according to POST Companies documentation
-    const payload = companies.map(c => ({
-        name: c.name,
-        trade: c.trade || "General Contractor", // Required field with default
-        address_line_1: c.address_line_1 || "TBD",
-        city: c.city || "Unknown",
-        country: c.country || "US",
-        phone: c.phone || "000-000-0000",
-        description: c.description || "Auto-created company"
-    }));
+    console.log(`🏢 Creating ${companies.length} companies one by one...`);
+    const created = [];
+    
+    for (const company of companies) {
+        try {
+            const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/companies`;
+            
+            // Format according to POST Company documentation
+            // Only include non-empty fields to avoid API validation errors
+            const payload = {
+                name: company.name,
+                trade: company.trade || "General Contractor"
+            };
+            
+            // Only add optional fields if they have values
+            if (company.address_line_1) payload.address_line_1 = company.address_line_1;
+            if (company.address_line_2) payload.address_line_2 = company.address_line_2;
+            if (company.city) payload.city = company.city;
+            if (company.state_or_province) payload.state_or_province = company.state_or_province;
+            if (company.postal_code) payload.postal_code = company.postal_code;
+            if (company.country) payload.country = company.country;
+            if (company.phone) payload.phone = company.phone;
+            if (company.website_url) payload.website_url = company.website_url;
+            if (company.description) payload.description = company.description;
 
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${twoLeggedToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    });
+            console.log('🏢 Creating company:', company.name);
+            console.log('🏢 POST URL:', url);
+            console.log('🏢 Payload:', JSON.stringify(payload, null, 2));
 
-    if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Error creating companies: ${res.status} ${res.statusText} - ${txt}`);
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${twoLeggedToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            console.log('🏢 Response status:', res.status, res.statusText);
+
+            if (!res.ok) {
+                const txt = await res.text();
+                console.error('🏢 Error response body:', txt);
+                console.warn(`⚠️ Failed to create company "${company.name}": ${res.status} ${res.statusText}`);
+                // Continue with next company instead of throwing
+                continue;
+            }
+
+            const result = await res.json();
+            console.log('✅ Successfully created company:', company.name, result);
+            created.push(result);
+            
+        } catch (error) {
+            console.error(`❌ Error creating company "${company.name}":`, error);
+            // Continue with next company
+        }
     }
-
-    // The API may return created companies or just status
-    try {
-        return await res.json();
-    } catch {
-        return payload; // fallback if no JSON response
-    }
+    
+    console.log(`🏢 Created ${created.length} out of ${companies.length} companies`);
+    return created;
 }
 
 // Fetch all account users from HQ API (the correct endpoint from documentation)
@@ -385,7 +413,9 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         if (companiesToCreate.size > 0) {
             const createList = Array.from(companiesToCreate.values());
             console.log('Creating companies:', createList);
-            await createCompanies(accountId, twoLeggedToken, createList);
+            // Use 2-legged token with account:write scope for company creation
+            console.log('🔑 Using 2-legged token with account:write scope for company creation');
+            await createCompanies(accountId, hqApiToken, createList);
 
             // Re-fetch companies
             companies = await fetchAllCompanies(accountId, twoLeggedToken);
