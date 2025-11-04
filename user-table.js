@@ -30,6 +30,15 @@ class UserTableManager {
         this.tableBodyId = 'modalTableBody';
         this.tableSummaryId = 'modalTableSummary';
         this.currentlyFocusedCell = null; // Track the currently focused cell for row deletion
+        this.sortState = {
+            columnIndex: null,
+            ascending: true
+        };
+        // Drag-to-fill state
+        this.isDragging = false;
+        this.dragSourceCell = null;
+        this.dragSourceValue = null;
+        this.draggedCells = new Set();
     }
 
     /**
@@ -37,6 +46,257 @@ class UserTableManager {
      */
     init() {
         this.setupEventListeners();
+        this.setupSortingListeners();
+        this.setupCheckboxListeners();
+        this.setupDragToFillListeners();
+    }
+
+    /**
+     * Setup checkbox listeners for row deletion
+     */
+    setupCheckboxListeners() {
+        // Select All checkbox in header
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const tbody = document.getElementById(this.tableBodyId);
+                const checkboxes = tbody.querySelectorAll('input[type="checkbox"].row-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = e.target.checked;
+                });
+                console.log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all rows`);
+            });
+        }
+    }
+
+    /**
+     * Setup drag-to-fill listeners (Excel-like cell filling)
+     */
+    setupDragToFillListeners() {
+        const tbody = document.getElementById(this.tableBodyId);
+        
+        // Use event delegation for dynamic rows
+        tbody.addEventListener('mousedown', (e) => {
+            const cell = e.target.closest('td');
+            if (!cell) return;
+            
+            // Don't start drag if clicking on checkbox cell or checkbox
+            if (cell.cellIndex === 0 || e.target.type === 'checkbox') {
+                return;
+            }
+            
+            // Only start drag on left mouse button
+            if (e.button !== 0) return;
+            
+            // Prepare for potential drag (but don't prevent default yet - allow editing)
+            this.dragSourceCell = cell;
+            this.dragSourceValue = cell.textContent.trim();
+            this.draggedCells.clear();
+            this.draggedCells.add(cell);
+            
+            console.log('🖱️ Drag ready from cell:', this.dragSourceValue);
+        });
+        
+        tbody.addEventListener('mousemove', (e) => {
+            // Only activate drag if we have a source cell and mouse is moving
+            if (!this.dragSourceCell) return;
+            
+            // Activate dragging mode on first move
+            if (!this.isDragging) {
+                this.isDragging = true;
+                console.log('🖱️ Drag activated, started from cell:', this.dragSourceValue);
+            }
+            
+            const cell = e.target.closest('td');
+            if (!cell) return;
+            
+            // Skip checkbox cells
+            if (cell.cellIndex === 0) return;
+            
+            const sourceRow = this.dragSourceCell.parentElement;
+            const targetRow = cell.parentElement;
+            const sourceColIndex = this.dragSourceCell.cellIndex;
+            const targetColIndex = cell.cellIndex;
+            
+            // Check if dragging vertically (same column) or horizontally (same row)
+            const isVertical = sourceColIndex === targetColIndex;
+            const isHorizontal = sourceRow === targetRow;
+            
+            if (isVertical || isHorizontal) {
+                // Add to dragged cells
+                this.draggedCells.add(cell);
+                
+                // Visual feedback - highlight cell
+                cell.style.backgroundColor = '#ffffcc';
+                
+                console.log(`🖱️ Dragging over cell (${isVertical ? 'vertical' : 'horizontal'})`);
+            }
+        });
+        
+        document.addEventListener('mouseup', (e) => {
+            // Only process if we were dragging
+            if (!this.isDragging && !this.dragSourceCell) {
+                return;
+            }
+            
+            // If we were dragging, fill the cells
+            if (this.isDragging && this.draggedCells.size > 1) {
+                console.log(`🖱️ Drag ended, filling ${this.draggedCells.size} cells`);
+                
+                // Fill all dragged cells with source value
+                this.draggedCells.forEach(cell => {
+                    if (cell !== this.dragSourceCell) {
+                        // Check if dragging to email column - validate format
+                        if (cell.cellIndex === 1) { // Email column (index 1 after checkbox)
+                            if (!this.emailRegex.test(this.dragSourceValue)) {
+                                console.log(`❌ Cannot drag non-email "${this.dragSourceValue}" to email column`);
+                                cell.style.backgroundColor = ''; // Clear highlight
+                                return; // Skip this cell
+                            }
+                        }
+                        
+                        // Remove highlight
+                        cell.style.backgroundColor = '';
+                        
+                        // Fill with source value
+                        const oldValue = cell.textContent.trim();
+                        cell.textContent = this.dragSourceValue;
+                        
+                        console.log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
+                        
+                        // If this is an access cell, apply administrator class if needed
+                        if (cell.classList.contains('modal-access-cell')) {
+                            cell.classList.toggle('administrator', this.dragSourceValue === 'administrator');
+                            
+                            // Trigger auto-upgrade if filled with administrator
+                            if (this.dragSourceValue === 'administrator') {
+                                this.upgradeAllAccessToAdministrator(cell);
+                            }
+                        }
+                    }
+                });
+                
+                // Re-check duplicates if email column was modified
+                this.recheckDuplicates();
+                this.updateUserCount();
+            }
+            
+            // Clear any remaining yellow highlights on mouseup
+            this.draggedCells.forEach(cell => {
+                cell.style.backgroundColor = '';
+            });
+            
+            // Reset drag state
+            this.isDragging = false;
+            this.dragSourceCell = null;
+            this.dragSourceValue = null;
+            this.draggedCells.clear();
+        });
+    }
+
+    /**
+     * Setup row selection listeners for multi-select
+     */
+
+
+    /**
+     * Setup sorting listeners for table headers
+     */
+    setupSortingListeners() {
+        const table = document.getElementById('modalUserTable');
+        const headers = table.querySelectorAll('thead th');
+        
+        headers.forEach((header, index) => {
+            header.style.cursor = 'pointer';
+            header.style.userSelect = 'none';
+            header.style.position = 'relative';
+            
+            // Add sort indicator container
+            const sortIndicator = document.createElement('span');
+            sortIndicator.className = 'sort-indicator';
+            sortIndicator.style.marginLeft = '5px';
+            sortIndicator.style.fontSize = '10px';
+            sortIndicator.style.opacity = '0.5';
+            header.appendChild(sortIndicator);
+            
+            header.addEventListener('click', () => {
+                this.sortTable(index);
+            });
+        });
+    }
+
+    /**
+     * Sort table by column index
+     */
+    sortTable(columnIndex) {
+        console.log(`🔃 Sorting column ${columnIndex}`);
+        
+        const tbody = document.getElementById(this.tableBodyId);
+        const rows = Array.from(tbody.rows);
+        
+        // Determine sort direction
+        const ascending = this.sortState.columnIndex === columnIndex ? !this.sortState.ascending : true;
+        
+        // Sort rows
+        rows.sort((rowA, rowB) => {
+            const cellA = rowA.cells[columnIndex].textContent.trim().toLowerCase();
+            const cellB = rowB.cells[columnIndex].textContent.trim().toLowerCase();
+            
+            // Handle empty values - push to bottom
+            if (!cellA && cellB) return 1;
+            if (cellA && !cellB) return -1;
+            if (!cellA && !cellB) return 0;
+            
+            // For access level columns (index >= 3), sort by priority: administrator > member > none
+            if (columnIndex >= 3) {
+                const accessOrder = { 'administrator': 3, 'member': 2, 'none': 1, '': 0 };
+                const orderA = accessOrder[cellA] || 0;
+                const orderB = accessOrder[cellB] || 0;
+                
+                if (orderA !== orderB) {
+                    return ascending ? orderA - orderB : orderB - orderA;
+                }
+            }
+            
+            // Default alphabetical comparison
+            if (cellA < cellB) return ascending ? -1 : 1;
+            if (cellA > cellB) return ascending ? 1 : -1;
+            return 0;
+        });
+        
+        // Clear and re-append sorted rows
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Update sort state
+        this.sortState.columnIndex = columnIndex;
+        this.sortState.ascending = ascending;
+        
+        // Update sort indicators
+        this.updateSortIndicators();
+        
+        console.log(`✅ Sorted column ${columnIndex} ${ascending ? 'ascending' : 'descending'}`);
+    }
+
+    /**
+     * Update sort indicators in table headers
+     */
+    updateSortIndicators() {
+        const table = document.getElementById('modalUserTable');
+        const headers = table.querySelectorAll('thead th');
+        
+        headers.forEach((header, index) => {
+            const indicator = header.querySelector('.sort-indicator');
+            if (indicator) {
+                if (index === this.sortState.columnIndex) {
+                    indicator.textContent = this.sortState.ascending ? '▲' : '▼';
+                    indicator.style.opacity = '1';
+                } else {
+                    indicator.textContent = '▲';
+                    indicator.style.opacity = '0.3';
+                }
+            }
+        });
     }
 
     /**
@@ -93,6 +353,10 @@ class UserTableManager {
         const tbody = document.getElementById(this.tableBodyId);
         const row = document.createElement('tr');
         
+        // Checkbox cell
+        const checkboxCell = this.createCheckboxCell();
+        row.appendChild(checkboxCell);
+        
         // Email cell
         console.log('➕ Creating email cell...');
         const emailCell = this.createEmailCell();
@@ -114,7 +378,7 @@ class UserTableManager {
         ];
         
         accessColumns.forEach((columnName, index) => {
-            const cell = this.createAccessCell(columnName, index + 3, tbody.children.length);
+            const cell = this.createAccessCell(columnName, index + 4, tbody.children.length);
             row.appendChild(cell);
         });
         
@@ -124,11 +388,32 @@ class UserTableManager {
     }
 
     /**
+     * Create a checkbox cell for row selection
+     */
+    createCheckboxCell() {
+        const cell = document.createElement('td');
+        cell.style.textAlign = 'center';
+        cell.style.width = '40px';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'row-checkbox';
+        checkbox.style.cursor = 'pointer';
+        
+        cell.appendChild(checkbox);
+        return cell;
+    }
+
+    /**
      * Create a new table row (without appending it to the table)
      */
     createNewRow() {
         console.log('🔧 createNewRow() called');
         const row = document.createElement('tr');
+        
+        // Checkbox cell
+        const checkboxCell = this.createCheckboxCell();
+        row.appendChild(checkboxCell);
         
         // Email cell
         const emailCell = this.createEmailCell();
@@ -150,7 +435,7 @@ class UserTableManager {
         ];
         
         accessColumns.forEach((columnName, index) => {
-            const cell = this.createAccessCell(columnName, index + 3, 0); // Use 0 for row index as placeholder
+            const cell = this.createAccessCell(columnName, index + 4, 0); // Use 0 for row index as placeholder, +4 for checkbox column
             row.appendChild(cell);
         });
         
@@ -250,17 +535,28 @@ class UserTableManager {
      */
     initializeAccessCell(cell) {
         cell.addEventListener('blur', (e) => {
+            const previousValue = e.target.getAttribute('data-previous-value') || 'none';
             const value = this.validateAccessValue(e.target, e.target.textContent);
+            
+            console.log(`🔍 Access cell blur - Previous: "${previousValue}", New: "${value}"`);
+            
             if (value !== false) {
                 e.target.textContent = value;
                 e.target.classList.toggle('administrator', value === 'administrator');
                 
                 // If this cell becomes "administrator", upgrade all other access cells in the same row
                 if (value === 'administrator') {
+                    console.log('⬆️ Triggering upgrade to administrator');
                     this.upgradeAllAccessToAdministrator(e.target);
                 }
+                // If this cell was "administrator" and becomes something else, downgrade all other cells
+                else if (previousValue === 'administrator' && value !== 'administrator') {
+                    console.log('⬇️ Triggering downgrade from administrator');
+                    this.downgradeAllAccessFromAdministrator(e.target);
+                }
             } else {
-                e.target.textContent = e.target.getAttribute('data-previous-value') || 'none';
+                console.log('❌ Validation failed, reverting to previous value');
+                e.target.textContent = previousValue;
             }
         });
         
@@ -279,8 +575,8 @@ class UserTableManager {
         console.log('🔐 upgradeAllAccessToAdministrator() called');
         const row = triggerCell.parentElement;
         
-        // Find all access level cells in this row (columns 3-11: Project Admin through Take Off)
-        const accessCells = Array.from(row.cells).slice(3); // Skip Email (0), Company (1), Role (2)
+        // Find all access level cells in this row (columns 4-12: Project Admin through Take Off)
+        const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
         
         console.log(`🔐 Upgrading ${accessCells.length} access cells to administrator`);
         
@@ -288,8 +584,14 @@ class UserTableManager {
             const currentValue = cell.textContent.trim().toLowerCase();
             const columnIndex = parseInt(cell.getAttribute('data-column'));
             
-            // Project Admin (column 3) can only be 'none' or 'administrator'
-            if (columnIndex === 3) {
+            // Only upgrade cells that have the modal-access-cell class (skip any non-product cells)
+            if (!cell.classList.contains('modal-access-cell')) {
+                console.log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
+                return;
+            }
+            
+            // Project Admin (column 4) can only be 'none' or 'administrator'
+            if (columnIndex === 4) {
                 if (currentValue !== 'administrator') {
                     cell.textContent = 'administrator';
                     cell.classList.add('administrator');
@@ -309,19 +611,65 @@ class UserTableManager {
     }
 
     /**
+     * Downgrade all access level cells in a row from "administrator"
+     * When any product is downgraded from "administrator", all products must be downgraded
+     * Insight and Docs become "member", all others become "none"
+     */
+    downgradeAllAccessFromAdministrator(triggerCell) {
+        console.log('🔓 downgradeAllAccessFromAdministrator() called');
+        const row = triggerCell.parentElement;
+        
+        // Find all access level cells in this row (columns 4-12: Project Admin through Take Off)
+        const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
+        
+        console.log(`🔓 Downgrading ${accessCells.length} access cells from administrator`);
+        
+        accessCells.forEach((cell, index) => {
+            const currentValue = cell.textContent.trim().toLowerCase();
+            const columnIndex = parseInt(cell.getAttribute('data-column'));
+            
+            // Only downgrade cells that have the modal-access-cell class (skip any non-product cells)
+            if (!cell.classList.contains('modal-access-cell')) {
+                console.log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
+                return;
+            }
+            
+            // Skip the trigger cell (it's already been changed)
+            if (cell === triggerCell) {
+                return;
+            }
+            
+            // Insight (column 5) and Docs (column 6) become "member"
+            if (columnIndex === 5 || columnIndex === 6) {
+                cell.textContent = 'member';
+                cell.classList.remove('administrator');
+                console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to member`);
+            } 
+            // All other products become "none"
+            else {
+                cell.textContent = 'none';
+                cell.classList.remove('administrator');
+                console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to none`);
+            }
+        });
+        
+        console.log('🔓 All access levels downgraded from administrator');
+    }
+
+    /**
      * Get column name by index for logging
      */
     getColumnName(columnIndex) {
         const columnNames = {
-            3: 'Project Admin',
-            4: 'Insight', 
-            5: 'Docs',
-            6: 'Design Collaboration',
-            7: 'Model Coordination',
-            8: 'Build',
-            9: 'Cost',
-            10: 'Forma',
-            11: 'Take Off'
+            4: 'Project Admin',
+            5: 'Insight', 
+            6: 'Docs',
+            7: 'Design Collaboration',
+            8: 'Model Coordination',
+            9: 'Build',
+            10: 'Cost',
+            11: 'Forma',
+            12: 'Take Off'
         };
         return columnNames[columnIndex] || `Column ${columnIndex}`;
     }
@@ -361,10 +709,10 @@ class UserTableManager {
         const columnIndex = parseInt(cell.getAttribute('data-column'));
         let allowedValues, errorMessage;
 
-        if (columnIndex === 3) { // Project Admin
+        if (columnIndex === 4) { // Project Admin (column 4 after checkbox)
             allowedValues = this.PROJECT_ADMIN_VALUES;
             errorMessage = 'Invalid value. Project Admin can only be none or administrator';
-        } else if (columnIndex === 4) { // Insight
+        } else if (columnIndex === 5) { // Insight (column 5 after checkbox)
             allowedValues = this.INSIGHT_VALUES;
             errorMessage = 'Invalid value. Allowed values: member or administrator';
         } else {
@@ -420,8 +768,8 @@ class UserTableManager {
         const content = cell.textContent || cell.innerText || '';
         console.log('Cell content:', JSON.stringify(content));
         
-        // Check if this is an email cell
-        if (cell.cellIndex !== 0) {
+        // Check if this is an email cell (index 1 after checkbox)
+        if (cell.cellIndex !== 1) {
             console.log('Not an email cell, skipping');
             return;
         }
@@ -478,10 +826,10 @@ class UserTableManager {
             console.log('📋 Target cell:', targetCell);
             console.log('📋 Target cell index:', targetCell.cellIndex);
             
-            // Check which column we're pasting into
-            const isEmailCell = targetCell.cellIndex === 0;
-            const isCompanyCell = targetCell.cellIndex === 1;
-            const isRoleCell = targetCell.cellIndex === 2;
+            // Check which column we're pasting into (account for checkbox at index 0)
+            const isEmailCell = targetCell.cellIndex === 1;
+            const isCompanyCell = targetCell.cellIndex === 2;
+            const isRoleCell = targetCell.cellIndex === 3;
             
             console.log('📧 Is email cell:', isEmailCell);
             console.log('🏢 Is company cell:', isCompanyCell);
@@ -592,7 +940,7 @@ class UserTableManager {
                 tbody.appendChild(targetRow);
             }
             
-            emailCell = targetRow.cells[0];
+            emailCell = targetRow.cells[1]; // Email is at index 1 (after checkbox)
             
             // Remove any previous error styling and tracking
             emailCell.classList.remove('modal-error-cell');
@@ -671,7 +1019,7 @@ class UserTableManager {
     updateUserCount() {
         const tbody = document.getElementById(this.tableBodyId);
         const validRows = Array.from(tbody.rows).filter(row => {
-            const emailCell = row.cells[0];
+            const emailCell = row.cells[1]; // Email is now in cell[1], cell[0] is checkbox
             return emailCell.textContent.trim() !== '' && 
                    !emailCell.classList.contains('modal-error-cell');
         });
@@ -680,11 +1028,54 @@ class UserTableManager {
     }
 
     /**
-     * Delete the row containing the currently focused cell
+     * Delete selected rows (supports multi-selection)
+     */
+    /**
+     * Delete rows with checked checkboxes
      */
     deleteSelectedRows() {
         console.log('🗑️ deleteSelectedRows() called');
         const tbody = document.getElementById(this.tableBodyId);
+        
+        // Find all checked checkboxes
+        const checkedCheckboxes = tbody.querySelectorAll('input[type="checkbox"].row-checkbox:checked');
+        
+        if (checkedCheckboxes.length > 0) {
+            console.log(`🗑️ Deleting ${checkedCheckboxes.length} checked rows`);
+            
+            // Delete all rows with checked checkboxes
+            checkedCheckboxes.forEach(checkbox => {
+                const row = checkbox.closest('tr');
+                if (row && tbody.contains(row)) {
+                    // Remove email from tracking if it exists (email is now in cell[1], not cell[0])
+                    const emailCell = row.cells[1];
+                    const email = emailCell.textContent.trim();
+                    if (email) {
+                        this.existingEmails.delete(email);
+                        console.log(`🗑️ Removed email "${email}" from tracking`);
+                    }
+                    
+                    // Remove the row
+                    tbody.removeChild(row);
+                }
+            });
+            
+            console.log('🗑️ All checked rows deleted successfully');
+            
+            // Uncheck "Select All" checkbox
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            
+            // Re-check for duplicates and update highlighting
+            this.recheckDuplicates();
+            
+            this.updateUserCount();
+            return;
+        }
+        
+        // Fallback: if no rows checked, delete based on focused cell or last row
         const rows = Array.from(tbody.rows);
         
         if (rows.length === 0) {
@@ -705,8 +1096,8 @@ class UserTableManager {
         }
         
         if (rowToDelete && tbody.contains(rowToDelete)) {
-            // Remove email from tracking if it exists
-            const emailCell = rowToDelete.cells[0];
+            // Remove email from tracking if it exists (email is now in cell[1], not cell[0])
+            const emailCell = rowToDelete.cells[1];
             const email = emailCell.textContent.trim();
             if (email) {
                 this.existingEmails.delete(email);
@@ -723,9 +1114,65 @@ class UserTableManager {
                 console.log('🗑️ Cleared focused cell reference');
             }
             
+            // Re-check for duplicates and update highlighting
+            this.recheckDuplicates();
+            
             this.updateUserCount();
         } else {
             console.log('🗑️ Error: Could not find row to delete');
+        }
+    }
+
+    /**
+     * Re-check for duplicate emails and update highlighting
+     */
+    recheckDuplicates() {
+        console.log('🔍 Rechecking for duplicates...');
+        const tbody = document.getElementById(this.tableBodyId);
+        
+        // First, clear all error highlighting (email is now in cell[1], not cell[0])
+        Array.from(tbody.rows).forEach(row => {
+            row.cells[1].classList.remove('modal-error-cell');
+        });
+        
+        // Check for duplicates
+        const emailsFound = new Map();
+        const duplicateEmails = [];
+        
+        Array.from(tbody.rows).forEach((row, rowIndex) => {
+            const emailCell = row.cells[1]; // Email is now in cell[1]
+            const email = emailCell.textContent.trim().toLowerCase();
+            
+            if (email) {
+                if (!emailsFound.has(email)) {
+                    emailsFound.set(email, [rowIndex]);
+                } else {
+                    emailsFound.get(email).push(rowIndex);
+                    if (!duplicateEmails.includes(email)) {
+                        duplicateEmails.push(email);
+                    }
+                }
+            }
+        });
+        
+        // If duplicates still exist, re-highlight them
+        if (duplicateEmails.length > 0) {
+            console.log('🔍 Duplicates still exist:', duplicateEmails);
+            duplicateEmails.forEach(duplicateEmail => {
+                const rowIndices = emailsFound.get(duplicateEmail);
+                rowIndices.forEach(rowIndex => {
+                    const row = tbody.rows[rowIndex];
+                    const emailCell = row.cells[1]; // Email is now in cell[1]
+                    emailCell.classList.add('modal-error-cell');
+                });
+            });
+        } else {
+            console.log('✅ No duplicates found, all clear!');
+            // Hide the duplicate alert if showing
+            const alertDiv = document.getElementById('duplicateEmailAlert');
+            if (alertDiv) {
+                alertDiv.style.display = 'none';
+            }
         }
     }
 
@@ -746,19 +1193,89 @@ class UserTableManager {
     saveTableToJson() {
         console.log('💾 saveTableToJson() called');
         const tbody = document.getElementById(this.tableBodyId);
+        
+        // First, check for duplicate emails (email is now in cell[1], not cell[0])
+        const emailsFound = new Map(); // Map of email -> array of row indices
+        const duplicateEmails = [];
+        
+        Array.from(tbody.rows).forEach((row, rowIndex) => {
+            const emailCell = row.cells[1]; // Email is now in cell[1]
+            const email = emailCell.textContent.trim().toLowerCase();
+            
+            if (email) {
+                if (!emailsFound.has(email)) {
+                    emailsFound.set(email, [rowIndex]);
+                } else {
+                    emailsFound.get(email).push(rowIndex);
+                    if (!duplicateEmails.includes(email)) {
+                        duplicateEmails.push(email);
+                    }
+                }
+            }
+        });
+        
+        // If duplicates found, highlight them and show alert in modal
+        if (duplicateEmails.length > 0) {
+            console.log('❌ Duplicate emails found:', duplicateEmails);
+            
+            // Clear all previous error highlighting
+            Array.from(tbody.rows).forEach(row => {
+                row.cells[1].classList.remove('modal-error-cell');
+            });
+            
+            // Highlight all duplicate email cells
+            duplicateEmails.forEach(duplicateEmail => {
+                const rowIndices = emailsFound.get(duplicateEmail);
+                rowIndices.forEach(rowIndex => {
+                    const row = tbody.rows[rowIndex];
+                    const emailCell = row.cells[1]; // Email is now in cell[1]
+                    emailCell.classList.add('modal-error-cell');
+                });
+            });
+            
+            // Show alert in modal
+            const alertDiv = document.getElementById('duplicateEmailAlert');
+            const alertList = document.getElementById('duplicateEmailList');
+            
+            if (alertDiv && alertList) {
+                // Build duplicate email list
+                const displayEmails = duplicateEmails.slice(0, 10);
+                let listHTML = `<strong>Duplicate emails (${duplicateEmails.length}):</strong><br>`;
+                listHTML += displayEmails.map(email => `• ${email}`).join('<br>');
+                if (duplicateEmails.length > 10) {
+                    listHTML += `<br>... and ${duplicateEmails.length - 10} more`;
+                }
+                
+                alertList.innerHTML = listHTML;
+                alertDiv.style.display = 'block';
+                
+                // Scroll to alert
+                alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
+            return; // Stop save operation
+        }
+        
+        // Hide duplicate alert if it was showing
+        const alertDiv = document.getElementById('duplicateEmailAlert');
+        if (alertDiv) {
+            alertDiv.style.display = 'none';
+        }
+        
+        // No duplicates - proceed with save
         const users = [];
         
         Array.from(tbody.rows).forEach(row => {
             const cells = Array.from(row.cells);
-            const email = cells[0].textContent.trim();
+            const email = cells[1].textContent.trim(); // Email is now in cell[1], cell[0] is checkbox
             
             if (email) {
                 console.log(`💾 Processing user: ${email}`);
                 const user = {
                     email: email,
                     metadata: {
-                        company: cells[1].textContent.trim(),
-                        role: cells[2].textContent.trim()
+                        company: cells[2].textContent.trim(), // Company is now in cell[2]
+                        role: cells[3].textContent.trim() // Role is now in cell[3]
                     },
                     products: []
                 };
@@ -772,7 +1289,7 @@ class UserTableManager {
                 ];
                 
                 productKeys.forEach((key, index) => {
-                    const access = cells[index + 3].textContent.trim();
+                    const access = cells[index + 4].textContent.trim(); // Products now start at cell[4] (0=checkbox, 1=email, 2=company, 3=role)
                     user.products.push({
                         key: key,
                         access: access
@@ -1009,6 +1526,10 @@ class UserTableManager {
         users.forEach(user => {
             const row = document.createElement('tr');
             
+            // Checkbox cell
+            const checkboxCell = this.createCheckboxCell();
+            row.appendChild(checkboxCell);
+            
             // Email cell
             const emailCell = this.createEmailCell();
             emailCell.textContent = user.email;
@@ -1050,7 +1571,7 @@ class UserTableManager {
                 const cell = document.createElement('td');
                 cell.className = 'modal-access-cell';
                 cell.contentEditable = true;
-                cell.setAttribute('data-column', index + 3);
+                cell.setAttribute('data-column', index + 4);
                 
                 const product = user.products.find(p => 
                     productKeyMap[p.key] === columnName

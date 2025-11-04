@@ -369,9 +369,7 @@
                     <!-- Button Explanations -->
                     <div id="buttonExplanations" style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; display: none;">
                         <p style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #495057; line-height: 1.6;">
-                            <strong>Update</strong> - update the existing users with the values in User Main List. 
-                            <strong>Add New</strong> - add users that exist in User Main List but do not exist in project. 
-                            <strong>Delete</strong> - delete users that exist in project but do not exist in User Main List.
+                            <strong>Update from the Users Main List</strong> - synchronize project users with the Users Main List.
                         </p>
                     </div>
                 </div>
@@ -894,14 +892,11 @@
                         </div>
                         <div style="display: flex; gap: 10px; flex-direction: column;">
                             <div style="display:flex; gap:10px;">
-                                <button class="project-btn project-btn-update" onclick="updateProjectUsers('${project.id}', window.currentHubId, currentAccessToken, 'projectProgress-${project.id}')">
-                                    Update
+                                <button class="project-btn project-btn-update" onclick="updateProjectUsersFromMainList('${project.id}', window.currentHubId, currentAccessToken, 'projectProgress-${project.id}')">
+                                    Update from the Users Main List
                                 </button>
-                                <button class="project-btn project-btn-add" onclick="addNewProjectUsers('${project.id}', window.currentHubId, currentAccessToken, 'projectProgress-${project.id}')">
-                                    Add New
-                                </button>
-                                <button class="project-btn project-btn-delete" onclick="deleteProjectUsers('${project.id}', currentAccessToken, 'projectProgress-${project.id}')">
-                                    Delete
+                                <button class="project-btn project-btn-update" onclick="showFoldersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}', window.currentHubId, currentAccessToken)">
+                                    Manage Access to Folders
                                 </button>
                             </div>
 
@@ -1314,6 +1309,522 @@
             }
         }
 
+        // Function for "Update from the Users Main List" button
+        async function updateProjectUsersFromMainList(projectId, accountId, accessToken, progressId) {
+            const progressEl = document.getElementById(progressId);
+            const progressBar = document.getElementById(`${progressId.replace('projectProgress-','projectProgressBar-')}`) || null;
+            const progressText = document.getElementById(`${progressId.replace('projectProgress-','projectProgressText-')}`) || null;
+            if (progressEl) progressEl.style.display = 'block';
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = 'Loading data...';
+            
+            try {
+                // Load user permissions from import file
+                if (progressText) progressText.textContent = 'Loading Users Main List...';
+                // Add timestamp to prevent caching
+                const importResponse = await fetch(`user_permissions_import.json?t=${Date.now()}`);
+                const importData = await importResponse.json();
+                const importUsers = importData.users || [];
+                console.log(`Loaded ${importUsers.length} users from import file`);
+                
+                // Fetch project users
+                if (progressText) progressText.textContent = 'Fetching project users...';
+                const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
+                console.log(`Fetched ${projectUsers.length} project users`);
+                
+                // Build email maps for quick lookup
+                const importEmailMap = new Map();
+                importUsers.forEach(user => {
+                    if (user.email) importEmailMap.set(user.email.toLowerCase(), user);
+                });
+                
+                const projectEmailMap = new Map();
+                projectUsers.forEach(user => {
+                    if (user.email) projectEmailMap.set(user.email.toLowerCase(), user);
+                });
+                
+                // Build 3 lists
+                const listToPatch = []; // Users in both (to update)
+                const listToPost = [];  // Users in JSON but not in project (to add)
+                const listToDelete = []; // Users in project but not in JSON (to delete)
+                
+                console.log('Import users emails:', Array.from(importEmailMap.keys()));
+                console.log('Project users emails:', Array.from(projectEmailMap.keys()));
+                
+                // List 1 & 2: Check import users
+                importUsers.forEach(importUser => {
+                    if (!importUser.email) {
+                        console.warn('Skipping import user with no email:', importUser);
+                        return;
+                    }
+                    const email = importUser.email.toLowerCase();
+                    
+                    if (projectEmailMap.has(email)) {
+                        // User exists in both → PATCH
+                        console.log(`✓ PATCH: ${importUser.email} (exists in both)`);
+                        listToPatch.push({
+                            email: importUser.email,
+                            projectUserId: projectEmailMap.get(email).id
+                        });
+                    } else {
+                        // User in JSON but not in project → POST
+                        console.log(`+ POST: ${importUser.email} (only in JSON)`);
+                        listToPost.push({
+                            email: importUser.email
+                        });
+                    }
+                });
+                
+                // List 3: Check project users not in import
+                projectUsers.forEach(projectUser => {
+                    if (!projectUser.email) {
+                        console.warn('Skipping project user with no email:', projectUser);
+                        return;
+                    }
+                    const email = projectUser.email.toLowerCase();
+                    
+                    if (!importEmailMap.has(email)) {
+                        // User in project but not in JSON → DELETE
+                        console.log(`- DELETE: ${projectUser.email} (only in project)`);
+                        listToDelete.push({
+                            email: projectUser.email,
+                            id: projectUser.id
+                        });
+                    }
+                });
+                
+                console.log('Analysis complete:');
+                console.log(`- To PATCH (update): ${listToPatch.length}`, listToPatch);
+                console.log(`- To POST (add): ${listToPost.length}`, listToPost);
+                console.log(`- To DELETE (remove): ${listToDelete.length}`, listToDelete);
+                
+                // Show results in a dialog
+                showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken);
+                
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressText) progressText.textContent = 'Analysis complete.';
+                setTimeout(() => { if (progressEl) progressEl.style.display = 'none'; }, 2500);
+                
+            } catch (error) {
+                console.error('Error analyzing users:', error);
+                if (progressText) progressText.textContent = `Error: ${error.message}`;
+                alert(`Failed to analyze users: ${error.message}`);
+            }
+        }
+        
+        // Function to show the 3 lists in a dialog
+        function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
+            // Create modal HTML
+            const modalHTML = `
+                <div id="userListsModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+                    <div style="background-color: white; padding: 0; border-radius: 8px; width: 90%; max-width: 900px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                            <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">User Sync Analysis</h2>
+                            <span class="sync-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                        </div>
+                        <div style="padding: 20px; overflow-y: auto; flex: 1;">
+                            <div style="margin-bottom: 30px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #0696D7; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
+                                        Users to UPDATE - ${listToPatch.length}
+                                    </h3>
+                                    <input type="checkbox" id="enableUpdate" checked style="width: 18px; height: 18px; cursor: pointer;">
+                                </div>
+                                <p style="color: #666; font-size: 14px; margin-bottom: 10px;">These users exist in both the project and Users Main List. They will be updated.</p>
+                                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                                    ${listToPatch.length > 0 ? listToPatch.map(u => `<div style="padding: 4px 0; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 13px;">✓ ${u.email}</div>`).join('') : '<div style="color: #999; font-style: italic;">No users to update</div>'}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 30px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #28a745; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
+                                        Users to ADD - ${listToPost.length}
+                                    </h3>
+                                    <input type="checkbox" id="enableAdd" checked style="width: 18px; height: 18px; cursor: pointer;">
+                                </div>
+                                <p style="color: #666; font-size: 14px; margin-bottom: 10px;">These users exist in Users Main List but not in the project. They will be added.</p>
+                                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                                    ${listToPost.length > 0 ? listToPost.map(u => `<div style="padding: 4px 0; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 13px;">+ ${u.email}</div>`).join('') : '<div style="color: #999; font-style: italic;">No users to add</div>'}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #dc3545; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
+                                        Users to DELETE - ${listToDelete.length}
+                                    </h3>
+                                    <input type="checkbox" id="enableDelete" checked style="width: 18px; height: 18px; cursor: pointer;">
+                                </div>
+                                <p style="color: #666; font-size: 14px; margin-bottom: 10px;">These users exist in the project but not in Users Main List. They will be removed.</p>
+                                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                                    ${listToDelete.length > 0 ? listToDelete.map(u => `<div style="padding: 4px 0; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 13px;">- ${u.email}</div>`).join('') : '<div style="color: #999; font-style: italic;">No users to delete</div>'}
+                                </div>
+                            </div>
+                            
+                            <!-- Results section (hidden initially) -->
+                            <div id="syncResults" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;">
+                                <h4 style="margin: 0 0 10px 0; font-family: 'Artifact Elements', Arial, sans-serif;">Sync completed!</h4>
+                                <div id="syncResultsContent" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; line-height: 1.6;"></div>
+                            </div>
+                        </div>
+                        <div style="padding: 20px; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px;">
+                            <button id="syncButton" style="padding: 10px 20px; background: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">Sync</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Add event listeners
+            const closeBtn = document.querySelector('.sync-modal-close');
+            if (closeBtn) {
+                closeBtn.onclick = function() {
+                    document.getElementById('userListsModal').remove();
+                };
+                
+                // Add hover effect
+                closeBtn.addEventListener('mouseenter', function() {
+                    this.style.color = '#000';
+                });
+                closeBtn.addEventListener('mouseleave', function() {
+                    this.style.color = '#aaa';
+                });
+            }
+            
+            // Close on Escape key
+            document.addEventListener('keydown', function escapeHandler(e) {
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('userListsModal');
+                    if (modal) {
+                        modal.remove();
+                        document.removeEventListener('keydown', escapeHandler);
+                    }
+                }
+            });
+            
+            // Add Sync button event listener
+            const syncButton = document.getElementById('syncButton');
+            if (syncButton) {
+                syncButton.onclick = async function() {
+                    await executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken);
+                };
+            }
+        }
+        
+        // Function to execute sync operations based on checkbox selections
+        async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
+            const enableUpdate = document.getElementById('enableUpdate').checked;
+            const enableAdd = document.getElementById('enableAdd').checked;
+            const enableDelete = document.getElementById('enableDelete').checked;
+            
+            console.log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId });
+            
+            if (!projectId || !accountId) {
+                alert('Missing project or account ID');
+                return;
+            }
+            
+            // Disable sync button and show progress
+            const syncButton = document.getElementById('syncButton');
+            const originalButtonText = syncButton.textContent;
+            syncButton.disabled = true;
+            syncButton.style.opacity = '0.6';
+            syncButton.style.cursor = 'not-allowed';
+            
+            try {
+                // Get 2-legged token
+                syncButton.textContent = 'Authenticating...';
+                const twoLeggedToken = await get2LeggedToken();
+                
+                // Fetch all required data
+                syncButton.textContent = 'Loading data...';
+                const [importData, accountUsers, projectUsers] = await Promise.all([
+                    fetch(`user_permissions_import.json?t=${Date.now()}`).then(r => r.json()),
+                    accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId),
+                    fetchAllProjectUsers(projectId, twoLeggedToken)
+                ]);
+                
+                const importUsers = importData.users || [];
+                
+                // Create lookup maps
+                const importEmailMap = new Map(importUsers.map(u => [u.email.toLowerCase(), u]));
+                const accountEmailMap = new Map(accountUsers.map(u => [u.email.toLowerCase(), u]));
+                const projectEmailMap = new Map(projectUsers.map(u => [u.email.toLowerCase(), u]));
+                
+                console.log('Data loaded:', {
+                    importUsers: importUsers.length,
+                    accountUsers: accountUsers.length,
+                    projectUsers: projectUsers.length
+                });
+                
+                let results = {
+                    updated: 0,
+                    added: 0,
+                    deleted: 0,
+                    errors: []
+                };
+                
+                // Execute PATCH operations
+                if (enableUpdate && listToPatch.length > 0) {
+                    syncButton.textContent = `Updating users (0/${listToPatch.length})...`;
+                    
+                    for (let i = 0; i < listToPatch.length; i++) {
+                        const userToPatch = listToPatch[i];
+                        const email = userToPatch.email.toLowerCase();
+                        
+                        try {
+                            syncButton.textContent = `Updating users (${i + 1}/${listToPatch.length})...`;
+                            
+                            // Get data from all sources
+                            const importUser = importEmailMap.get(email);
+                            const accountUser = accountEmailMap.get(email);
+                            const projectUser = projectEmailMap.get(email);
+                            
+                            if (!importUser || !accountUser || !projectUser) {
+                                throw new Error(`Missing data for ${userToPatch.email}`);
+                            }
+                            
+                            // Build products array from import JSON (REQUIRED)
+                            const products = importUser.products.map(p => ({
+                                key: p.key,
+                                access: p.access
+                            }));
+                            
+                            // Build PATCH payload - start with required field
+                            const patchPayload = {
+                                products: products
+                            };
+                            
+                            // Add optional company fields if available from account user
+                            if (accountUser.company_id) {
+                                patchPayload.companyId = accountUser.company_id;
+                            }
+                            if (accountUser.company_name) {
+                                patchPayload.companyName = accountUser.company_name;
+                            }
+                            
+                            // Add optional role field if available from account user
+                            if (accountUser.default_role_id) {
+                                patchPayload.roleIds = [accountUser.default_role_id];
+                            }
+                            
+                            console.log(`PATCH user ${userToPatch.email}:`, patchPayload);
+                            
+                            // Execute PATCH request
+                            const response = await fetch(
+                                `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`,
+                                {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Authorization': `Bearer ${accessToken}`,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(patchPayload)
+                                }
+                            );
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                                throw new Error(errorData.message || `HTTP ${response.status}`);
+                            }
+                            
+                            const result = await response.json();
+                            console.log(`✓ Updated ${userToPatch.email}:`, result);
+                            results.updated++;
+                            
+                        } catch (error) {
+                            console.error(`✗ Failed to update ${userToPatch.email}:`, error);
+                            results.errors.push(`Update failed for ${userToPatch.email}: ${error.message}`);
+                        }
+                        
+                        // Small delay to avoid rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                
+                // === POST Operation - Add users ===
+                if (enableAdd && listToPost.length > 0) {
+                    syncButton.textContent = `Adding users...`;
+                    console.log('\n=== POST Operation - Adding Users ===');
+                    
+                    // Batch users in groups of 200 (API limit)
+                    const batchSize = 200;
+                    const batches = [];
+                    for (let i = 0; i < listToPost.length; i += batchSize) {
+                        batches.push(listToPost.slice(i, i + batchSize));
+                    }
+                    
+                    console.log(`Processing ${listToPost.length} users in ${batches.length} batch(es)`);
+                    
+                    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+                        const batch = batches[batchIndex];
+                        syncButton.textContent = `Adding users... (Batch ${batchIndex + 1}/${batches.length})`;
+                        
+                        try {
+                            // Build users array for POST
+                            const usersToAdd = [];
+                            
+                            for (const userToAdd of batch) {
+                                // Get user data from import JSON (email and products are required)
+                                const importUser = importEmailMap.get(userToAdd.email.toLowerCase());
+                                if (!importUser || !importUser.products) {
+                                    console.warn(`Skipping ${userToAdd.email}: No products data in import JSON`);
+                                    results.errors.push(`Add failed for ${userToAdd.email}: No products data`);
+                                    continue;
+                                }
+                                
+                                // Build user object
+                                const userPayload = {
+                                    email: userToAdd.email,
+                                    products: importUser.products
+                                };
+                                
+                                // Get optional company and role from account user
+                                const accountUser = accountEmailMap.get(userToAdd.email.toLowerCase());
+                                if (accountUser) {
+                                    if (accountUser.company_id) {
+                                        userPayload.companyId = accountUser.company_id;
+                                    }
+                                    if (accountUser.default_role_id) {
+                                        userPayload.roleIds = [accountUser.default_role_id];
+                                    }
+                                }
+                                
+                                usersToAdd.push(userPayload);
+                            }
+                            
+                            if (usersToAdd.length === 0) {
+                                console.warn(`Batch ${batchIndex + 1}: No valid users to add`);
+                                continue;
+                            }
+                            
+                            console.log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
+                            
+                            // Execute POST request
+                            const postUrl = `https://developer.api.autodesk.com/construction/admin/v2/projects/${projectId}/users:import`;
+                            const response = await fetch(postUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${accessToken}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ users: usersToAdd })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                                throw new Error(errorData.message || `HTTP ${response.status}`);
+                            }
+                            
+                            const result = await response.json();
+                            console.log(`✓ Batch ${batchIndex + 1} completed:`, result);
+                            results.added += usersToAdd.length;
+                            
+                        } catch (error) {
+                            console.error(`✗ Batch ${batchIndex + 1} failed:`, error);
+                            results.errors.push(`Batch ${batchIndex + 1} add failed: ${error.message}`);
+                        }
+                        
+                        // Delay between batches to avoid rate limiting
+                        if (batchIndex < batches.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                }
+                
+                // === DELETE Operation - Remove users ===
+                if (enableDelete && listToDelete.length > 0) {
+                    syncButton.textContent = `Removing users...`;
+                    console.log('\n=== DELETE Operation - Removing Users ===');
+                    
+                    for (let i = 0; i < listToDelete.length; i++) {
+                        const userToDelete = listToDelete[i];
+                        syncButton.textContent = `Removing users... (${i + 1}/${listToDelete.length})`;
+                        
+                        try {
+                            // Get userId from project users
+                            const projectUser = projectEmailMap.get(userToDelete.email.toLowerCase());
+                            if (!projectUser || !projectUser.id) {
+                                console.warn(`Skipping ${userToDelete.email}: No user ID found in project`);
+                                results.errors.push(`Delete failed for ${userToDelete.email}: No user ID`);
+                                continue;
+                            }
+                            
+                            console.log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
+                            
+                            // Execute DELETE request
+                            const deleteUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`;
+                            const response = await fetch(deleteUrl, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Authorization': `Bearer ${accessToken}`,
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                                throw new Error(errorData.message || `HTTP ${response.status}`);
+                            }
+                            
+                            console.log(`✓ Deleted ${userToDelete.email}`);
+                            results.deleted++;
+                            
+                        } catch (error) {
+                            console.error(`✗ Failed to delete ${userToDelete.email}:`, error);
+                            results.errors.push(`Delete failed for ${userToDelete.email}: ${error.message}`);
+                        }
+                        
+                        // Small delay to avoid rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                
+                // Show results in modal
+                syncButton.textContent = 'Sync Complete!';
+                
+                // Build summary HTML
+                let summaryHTML = '';
+                if (enableUpdate) summaryHTML += `Updated: ${results.updated}/${listToPatch.length}<br>`;
+                if (enableAdd) summaryHTML += `Added: ${results.added}/${listToPost.length}<br>`;
+                if (enableDelete) summaryHTML += `Deleted: ${results.deleted}/${listToDelete.length}<br>`;
+                
+                if (results.errors.length > 0) {
+                    summaryHTML += `<br><strong style="color: #dc3545;">Errors (${results.errors.length}):</strong><br>`;
+                    summaryHTML += results.errors.slice(0, 5).map(err => `<span style="color: #666; font-size: 12px;">• ${err}</span>`).join('<br>');
+                    if (results.errors.length > 5) {
+                        summaryHTML += `<br><span style="color: #666; font-size: 12px;">... and ${results.errors.length - 5} more errors. Check console for details.</span>`;
+                    }
+                }
+                
+                // Show results section
+                const resultsDiv = document.getElementById('syncResults');
+                const resultsContent = document.getElementById('syncResultsContent');
+                if (resultsDiv && resultsContent) {
+                    resultsContent.innerHTML = summaryHTML;
+                    resultsDiv.style.display = 'block';
+                    
+                    // Scroll to results
+                    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                
+            } catch (error) {
+                console.error('Sync error:', error);
+                alert(`Sync failed: ${error.message}`);
+            } finally {
+                // Re-enable button
+                syncButton.disabled = false;
+                syncButton.style.opacity = '1';
+                syncButton.style.cursor = 'pointer';
+                syncButton.textContent = originalButtonText;
+            }
+        }
+
+        // OLD FUNCTIONS - Commented out, may be used for reference
+        /*
         // Function for "Update" button
         async function updateProjectUsers(projectId, accountId, accessToken, progressId) {
             const progressEl = document.getElementById(progressId);
@@ -1376,6 +1887,7 @@
                 }
             }
         }
+        */
 
         async function fetchAllProjectUsers(projectId, accessToken) {
             let allUsers = [];
@@ -1919,9 +2431,10 @@
 
     <!-- Load User Table Management Module -->
     <script src="user-table.js?v=2025103003"></script>
-    <script src="update_account_users.js?v=2025103001"></script>
-    <script src="get_account_users.js?v=2025110203"></script>
-    <script src="manage_project_users.js?v=2025110201"></script>
+    <script src="update_account_users.js?v=2025110205"></script>
+    <script src="get_account_users.js?v=2025110205"></script>
+    <script src="manage_project_users.js?v=2025110205"></script>
+    <script src="folders_permissions.js?v=2025110301"></script>
     <script>
         // Initialize user table management when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
@@ -1964,6 +2477,13 @@
                 <!-- Hidden file input for CSV import -->
                 <input type="file" id="csvFileInput" accept=".csv" style="display: none;" />
                 
+                <!-- Duplicate email alert (hidden by default) -->
+                <div id="duplicateEmailAlert" style="display: none; margin: 15px 0; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+                    <strong>❌ Cannot save: Duplicate emails found!</strong>
+                    <div id="duplicateEmailList" style="margin-top: 10px; font-size: 13px;"></div>
+                    <div style="margin-top: 10px; font-style: italic; font-size: 13px;">Please remove email duplicates before saving.</div>
+                </div>
+                
                 <div class="modal-table-summary" id="modalTableSummary">
                     Total Users: 0
                 </div>
@@ -1972,6 +2492,9 @@
                     <table id="modalUserTable" class="modal-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
+                                </th>
                                 <th class="modal-editable">Email</th>
                                 <th class="modal-editable">Company</th>
                                 <th class="modal-editable">Role</th>

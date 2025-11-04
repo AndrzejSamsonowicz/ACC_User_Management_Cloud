@@ -502,25 +502,25 @@ class ProjectUsersManager {
             console.log(`User ${importUser.email}: updating services:`, importUser.services);
         }
 
-        // Add role IDs based on role name from import user metadata
-        let roleId = null;
-        if (importUser.metadata && importUser.metadata.role && projectRoles) {
-            roleId = this.findRoleIdByName(projectRoles, importUser.metadata.role);
-            if (roleId) {
-                patchData.roleIds = [roleId]; // Use first role ID as requested
-                console.log(`User ${importUser.email}: mapped role "${importUser.metadata.role}" to roleId: ${roleId}`);
-            } else {
-                console.warn(`User ${importUser.email}: role '${importUser.metadata.role}' not found in project roles.`);
-            }
+        // Get company name from account user (use company_name field)
+        if (accountUser && accountUser.company_name) {
+            patchData.companyName = accountUser.company_name;
+            console.log(`User ${importUser.email}: using company_name from account user: ${accountUser.company_name}`);
+        } else {
+            console.warn(`User ${importUser.email}: no company_name found in account user`);
         }
 
-        // Add company name from import user metadata or account user
-        if (importUser.metadata && importUser.metadata.company) {
-            patchData.companyName = importUser.metadata.company;
-            console.log(`User ${importUser.email}: using company from metadata: ${importUser.metadata.company}`);
-        } else if (accountUser && accountUser.company) {
-            patchData.companyName = accountUser.company;
-            console.log(`User ${importUser.email}: using company from account user: ${accountUser.company}`);
+        // Get role from account user's default_role and map to project role ID
+        if (accountUser && accountUser.default_role) {
+            const roleId = this.findRoleIdByName(projectRoles, accountUser.default_role);
+            if (roleId) {
+                patchData.roleIds = [roleId];
+                console.log(`User ${importUser.email}: mapped account role "${accountUser.default_role}" to roleId: ${roleId}`);
+            } else {
+                console.warn(`User ${importUser.email}: account role '${accountUser.default_role}' not found in project roles.`);
+            }
+        } else {
+            console.warn(`User ${importUser.email}: no default_role found in account user`);
         }
 
         console.log(`PATCH data for ${importUser.email}:`, JSON.stringify(patchData, null, 2));
@@ -620,22 +620,25 @@ class ProjectUsersManager {
                 products: userInfo.importUser.products
             };
 
-            // Add role IDs based on role name from import user metadata
-            if (userInfo.importUser.metadata && userInfo.importUser.metadata.role && projectRoles) {
-                const roleId = this.findRoleIdByName(projectRoles, userInfo.importUser.metadata.role);
-                if (roleId) {
-                    userData.roleIds = [roleId]; // Use first role ID as requested
-                    console.log(`User ${userInfo.importUser.email}: mapped role "${userInfo.importUser.metadata.role}" to roleId: ${roleId}`);
-                }
+            // Get company name from account user (use company_name field)
+            if (userInfo.accountUser && userInfo.accountUser.company_name) {
+                userData.companyName = userInfo.accountUser.company_name;
+                console.log(`User ${userInfo.importUser.email}: using company_name from account user: ${userInfo.accountUser.company_name}`);
+            } else {
+                console.warn(`User ${userInfo.importUser.email}: no company_name found in account user`);
             }
 
-            // Add company name from import user metadata
-            if (userInfo.importUser.metadata && userInfo.importUser.metadata.company) {
-                userData.companyName = userInfo.importUser.metadata.company;
-                console.log(`User ${userInfo.importUser.email}: using company from metadata: ${userInfo.importUser.metadata.company}`);
-            } else if (userInfo.accountUser && userInfo.accountUser.company) {
-                userData.companyName = userInfo.accountUser.company;
-                console.log(`User ${userInfo.importUser.email}: using company from account user: ${userInfo.accountUser.company}`);
+            // Get role from account user's default_role and map to project role ID
+            if (userInfo.accountUser && userInfo.accountUser.default_role) {
+                const roleId = this.findRoleIdByName(projectRoles, userInfo.accountUser.default_role);
+                if (roleId) {
+                    userData.roleIds = [roleId];
+                    console.log(`User ${userInfo.importUser.email}: mapped account role "${userInfo.accountUser.default_role}" to roleId: ${roleId}`);
+                } else {
+                    console.warn(`User ${userInfo.importUser.email}: account role '${userInfo.accountUser.default_role}' not found in project roles.`);
+                }
+            } else {
+                console.warn(`User ${userInfo.importUser.email}: no default_role found in account user`);
             }
 
             console.log(`Prepared user data for ${userData.email}:`, userData);
