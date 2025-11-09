@@ -39,6 +39,9 @@ class UserTableManager {
         this.dragSourceCell = null;
         this.dragSourceValue = null;
         this.draggedCells = new Set();
+        // Hub tracking for modal
+        this.modalHubId = null;
+        this.modalHubName = null;
     }
 
     /**
@@ -306,6 +309,21 @@ class UserTableManager {
         console.log('🎯 openModal() called in UserTableManager');
         const modal = document.getElementById(this.modalId);
         console.log('🎯 Modal element:', modal);
+        
+        // Store the current hub info when modal opens
+        if (window.currentHubId) {
+            this.modalHubId = window.currentHubId;
+            this.modalHubName = window.currentHubName || 'Unknown Hub';
+            console.log('🎯 Stored hub info:', this.modalHubId, this.modalHubName);
+        } else {
+            this.modalHubId = null;
+            this.modalHubName = null;
+            console.warn('⚠️ No hub selected when opening modal');
+        }
+        
+        // Update hub info display
+        this.updateHubInfoDisplay();
+        
         modal.style.display = 'block';
         console.log('🎯 Calling loadTableData()...');
         this.loadTableData();
@@ -315,6 +333,22 @@ class UserTableManager {
             const firstButton = modal.querySelector('button');
             if (firstButton) firstButton.focus();
         }, 100);
+    }
+
+    /**
+     * Update the hub info display in the modal
+     */
+    updateHubInfoDisplay() {
+        const hubNameEl = document.getElementById('modalHubName');
+        const hubIdEl = document.getElementById('modalHubId');
+        
+        if (this.modalHubId) {
+            if (hubNameEl) hubNameEl.textContent = this.modalHubName;
+            if (hubIdEl) hubIdEl.textContent = `(${this.modalHubId})`;
+        } else {
+            if (hubNameEl) hubNameEl.textContent = 'Not selected';
+            if (hubIdEl) hubIdEl.textContent = '';
+        }
     }
 
     /**
@@ -1188,11 +1222,268 @@ class UserTableManager {
     }
 
     /**
-     * Save table data to JSON file
+     * Update account users before saving to JSON (silent mode with progress bar)
      */
-    saveTableToJson() {
-        console.log('💾 saveTableToJson() called');
+    async updateAccountUsersBeforeSave(accountId) {
+        console.log('🔄 updateAccountUsersBeforeSave called with accountId:', accountId);
+        
+        // Show progress bar
+        this.showSaveProgress('Updating account users...', 10);
+        
+        try {
+            // Check if updateAccountUsersForAccount function is available
+            if (typeof updateAccountUsersForAccount !== 'function') {
+                throw new Error('updateAccountUsersForAccount function not available');
+            }
+            
+            // Run the update silently (no preview, no confirmation)
+            this.showSaveProgress('Analyzing users...', 20);
+            const results = await updateAccountUsersForAccount(accountId, { performOps: true });
+            
+            console.log('✅ Account update results:', results);
+            
+            // Check for invalid roles - users were SKIPPED
+            const invalidRoleCount = results.invalidRoles?.size || 0;
+            if (invalidRoleCount > 0) {
+                console.warn('⚠️ Invalid roles detected - users were SKIPPED:', results.invalidRoles);
+                
+                // Build error message HTML
+                let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #d32f2f;">⚠️ Invalid roles found - users were SKIPPED:</div>';
+                for (const [role, emails] of results.invalidRoles) {
+                    errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+                    errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+                    errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+                    emails.forEach(email => {
+                        errorHTML += `<li>${email}, this role doesn't exist: Provide the valid user role</li>`;
+                    });
+                    errorHTML += '</ul></div>';
+                }
+                errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+                errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the JSON file with valid roles.';
+                errorHTML += '</div>';
+                
+                // Show error below progress bar
+                this.showInvalidRolesWarning(errorHTML);
+            }
+            
+            // Update progress based on results
+            const totalOps = (results.patched?.length || 0) + (results.added?.length || 0);
+            const errors = results.errors?.length || 0;
+            
+            if (errors > 0) {
+                console.warn(`⚠️ Account update completed with ${errors} errors`);
+                this.showSaveProgress(`Account updated (${errors} errors)`, 50);
+                // Continue anyway - we'll still save to JSON
+            } else if (invalidRoleCount > 0) {
+                this.showSaveProgress(`Account updated (${invalidRoleCount} users SKIPPED - invalid roles)`, 50);
+            } else {
+                this.showSaveProgress(`Account updated (${totalOps} operations)`, 50);
+            }
+            
+            return results;
+            
+        } catch (error) {
+            console.error('❌ Error updating account users:', error);
+            this.hideSaveProgress();
+            throw error; // Re-throw to be caught by saveTableToJson
+        }
+    }
+
+    /**
+     * Show save progress bar
+     */
+    showSaveProgress(message, percentage) {
+        // Create progress bar if it doesn't exist
+        let progressDiv = document.getElementById('saveProgressBar');
+        if (!progressDiv) {
+            const modal = document.getElementById(this.modalId);
+            const modalBody = modal.querySelector('.user-modal-body');
+            
+            progressDiv = document.createElement('div');
+            progressDiv.id = 'saveProgressBar';
+            progressDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                min-width: 400px;
+                font-family: 'Artifact Elements', Arial, sans-serif;
+            `;
+            
+            progressDiv.innerHTML = `
+                <div style="margin-bottom: 15px; font-size: 16px; color: #333;">
+                    <span id="saveProgressMessage">${message}</span>
+                </div>
+                <div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                    <div id="saveProgressBarFill" style="height: 100%; background: #0696D7; width: ${percentage}%; transition: width 0.3s ease;"></div>
+                </div>
+            `;
+            
+            document.body.appendChild(progressDiv);
+        } else {
+            // Update existing
+            const messageEl = document.getElementById('saveProgressMessage');
+            const barEl = document.getElementById('saveProgressBarFill');
+            if (messageEl) messageEl.textContent = message;
+            if (barEl) barEl.style.width = percentage + '%';
+        }
+    }
+
+    /**
+     * Hide save progress bar
+     */
+    hideSaveProgress() {
+        const progressDiv = document.getElementById('saveProgressBar');
+        if (progressDiv) {
+            progressDiv.remove();
+        }
+        // Don't automatically remove invalid roles warning - user must click OK
+    }
+
+    /**
+     * Show invalid roles warning below progress bar
+     */
+    showInvalidRolesWarning(htmlContent) {
+        // Remove existing warning if any
+        let warningDiv = document.getElementById('invalidRolesWarning');
+        if (warningDiv) {
+            warningDiv.remove();
+        }
+
+        // Create warning div
+        warningDiv = document.createElement('div');
+        warningDiv.id = 'invalidRolesWarning';
+        warningDiv.style.cssText = `
+            position: fixed;
+            top: calc(50% + 80px);
+            left: 50%;
+            transform: translate(-50%, 0);
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10001;
+            min-width: 400px;
+            max-width: 600px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+            color: #856404;
+        `;
+        
+        // Add content and OK button
+        warningDiv.innerHTML = htmlContent + `
+            <div style="margin-top: 20px; text-align: center;">
+                <button id="closeInvalidRolesWarning" style="
+                    padding: 10px 30px;
+                    background: #ffc107;
+                    border: none;
+                    border-radius: 4px;
+                    color: #856404;
+                    font-weight: bold;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                ">OK</button>
+            </div>
+        `;
+        
+        document.body.appendChild(warningDiv);
+        
+        // Add click handler for OK button
+        const okButton = document.getElementById('closeInvalidRolesWarning');
+        if (okButton) {
+            okButton.addEventListener('click', () => {
+                warningDiv.remove();
+            });
+        }
+    }
+
+    /**
+     * Show save error message
+     */
+    showSaveError(errorMessage) {
+        this.hideSaveProgress();
+        
+        // Create error modal
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            min-width: 400px;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+            border: 2px solid #d32f2f;
+        `;
+        
+        errorDiv.innerHTML = `
+            <div style="margin-bottom: 15px; font-size: 18px; color: #d32f2f; font-weight: bold;">
+                ❌ Save Failed
+            </div>
+            <div style="margin-bottom: 20px; font-size: 14px; color: #666;">
+                ${errorMessage}
+            </div>
+            <button onclick="this.parentElement.remove()" style="
+                background: #d32f2f;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-family: 'Artifact Elements', Arial, sans-serif;
+            ">Close</button>
+        `;
+        
+        document.body.appendChild(errorDiv);
+    }
+
+    /**
+     * Save table data to JSON file (with optional account update)
+     */
+    async saveTableToJson(skipAccountUpdate = false) {
+        console.log('💾 saveTableToJson() called, skipAccountUpdate:', skipAccountUpdate);
+        
         const tbody = document.getElementById(this.tableBodyId);
+        
+        // Check if hub has changed since modal was opened
+        if (!skipAccountUpdate && this.modalHubId && window.currentHubId) {
+            if (this.modalHubId !== window.currentHubId) {
+                const currentHubName = window.currentHubName || 'Unknown Hub';
+                const proceed = confirm(
+                    `⚠️ HUB MISMATCH DETECTED\n\n` +
+                    `This Users Main List was loaded from:\n` +
+                    `  "${this.modalHubName}" (${this.modalHubId})\n\n` +
+                    `But the currently selected hub is:\n` +
+                    `  "${currentHubName}" (${window.currentHubId})\n\n` +
+                    `The data in this table may be from "${this.modalHubName}" with roles that don't exist in "${currentHubName}".\n\n` +
+                    `RECOMMENDED: Close this modal, switch to "${this.modalHubName}", and reopen the Users Main List.\n\n` +
+                    `Do you want to continue saving anyway?\n` +
+                    `(This will save the current table data and try to update "${currentHubName}")`
+                );
+                
+                if (!proceed) {
+                    console.log('⚠️ User cancelled save due to hub mismatch');
+                    return;
+                }
+            }
+        }
+        
+        // Show initial progress if account update will run
+        if (!skipAccountUpdate) {
+            this.showSaveProgress('Validating data...', 5);
+        }
         
         // First, check for duplicate emails (email is now in cell[1], not cell[0])
         const emailsFound = new Map(); // Map of email -> array of row indices
@@ -1217,6 +1508,9 @@ class UserTableManager {
         // If duplicates found, highlight them and show alert in modal
         if (duplicateEmails.length > 0) {
             console.log('❌ Duplicate emails found:', duplicateEmails);
+            
+            // Hide progress bar if showing
+            this.hideSaveProgress();
             
             // Clear all previous error highlighting
             Array.from(tbody.rows).forEach(row => {
@@ -1308,31 +1602,102 @@ class UserTableManager {
         console.log(`💾 Saving ${users.length} users to server`);
         console.log('💾 Sample user data:', users[0]);
         
+        // Update progress if account update will run
+        if (!skipAccountUpdate) {
+            this.showSaveProgress('Saving to JSON file...', 30);
+        }
+        
         // Save to server (user_permissions_import.json)
-        fetch('http://localhost:3000/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(jsonData)
-        })
-        .then(response => response.json())
-        .then(data => {
+        try {
+            const response = await fetch('http://localhost:3000/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData)
+            });
+            
+            const data = await response.json();
+            
             if (data.success) {
-                console.log('✅ Data saved to server successfully');
-                this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                    '✓ Saved to user_permissions_import.json');
+                console.log('✅ Data saved to JSON successfully');
+                
+                // Now update account users AFTER JSON is saved
+                if (!skipAccountUpdate) {
+                    const currentHubId = window.currentHubId;
+                    const currentHubName = window.currentHubName || 'Unknown Hub';
+                    
+                    // Check for hub mismatch
+                    if (this.modalHubId && currentHubId && this.modalHubId !== currentHubId) {
+                        console.warn('⚠️ Hub mismatch detected!');
+                        console.warn('  Modal opened with:', this.modalHubName, '(', this.modalHubId, ')');
+                        console.warn('  Current hub is:', currentHubName, '(', currentHubId, ')');
+                        
+                        this.hideSaveProgress();
+                        
+                        // Show warning dialog
+                        const continueUpdate = confirm(
+                            `⚠️ HUB MISMATCH WARNING\n\n` +
+                            `This Users Main List was opened for:\n` +
+                            `  "${this.modalHubName}" (${this.modalHubId})\n\n` +
+                            `But the currently selected hub is:\n` +
+                            `  "${currentHubName}" (${currentHubId})\n\n` +
+                            `Do you want to update account users in "${currentHubName}"?\n\n` +
+                            `Click OK to update "${currentHubName}"\n` +
+                            `Click Cancel to skip account update (JSON will still be saved)`
+                        );
+                        
+                        if (!continueUpdate) {
+                            console.log('⚠️ User cancelled account update due to hub mismatch');
+                            this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
+                                '✓ Saved to JSON (account update skipped)');
+                            return;
+                        }
+                    }
+                    
+                    if (currentHubId) {
+                        console.log('🔄 Now updating account users from saved JSON...');
+                        console.log('🔄 Target hub:', currentHubName, '(', currentHubId, ')');
+                        try {
+                            await this.updateAccountUsersBeforeSave(currentHubId);
+                            console.log('✅ Account users updated successfully!');
+                            
+                            // Show completion
+                            this.showSaveProgress('All operations completed!', 100);
+                            setTimeout(() => this.hideSaveProgress(), 1500);
+                            
+                            this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
+                                '✓ Saved and account updated');
+                        } catch (error) {
+                            console.error('❌ Account update failed:', error);
+                            this.hideSaveProgress();
+                            this.showSaveError(`JSON saved but account update failed: ${error.message}`);
+                            return;
+                        }
+                    } else {
+                        console.warn('⚠️ No accountId available, skipping account update');
+                        this.showSaveProgress('Save completed!', 100);
+                        setTimeout(() => this.hideSaveProgress(), 1000);
+                        this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
+                            '✓ Saved to JSON (no account update)');
+                    }
+                } else {
+                    // No account update requested
+                    this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
+                        '✓ Saved to user_permissions_import.json');
+                }
             } else {
                 console.error('❌ Error saving to server:', data.message);
+                this.hideSaveProgress();
                 this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
                     '✗ Error saving to server');
             }
-        })
-        .catch(error => {
+        } catch (error) {
             console.error('❌ Network error saving to server:', error);
+            this.hideSaveProgress();
             this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
                 '✗ Network error saving to server');
-        });
+        }
     }
 
     /**
@@ -1495,21 +1860,39 @@ class UserTableManager {
      */
     loadTableData() {
         console.log('📊 loadTableData() called');
+        console.log('📊 Fetching from: http://localhost:3000/load');
+        
         fetch('http://localhost:3000/load')
-            .then(response => response.json())
+            .then(response => {
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response OK:', response.ok);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(jsonData => {
                 console.log('📊 Data loaded from server:', jsonData);
-                if (jsonData.users) {
-                    console.log('📊 Found users data, calling populateTableFromData');
+                console.log('📊 Number of users:', jsonData.users ? jsonData.users.length : 0);
+                
+                if (jsonData.users && jsonData.users.length > 0) {
+                    console.log('📊 Found', jsonData.users.length, 'users, calling populateTableFromData');
                     this.populateTableFromData(jsonData.users);
                 } else {
-                    console.log('📊 No users data, adding default row');
+                    console.log('📊 No users data in JSON, adding default row');
                     this.addRow(); // Add default row if no saved data
                 }
             })
             .catch(error => {
                 console.error('❌ Error loading modal data:', error);
+                console.error('❌ Error name:', error.name);
+                console.error('❌ Error message:', error.message);
+                console.error('❌ Error stack:', error.stack);
                 console.log('📊 Adding default row due to error');
+                
+                // Show user-friendly error message
+                alert(`Failed to load user data from server:\n${error.message}\n\nPlease make sure the server is running (npm start or node server.js)`);
+                
                 this.addRow(); // Add default row if loading fails
             });
     }
@@ -1524,6 +1907,10 @@ class UserTableManager {
         this.existingEmails.clear();
         
         users.forEach(user => {
+            console.log('📋 Populating row for user:', user.email);
+            console.log('📋   Company:', user.metadata?.company);
+            console.log('📋   Role:', user.metadata?.role);
+            
             const row = document.createElement('tr');
             
             // Checkbox cell
@@ -1540,12 +1927,16 @@ class UserTableManager {
             
             // Company cell
             const companyCell = this.createEditableCell();
-            companyCell.textContent = (user.metadata && user.metadata.company) || '';
+            const companyValue = (user.metadata && user.metadata.company) || '';
+            companyCell.textContent = companyValue;
+            console.log('📋   Setting company cell to:', companyValue);
             row.appendChild(companyCell);
 
             // Role cell
             const roleCell = this.createEditableCell();
-            roleCell.textContent = (user.metadata && user.metadata.role) || '';
+            const roleValue = (user.metadata && user.metadata.role) || '';
+            roleCell.textContent = roleValue;
+            console.log('📋   Setting role cell to:', roleValue);
             row.appendChild(roleCell);
             
             // Access level cells
