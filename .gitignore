@@ -49,5 +49,4 @@ logs
 # Optional eslint cache
 .eslintcache
 
-#text files
-*.txt
+

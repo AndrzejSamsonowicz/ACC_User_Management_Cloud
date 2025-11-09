@@ -216,48 +216,106 @@ async function patchUser(accountId, userId, token, body) {
 }
 
 // Import (add) users in batch using HQ API format from documentation
-// Import (add) users in batch using HQ API format from documentation
+// Note: API accepts maximum 50 users per call, so we batch large arrays
 async function importUsers(accountId, token, usersArray) {
-    if (!usersArray || usersArray.length === 0) return [];
+    if (!usersArray || usersArray.length === 0) return { success: 0, failure: 0, success_items: [], failure_items: [] };
+    
+    const BATCH_SIZE = 50; // API limit per documentation
     const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/import`;
     
-    // Format users according to HQ API specification from documentation
-    const payload = usersArray.map(user => {
-        const formattedUser = {
-            email: user.email
-        };
-        
-        // Add optional fields only if they exist
-        if (user.first_name) formattedUser.first_name = user.first_name;
-        if (user.last_name) formattedUser.last_name = user.last_name;
-        if (user.companyId) formattedUser.company_id = user.companyId;
-        if (user.default_role) formattedUser.default_role = user.default_role;
-        if (user.job_title) formattedUser.job_title = user.job_title;
-        if (user.nickname) formattedUser.nickname = user.nickname;
-        if (user.company) formattedUser.company = user.company;
-        
-        return formattedUser;
-    });
-    
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    });
-    
-    if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Import users failed: ${res.status} ${res.statusText} - ${txt}`);
+    // Split users into batches of 50
+    const batches = [];
+    for (let i = 0; i < usersArray.length; i += BATCH_SIZE) {
+        batches.push(usersArray.slice(i, i + BATCH_SIZE));
     }
     
-    try {
-        return await res.json();
-    } catch {
-        return res.status; // fallback if no JSON response
+    console.log(`📦 Splitting ${usersArray.length} users into ${batches.length} batches of ${BATCH_SIZE}`);
+    
+    // Accumulate results from all batches
+    const aggregatedResults = {
+        success: 0,
+        failure: 0,
+        success_items: [],
+        failure_items: []
+    };
+    
+    // Process each batch sequentially
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
+        
+        // Format users according to HQ API specification from documentation
+        const payload = batch.map(user => {
+            const formattedUser = {
+                email: user.email
+            };
+            
+            // Add optional fields only if they exist
+            if (user.first_name) formattedUser.first_name = user.first_name;
+            if (user.last_name) formattedUser.last_name = user.last_name;
+            if (user.companyId) formattedUser.company_id = user.companyId;
+            if (user.default_role) formattedUser.default_role = user.default_role;
+            if (user.job_title) formattedUser.job_title = user.job_title;
+            if (user.nickname) formattedUser.nickname = user.nickname;
+            if (user.company) formattedUser.company = user.company;
+            
+            return formattedUser;
+        });
+        
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+                const txt = await res.text();
+                console.error(`❌ Batch ${batchIndex + 1} failed: ${res.status} ${res.statusText}`);
+                // Mark all users in this batch as failed
+                batch.forEach(user => {
+                    aggregatedResults.failure++;
+                    aggregatedResults.failure_items.push({
+                        email: user.email,
+                        error: `Batch import failed: ${res.status} ${res.statusText}`,
+                        details: txt
+                    });
+                });
+                continue; // Continue with next batch instead of failing completely
+            }
+            
+            const batchResult = await res.json();
+            console.log(`✅ Batch ${batchIndex + 1} completed: ${batchResult.success} success, ${batchResult.failure} failures`);
+            
+            // Aggregate results
+            aggregatedResults.success += batchResult.success || 0;
+            aggregatedResults.failure += batchResult.failure || 0;
+            if (batchResult.success_items) {
+                aggregatedResults.success_items.push(...batchResult.success_items);
+            }
+            if (batchResult.failure_items) {
+                aggregatedResults.failure_items.push(...batchResult.failure_items);
+            }
+            
+        } catch (error) {
+            console.error(`❌ Batch ${batchIndex + 1} error:`, error);
+            // Mark all users in this batch as failed
+            batch.forEach(user => {
+                aggregatedResults.failure++;
+                aggregatedResults.failure_items.push({
+                    email: user.email,
+                    error: `Batch error: ${error.message}`,
+                    details: error.toString()
+                });
+            });
+        }
     }
+    
+    console.log(`📊 Final results: ${aggregatedResults.success} succeeded, ${aggregatedResults.failure} failed`);
+    return aggregatedResults;
 }
 
 // Main function - compute lists and (optionally) perform operations
@@ -361,6 +419,10 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             if (c.name) companyMap.set(c.name.trim().toLowerCase(), c.id);
         });
 
+        // Note: There is no API endpoint to fetch valid account roles
+        // Admin must manually verify roles exist in the account before importing
+        // All roles from JSON will be sent to the API - the API will validate them
+        
         const toPatch = []; // existing users to PATCH
         const toAdd = [];   // new users to POST
         const companiesToCreate = new Map(); // name -> {name, trade}
@@ -370,7 +432,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             const email = user.email;
             if (!email) return;
             const companyName = (user.metadata && user.metadata.company) ? user.metadata.company.trim() : '';
-            const role = (user.metadata && user.metadata.role) ? user.metadata.role : '';
+            const role = (user.metadata && user.metadata.role) ? user.metadata.role.trim() : '';
 
             const accountUser = accountByEmail.get(email);
             if (accountUser) {
@@ -380,6 +442,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     // schedule create
                     companiesToCreate.set(companyName, { name: companyName, trade: companyName });
                 }
+                
                 toPatch.push({
                     email,
                     userId: accountUser.id,
@@ -393,13 +456,14 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                 if (companyName && !companyId) {
                     companiesToCreate.set(companyName, { name: companyName, trade: companyName });
                 }
+                
                 toAdd.push({
                     email,
                     first_name: user.first_name || user.email.split('@')[0] || 'User',
                     last_name: user.last_name || '',
                     companyName,
                     companyId, // may be null
-                    default_role: role,
+                    default_role: role || 'Team Member', // Default to Team Member if empty
                     job_title: role || 'Team Member',
                     nickname: user.nickname || user.first_name || user.email.split('@')[0],
                     company: companyName || ''
@@ -440,7 +504,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         }
 
         // Otherwise, perform PATCH and POST operations
-        const results = { patched: [], added: [], errors: [] };
+        const results = { patched: [], added: [], errors: [], invalidRoles: new Map() };
 
         // Check authentication level for realistic error handling
         // HQ API operations require 2-legged tokens with account:write scope
@@ -493,6 +557,14 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                                 note: 'Would update: ' + Object.keys(body).join(', ') + ' (auth failed)'
                             });
                             console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
+                        } else if (authError.message.includes('404') && authError.message.includes("this default_role doesn't exist")) {
+                            // Invalid role - skip this user
+                            const role = item.default_role || 'unknown';
+                            console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
+                            if (!results.invalidRoles.has(role)) {
+                                results.invalidRoles.set(role, []);
+                            }
+                            results.invalidRoles.get(role).push(item.email);
                         } else {
                             throw authError;
                         }
@@ -535,8 +607,40 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     try {
                         const importResult = await importUsersFunction(accountId, userToken, toAdd);
                         console.log('Import result:', importResult);
-                        toAdd.forEach(item => results.added.push({ email: item.email }));
-                        console.log(`✅ Successfully imported ${toAdd.length} users`);
+                        
+                        // Handle batched import results
+                        if (importResult.success_items && importResult.success_items.length > 0) {
+                            importResult.success_items.forEach(item => {
+                                results.added.push({ email: item.email, id: item.id });
+                            });
+                        }
+                        
+                        // Track any failures from batches
+                        if (importResult.failure_items && importResult.failure_items.length > 0) {
+                            importResult.failure_items.forEach(item => {
+                                // Check if error is due to invalid role
+                                const errorMsg = item.error || item.details || '';
+                                if (errorMsg.includes("this default_role doesn't exist") || (item.details && item.details.includes("this default_role doesn't exist"))) {
+                                    // Extract role from the user data
+                                    const failedUser = toAdd.find(u => u.email === item.email);
+                                    const role = failedUser?.default_role || 'unknown';
+                                    console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
+                                    if (!results.invalidRoles.has(role)) {
+                                        results.invalidRoles.set(role, []);
+                                    }
+                                    results.invalidRoles.get(role).push(item.email);
+                                } else {
+                                    // Other errors
+                                    results.errors.push({ 
+                                        operation: 'IMPORT', 
+                                        email: item.email,
+                                        error: item.error || 'Import failed'
+                                    });
+                                }
+                            });
+                        }
+                        
+                        console.log(`✅ Import completed: ${importResult.success} succeeded, ${importResult.failure} failed out of ${toAdd.length} users`);
                     } catch (authError) {
                         if (authError.message.includes('403') || authError.message.includes('privilege') || authError.message.includes('AUTH-010')) {
                             // Switch to simulation mode
