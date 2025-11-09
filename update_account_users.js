@@ -436,20 +436,32 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
 
             const accountUser = accountByEmail.get(email);
             if (accountUser) {
-                // goes to patch
+                // Check if role or company has changed
                 const companyId = companyName ? companyMap.get(companyName.toLowerCase()) : null;
                 if (companyName && !companyId) {
                     // schedule create
                     companiesToCreate.set(companyName, { name: companyName, trade: companyName });
                 }
                 
-                toPatch.push({
-                    email,
-                    userId: accountUser.id,
-                    companyName,
-                    companyId, // may be null for now
-                    default_role: role
-                });
+                // Compare current values with desired values
+                const currentRole = accountUser.default_role || accountUser.role || '';
+                const currentCompanyId = accountUser.company_id || '';
+                const desiredRole = role || '';
+                const desiredCompanyId = companyId || '';
+                
+                // Only add to patch list if something changed
+                const roleChanged = currentRole !== desiredRole;
+                const companyChanged = currentCompanyId !== desiredCompanyId;
+                
+                if (roleChanged || companyChanged) {
+                    toPatch.push({
+                        email,
+                        userId: accountUser.id,
+                        companyName,
+                        companyId, // may be null for now
+                        default_role: role
+                    });
+                }
             } else {
                 // goes to add
                 const companyId = companyName ? companyMap.get(companyName.toLowerCase()) : null;

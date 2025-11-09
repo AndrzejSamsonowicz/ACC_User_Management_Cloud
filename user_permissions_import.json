@@ -4,7 +4,7 @@
       "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
         "company": "Bau AG",
-        "role": "Structural Engineer"
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -49,7 +49,7 @@
       "email": "mateja.kovacic@autodesk.com",
       "metadata": {
         "company": "Bau AG",
-        "role": "Structural Engineer"
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -93,8 +93,8 @@
     {
       "email": "andrzej.jan.samsonowicz@gmail.com",
       "metadata": {
-        "company": "Bau AG",
-        "role": "Structural Engineer"
+        "company": "Ciule",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -111,7 +111,7 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
@@ -138,8 +138,8 @@
     {
       "email": "samson090281@op.pl",
       "metadata": {
-        "company": "Bau AG",
-        "role": "Structural Engineer"
+        "company": "Fabix",
+        "role": "Investor"
       },
       "products": [
         {
@@ -156,7 +156,7 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
@@ -183,8 +183,8 @@
     {
       "email": "samson090281@wp.pl",
       "metadata": {
-        "company": "Bau AG",
-        "role": "Structural Engineer"
+        "company": "Fabix",
+        "role": "Investor"
       },
       "products": [
         {
@@ -201,7 +201,7 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
@@ -228,8 +228,8 @@
     {
       "email": "samson090281@gazeta.pl",
       "metadata": {
-        "company": "Bau AG",
-        "role": "Structural Engineer"
+        "company": "Fabix",
+        "role": "Investor"
       },
       "products": [
         {
@@ -246,7 +246,7 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
@@ -273,7 +273,7 @@
     {
       "email": "samson090281@gmail.com",
       "metadata": {
-        "company": "Bau AG",
+        "company": "Ciule",
         "role": "Structural Engineer"
       },
       "products": [
@@ -318,7 +318,7 @@
     {
       "email": "samson090281@yahoo.com",
       "metadata": {
-        "company": "Bau AG",
+        "company": "Ciule",
         "role": "Structural Engineer"
       },
       "products": [
@@ -336,7 +336,7 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
@@ -361,5 +361,5 @@
       ]
     }
   ],
-  "exportDate": "2025-11-09T09:23:39.217Z"
+  "exportDate": "2025-11-09T11:16:37.162Z"
 }

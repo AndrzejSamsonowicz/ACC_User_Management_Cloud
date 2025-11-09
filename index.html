@@ -339,9 +339,6 @@
                             <button id="viewAccountUsersBtn" onclick="" style="display: none;">
                                 View Account Users
                             </button>
-                            <button id="updateAccountUsersBtn" onclick="" style="display: none;">
-                                Update Account Users
-                            </button>
                         </div>
                     </div>
                     
@@ -736,24 +733,6 @@
             viewAccountUsersBtn.onclick = () => showAccountUsers(hubId, hubName, currentAccessToken);
             viewAccountUsersBtn.style.display = 'block';
             
-            // Set up the Update Account Users button (wired to new module)
-            const updateAccountUsersBtn = document.getElementById('updateAccountUsersBtn');
-            updateAccountUsersBtn.onclick = () => {
-                try {
-                    // Call the interactive updater which uses 2-legged token internally
-                    if (typeof updateAccountUsersInteractive === 'function') {
-                        updateAccountUsersInteractive(hubId);
-                    } else {
-                        console.log('updateAccountUsersInteractive not available yet');
-                        alert('Update module not loaded');
-                    }
-                } catch (err) {
-                    console.error('Error invoking updateAccountUsersInteractive:', err);
-                    alert('Error invoking update functionality: ' + err.message);
-                }
-            };
-            updateAccountUsersBtn.style.display = 'block';
-            
             // Show loading message
             projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading projects...</div>';
             
@@ -894,6 +873,9 @@
                             <div style="display:flex; gap:10px;">
                                 <button class="project-btn project-btn-update" onclick="updateProjectUsersFromMainList('${project.id}', window.currentHubId, currentAccessToken, 'projectProgress-${project.id}')">
                                     Update from the Users Main List
+                                </button>
+                                <button class="project-btn project-btn-update" onclick="showProjectUsers('${project.id}', '${project.name.replace(/'/g, "\\'")}', currentAccessToken)">
+                                    View Project Users
                                 </button>
                                 <button class="project-btn project-btn-update" onclick="showFoldersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}', window.currentHubId, currentAccessToken)">
                                     Manage Access to Folders
@@ -1097,46 +1079,45 @@
             }
         };
 
-        // Project Users Modal Management
-        let usersModal = null;
+        // Account Users Management - Inline implementation to avoid caching issues
+        let accountUsersModal = null;
 
-        function createUsersModal() {
-            if (usersModal) return; // Already created
+        function createAccountUsersModal() {
+            if (accountUsersModal) return;
 
-            // Create modal HTML
             const modalHTML = `
-                <div id="usersModal" class="users-modal" style="display: none;">
-                    <div class="users-modal-content">
-                        <div class="users-modal-header">
-                            <h3 id="modalTitle">Project Users</h3>
-                            <span class="users-modal-close">&times;</span>
+                <div id="accountUsersModal" class="account-users-modal" style="display: none;">
+                    <div class="account-users-modal-content">
+                        <div class="account-users-modal-header">
+                            <h3 id="accountModalTitle">Account Users</h3>
+                            <span class="account-users-modal-close">&times;</span>
                         </div>
-                        <div class="users-modal-body">
-                            <div id="usersLoadingMessage">Loading users...</div>
-                            <div id="usersTableContainer" style="display: none;">
-                                <table id="usersTable">
+                        <div class="account-users-modal-body">
+                            <div id="accountUsersLoadingMessage">Loading users...</div>
+                            <div id="accountUsersTableContainer" style="display: none;">
+                                <table id="accountUsersTable">
                                     <thead>
                                         <tr>
-                                            <th>ID</th>
                                             <th>Email</th>
+                                            <th>Default Role</th>
+                                            <th>Company</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="usersTableBody">
+                                    <tbody id="accountUsersTableBody">
                                     </tbody>
                                 </table>
                             </div>
-                            <div id="usersErrorMessage" style="display: none; color: red;"></div>
+                            <div id="accountUsersErrorMessage" style="display: none; color: red;"></div>
                         </div>
                     </div>
                 </div>
             `;
 
-            // Add CSS styles
             const styles = `
                 <style>
-                    .users-modal {
+                    .account-users-modal {
                         position: fixed;
-                        z-index: 1000;
+                        z-index: 1001;
                         left: 0;
                         top: 0;
                         width: 100%;
@@ -1144,22 +1125,22 @@
                         background-color: rgba(0,0,0,0.5);
                     }
 
-                    .users-modal-content {
+                    .account-users-modal-content {
                         background-color: #fefefe;
-                        margin: 5% auto;
+                        margin: 3% auto;
                         padding: 0;
                         border: 1px solid #888;
-                        width: 80%;
-                        max-width: 800px;
+                        width: 90%;
+                        max-width: 1000px;
                         border-radius: 8px;
-                        max-height: 80vh;
+                        max-height: 85vh;
                         display: flex;
                         flex-direction: column;
                     }
 
-                    .users-modal-header {
+                    .account-users-modal-header {
                         padding: 15px 20px;
-                        background-color: #f1f1f1;
+                        background-color: #e8f4f8;
                         border-bottom: 1px solid #ddd;
                         border-radius: 8px 8px 0 0;
                         display: flex;
@@ -1167,12 +1148,12 @@
                         align-items: center;
                     }
 
-                    .users-modal-header h3 {
+                    .account-users-modal-header h3 {
                         margin: 0;
                         color: #333;
                     }
 
-                    .users-modal-close {
+                    .account-users-modal-close {
                         color: #aaa;
                         font-size: 28px;
                         font-weight: bold;
@@ -1180,46 +1161,46 @@
                         line-height: 1;
                     }
 
-                    .users-modal-close:hover,
-                    .users-modal-close:focus {
+                    .account-users-modal-close:hover,
+                    .account-users-modal-close:focus {
                         color: #000;
                     }
 
-                    .users-modal-body {
+                    .account-users-modal-body {
                         padding: 20px;
                         flex-grow: 1;
                         overflow-y: auto;
                     }
 
-                    #usersTable {
+                    #accountUsersTable {
                         width: 100%;
                         border-collapse: collapse;
                         margin-top: 10px;
                     }
 
-                    #usersTable th,
-                    #usersTable td {
+                    #accountUsersTable th,
+                    #accountUsersTable td {
                         border: 1px solid #ddd;
                         padding: 12px;
                         text-align: left;
                     }
 
-                    #usersTable th {
-                        background-color: #f2f2f2;
+                    #accountUsersTable th {
+                        background-color: #f8f9fa;
                         font-weight: bold;
                         position: sticky;
                         top: 0;
                     }
 
-                    #usersTable tr:nth-child(even) {
+                    #accountUsersTable tr:nth-child(even) {
                         background-color: #f9f9f9;
                     }
 
-                    #usersTable tr:hover {
-                        background-color: #f5f5f5;
+                    #accountUsersTable tr:hover {
+                        background-color: #f0f8ff;
                     }
 
-                    #usersLoadingMessage {
+                    #accountUsersLoadingMessage {
                         text-align: center;
                         padding: 40px;
                         font-size: 16px;
@@ -1228,84 +1209,40 @@
                 </style>
             `;
 
-            // Add modal to the page
             document.head.insertAdjacentHTML('beforeend', styles);
             document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-            usersModal = document.getElementById('usersModal');
-            setupModalEvents();
+            accountUsersModal = document.getElementById('accountUsersModal');
+            setupAccountModalEvents();
         }
 
-        function setupModalEvents() {
-            const closeBtn = document.querySelector('.users-modal-close');
+        function setupAccountModalEvents() {
+            const closeBtn = document.querySelector('.account-users-modal-close');
 
-            // Close modal when clicking the X
             closeBtn.addEventListener('click', () => {
-                closeUsersModal();
+                closeAccountUsersModal();
             });
 
-            // Removed: Close modal when clicking outside
-            // Modal now only closes with the "X" button or Escape key
+            window.addEventListener('click', (event) => {
+                if (event.target === accountUsersModal) {
+                    closeAccountUsersModal();
+                }
+            });
 
-            // Close modal when pressing ESC key
             document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && usersModal && usersModal.style.display === 'block') {
-                    closeUsersModal();
+                if (event.key === 'Escape' && accountUsersModal && accountUsersModal.style.display === 'block') {
+                    closeAccountUsersModal();
                 }
             });
         }
 
-        function closeUsersModal() {
-            if (usersModal) {
-                usersModal.style.display = 'none';
-                
-                // Clear table content
-                document.getElementById('usersTableBody').innerHTML = '';
-                
-                // Reset loading state
-                document.getElementById('usersLoadingMessage').textContent = 'Loading users...';
-                document.getElementById('usersLoadingMessage').style.display = 'block';
-                document.getElementById('usersTableContainer').style.display = 'none';
-                document.getElementById('usersErrorMessage').style.display = 'none';
-            }
-        }
-
-        async function showProjectUsers(projectId, projectName, accessToken) {
-            // Create modal if it doesn't exist
-            createUsersModal();
-            
-            const modalTitle = document.getElementById('modalTitle');
-            const loadingMessage = document.getElementById('usersLoadingMessage');
-            const tableContainer = document.getElementById('usersTableContainer');
-            const errorMessage = document.getElementById('usersErrorMessage');
-            
-            // Set modal title
-            modalTitle.textContent = `Users in: ${projectName}`;
-            
-            // Show modal and loading state
-            usersModal.style.display = 'block';
-            loadingMessage.style.display = 'block';
-            tableContainer.style.display = 'none';
-            errorMessage.style.display = 'none';
-
-            try {
-                // Fetch all users with pagination
-                const allUsers = await fetchAllProjectUsers(projectId, accessToken);
-                
-                // Display users in table
-                displayUsersInTable(allUsers, projectName);
-                
-                // Show table, hide loading
-                loadingMessage.style.display = 'none';
-                tableContainer.style.display = 'block';
-                
-            } catch (error) {
-                console.error('Error fetching users:', error);
-                
-                // Show error message
-                loadingMessage.style.display = 'none';
-                errorMessage.textContent = `Failed to load users: ${error.message}`;
-                errorMessage.style.display = 'block';
+        function closeAccountUsersModal() {
+            if (accountUsersModal) {
+                accountUsersModal.style.display = 'none';
+                document.getElementById('accountUsersTableBody').innerHTML = '';
+                document.getElementById('accountUsersLoadingMessage').textContent = 'Loading users...';
+                document.getElementById('accountUsersLoadingMessage').style.display = 'block';
+                document.getElementById('accountUsersTableContainer').style.display = 'none';
+                document.getElementById('accountUsersErrorMessage').style.display = 'none';
             }
         }
 
@@ -1968,43 +1905,71 @@
             return allUsers;
         }
 
-        function displayUsersInTable(users, projectName) {
-            const tableBody = document.getElementById('usersTableBody');
+        // Get 2-legged access token for HQ API
+        async function get2LeggedToken() {
+            const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
             
-            // Clear existing rows
-            tableBody.innerHTML = '';
+            const data = new URLSearchParams();
+            data.append('client_id', CLIENT_ID);
+            data.append('client_secret', CLIENT_SECRET);
+            data.append('grant_type', 'client_credentials');
+            data.append('scope', 'account:read');
 
-            // Filter and sort users
-            const validUsers = users
-                .filter(user => user.email && user.id)
-                .sort((a, b) => a.email.localeCompare(b.email));
-
-            // Create table rows
-            validUsers.forEach((user, index) => {
-                const row = document.createElement('tr');
+            try {
+                const response = await fetch(TOKEN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: data
+                });
                 
-                // ID cell
-                const idCell = document.createElement('td');
-                idCell.textContent = user.id;
-                idCell.style.fontFamily = 'monospace';
-                idCell.style.fontSize = '12px';
-                row.appendChild(idCell);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 
-                // Email cell
-                const emailCell = document.createElement('td');
-                emailCell.textContent = user.email;
-                row.appendChild(emailCell);
-                
-                tableBody.appendChild(row);
-            });
-
-            // Update modal title with count
-            const modalTitle = document.getElementById('modalTitle');
-            modalTitle.textContent = `Users in: ${projectName} (${validUsers.length} users)`;
+                const tokenData = await response.json();
+                console.log('Got 2-legged token for HQ API');
+                return tokenData.access_token;
+            } catch (error) {
+                console.error('Error getting 2-legged token:', error);
+                throw new Error(`Authentication error: ${error.message}`);
+            }
         }
 
-        // Account Users Management - Inline implementation to avoid caching issues
-        let accountUsersModal = null;
+        async function showAccountUsers(accountId, accountName, accessToken) {
+            createAccountUsersModal();
+            
+            const modalTitle = document.getElementById('accountModalTitle');
+            const loadingMessage = document.getElementById('accountUsersLoadingMessage');
+            const tableContainer = document.getElementById('accountUsersTableContainer');
+            const errorMessage = document.getElementById('accountUsersErrorMessage');
+            
+            modalTitle.textContent = `Users in Account: ${accountName}`;
+            
+            accountUsersModal.style.display = 'block';
+            loadingMessage.style.display = 'block';
+            tableContainer.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            try {
+                loadingMessage.textContent = 'Getting authentication token...';
+                const twoLeggedToken = await get2LeggedToken();
+                
+                loadingMessage.textContent = 'Loading users...';
+                const allUsers = await fetchAllAccountUsers(accountId, twoLeggedToken);
+                displayAccountUsersInTable(allUsers, accountName);
+                
+                loadingMessage.style.display = 'none';
+                tableContainer.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error fetching account users:', error);
+                loadingMessage.style.display = 'none';
+                errorMessage.textContent = `Failed to load users: ${error.message}`;
+                errorMessage.style.display = 'block';
+            }
+        }
 
         function createAccountUsersModal() {
             if (accountUsersModal) return;
@@ -2430,10 +2395,11 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2025103003"></script>
+    <script src="user-table.js?v=2025110901"></script>
     <script src="update_account_users.js?v=2025110205"></script>
     <script src="get_account_users.js?v=2025110205"></script>
-    <script src="manage_project_users.js?v=2025110205"></script>
+    <script src="get_project_users.js?v=20251109171700"></script>
+    <script src="manage_project_users.js?v=2025110206"></script>
     <script src="folders_permissions.js?v=2025110301"></script>
     <script>
         // Initialize user table management when DOM is ready

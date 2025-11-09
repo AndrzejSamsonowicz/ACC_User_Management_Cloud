@@ -1290,6 +1290,62 @@ class UserTableManager {
     }
 
     /**
+     * Check if the JSON data has changed compared to the current file
+     * This detects changes to product access levels
+     */
+    hasJsonDataChanged(newJsonData) {
+        try {
+            // If we don't have the original data loaded, assume it changed
+            if (!this.originalJsonData || !this.originalJsonData.users) {
+                console.log('📊 No original data to compare - assuming changed');
+                return true;
+            }
+            
+            const oldUsers = this.originalJsonData.users;
+            const newUsers = newJsonData.users;
+            
+            // Different number of users means changed
+            if (oldUsers.length !== newUsers.length) {
+                console.log('📊 User count changed:', oldUsers.length, '→', newUsers.length);
+                return true;
+            }
+            
+            // Compare each user's product access
+            for (let i = 0; i < newUsers.length; i++) {
+                const newUser = newUsers[i];
+                const oldUser = oldUsers.find(u => u.email === newUser.email);
+                
+                if (!oldUser) {
+                    console.log('📊 New user found:', newUser.email);
+                    return true;
+                }
+                
+                // Compare products
+                if (newUser.products && oldUser.products) {
+                    for (let j = 0; j < newUser.products.length; j++) {
+                        const newProduct = newUser.products[j];
+                        const oldProduct = oldUser.products.find(p => p.key === newProduct.key);
+                        
+                        if (!oldProduct || oldProduct.access !== newProduct.access) {
+                            console.log(`📊 Product access changed for ${newUser.email}:`, 
+                                newProduct.key, oldProduct?.access || 'none', '→', newProduct.access);
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            console.log('📊 No JSON data changes detected');
+            return false;
+            
+        } catch (error) {
+            console.error('Error comparing JSON data:', error);
+            // If comparison fails, assume it changed to be safe
+            return true;
+        }
+    }
+
+    /**
      * Show save progress bar
      */
     showSaveProgress(message, percentage) {
@@ -1659,11 +1715,23 @@ class UserTableManager {
                         console.log('🔄 Now updating account users from saved JSON...');
                         console.log('🔄 Target hub:', currentHubName, '(', currentHubId, ')');
                         try {
-                            await this.updateAccountUsersBeforeSave(currentHubId);
+                            const updateResults = await this.updateAccountUsersBeforeSave(currentHubId);
                             console.log('✅ Account users updated successfully!');
                             
-                            // Show completion
-                            this.showSaveProgress('All operations completed!', 100);
+                            // Check if any changes were made to account (role/company)
+                            const patchedCount = updateResults.patched?.length || 0;
+                            const addedCount = updateResults.added?.length || 0;
+                            const accountChanges = patchedCount + addedCount;
+                            
+                            // Check if JSON data changed (includes product access changes)
+                            const jsonChanged = this.hasJsonDataChanged(jsonData);
+                            
+                            // Show completion message based on changes
+                            if (accountChanges > 0 || jsonChanged) {
+                                this.showSaveProgress('All users updated!', 100);
+                            } else {
+                                this.showSaveProgress('No change found', 100);
+                            }
                             setTimeout(() => this.hideSaveProgress(), 1500);
                             
                             this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
@@ -1874,6 +1942,9 @@ class UserTableManager {
             .then(jsonData => {
                 console.log('📊 Data loaded from server:', jsonData);
                 console.log('📊 Number of users:', jsonData.users ? jsonData.users.length : 0);
+                
+                // Store original data for comparison later
+                this.originalJsonData = JSON.parse(JSON.stringify(jsonData)); // Deep copy
                 
                 if (jsonData.users && jsonData.users.length > 0) {
                     console.log('📊 Found', jsonData.users.length, 'users, calling populateTableFromData');
