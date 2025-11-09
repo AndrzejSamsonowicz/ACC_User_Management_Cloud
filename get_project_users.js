@@ -1,7 +1,13 @@
-// Project Users Management
-class ProjectUsersManager {
+// Project Users Viewer (Read-Only)
+console.log('🚀🚀🚀 get_project_users.js LOADING - VERSION 20251109171600 🚀🚀🚀');
+
+class ProjectUsersViewer {
     constructor() {
         this.currentAccessToken = null;
+        this.originalUsers = [];
+        this.currentProjectName = '';
+        this.sortColumn = 'email';
+        this.sortDirection = 'asc';
         this.createModal();
     }
 
@@ -21,11 +27,31 @@ class ProjectUsersManager {
                     <div class="users-modal-body">
                         <div id="usersLoadingMessage">Loading users...</div>
                         <div id="usersTableContainer" style="display: none;">
+                            <!-- Filter Section -->
+                            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+                                <label for="projectUsersFilter" style="font-weight: bold;">Filter by Email:</label>
+                                <input 
+                                    type="text" 
+                                    id="projectUsersFilter" 
+                                    placeholder="Type to filter by email..." 
+                                    style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                />
+                                <button onclick="projectUsersViewer.clearFilter()" style="padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Clear</button>
+                            </div>
+                            <div id="projectUsersFilterInfo" style="margin-bottom: 10px; font-size: 13px; color: #666;"></div>
+                            
                             <table id="usersTable">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
-                                        <th>Email</th>
+                                        <th onclick="projectUsersViewer.sortTable('email')" style="cursor: pointer; user-select: none;">
+                                            Email <span id="sortIndicator-email">↕</span>
+                                        </th>
+                                        <th onclick="projectUsersViewer.sortTable('company')" style="cursor: pointer; user-select: none;">
+                                            Company <span id="sortIndicator-company">↕</span>
+                                        </th>
+                                        <th onclick="projectUsersViewer.sortTable('role')" style="cursor: pointer; user-select: none;">
+                                            Role <span id="sortIndicator-role">↕</span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody id="usersTableBody">
@@ -66,7 +92,7 @@ class ProjectUsersManager {
 
                 .users-modal-header {
                     padding: 15px 20px;
-                    background-color: #f1f1f1;
+                    background-color: #e8f4f8;
                     border-bottom: 1px solid #ddd;
                     border-radius: 8px 8px 0 0;
                     display: flex;
@@ -165,6 +191,14 @@ class ProjectUsersManager {
                 this.closeModal();
             }
         });
+
+        // Add filter input event listener
+        const filterInput = document.getElementById('projectUsersFilter');
+        if (filterInput) {
+            filterInput.addEventListener('input', () => {
+                this.filterUsers();
+            });
+        }
     }
 
     async showProjectUsers(projectId, projectName) {
@@ -174,6 +208,9 @@ class ProjectUsersManager {
         const tableContainer = document.getElementById('usersTableContainer');
         const errorMessage = document.getElementById('usersErrorMessage');
         
+        // Store project name
+        this.currentProjectName = projectName;
+        
         // Set modal title
         modalTitle.textContent = `Users in: ${projectName}`;
         
@@ -182,13 +219,51 @@ class ProjectUsersManager {
         loadingMessage.style.display = 'block';
         tableContainer.style.display = 'none';
         errorMessage.style.display = 'none';
+        
+        // Clear filter
+        const filterInput = document.getElementById('projectUsersFilter');
+        if (filterInput) filterInput.value = '';
+        const filterInfo = document.getElementById('projectUsersFilterInfo');
+        if (filterInfo) filterInfo.textContent = '';
 
         try {
             // Fetch all users with pagination
             const allUsers = await this.fetchAllUsers(projectId);
             
+            console.log('🔍 RAW API DATA - Total users:', allUsers.length);
+            if (allUsers.length > 0) {
+                console.log('🔍 First raw user:', allUsers[0]);
+                console.log('🔍 First user.email:', allUsers[0].email);
+                console.log('🔍 First user.companyName:', allUsers[0].companyName);
+                console.log('🔍 First user.roles:', allUsers[0].roles);
+            }
+            
+            // Store original users data
+            this.originalUsers = allUsers.map(user => {
+                // Extract role names from roles array
+                let roleNames = 'N/A';
+                if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
+                    roleNames = user.roles.map(r => r.name).join(', ');
+                }
+                
+                const mapped = {
+                    email: user.email || 'N/A',
+                    company: user.companyName || 'N/A',
+                    role: roleNames
+                };
+                
+                console.log('🔍 Mapped user:', mapped);
+                return mapped;
+            });
+            
+            console.log('🔍 FINAL originalUsers array:', this.originalUsers);
+            
+            // Reset sort to default
+            this.sortColumn = 'email';
+            this.sortDirection = 'asc';
+            
             // Display users in table
-            this.displayUsersTable(allUsers);
+            this.renderTable();
             
             // Show table, hide loading
             loadingMessage.style.display = 'none';
@@ -283,48 +358,147 @@ class ProjectUsersManager {
         return allUsers;
     }
 
-    displayUsersTable(users) {
+    filterUsers() {
+        if (!this.originalUsers || this.originalUsers.length === 0) return;
+
+        const filterText = document.getElementById('projectUsersFilter').value.toLowerCase().trim();
+        const filterInfo = document.getElementById('projectUsersFilterInfo');
+        
+        if (!filterText) {
+            // No filter, render all users
+            this.renderTable();
+            filterInfo.textContent = '';
+            return;
+        }
+
+        // Filter users by email
+        const filteredUsers = this.originalUsers.filter(user => 
+            user.email.toLowerCase().includes(filterText)
+        );
+
+        this.renderTable(filteredUsers);
+        
+        // Update filter info
+        if (filteredUsers.length === 0) {
+            filterInfo.textContent = 'No users found matching the filter.';
+            filterInfo.style.color = '#dc3545';
+        } else if (filteredUsers.length === this.originalUsers.length) {
+            filterInfo.textContent = 'Filter matches all users.';
+            filterInfo.style.color = '#28a745';
+        } else {
+            filterInfo.textContent = `Showing ${filteredUsers.length} of ${this.originalUsers.length} users.`;
+            filterInfo.style.color = '#007cba';
+        }
+    }
+
+    clearFilter() {
+        const filterInput = document.getElementById('projectUsersFilter');
+        const filterInfo = document.getElementById('projectUsersFilterInfo');
+        if (filterInput) filterInput.value = '';
+        if (filterInfo) filterInfo.textContent = '';
+        this.renderTable();
+    }
+
+    sortTable(column) {
+        // Toggle sort direction if clicking the same column
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+        
+        // Re-render with current filter
+        const filterText = document.getElementById('projectUsersFilter').value.toLowerCase().trim();
+        if (filterText) {
+            this.filterUsers();
+        } else {
+            this.renderTable();
+        }
+    }
+
+    renderTable(usersToDisplay = null) {
         const tableBody = document.getElementById('usersTableBody');
         
         // Clear existing rows
         tableBody.innerHTML = '';
 
-        // Filter and sort users
-        const validUsers = users
-            .filter(user => user.email && user.id)
-            .sort((a, b) => a.email.localeCompare(b.email));
+        // Use provided users or all original users
+        let users = usersToDisplay || this.originalUsers;
+        
+        // Sort users
+        const sortedUsers = [...users].sort((a, b) => {
+            let aVal = a[this.sortColumn] || '';
+            let bVal = b[this.sortColumn] || '';
+            
+            const comparison = aVal.localeCompare(bVal);
+            return this.sortDirection === 'asc' ? comparison : -comparison;
+        });
+
+        // Update sort indicators
+        ['email', 'company', 'role'].forEach(col => {
+            const indicator = document.getElementById(`sortIndicator-${col}`);
+            if (indicator) {
+                if (col === this.sortColumn) {
+                    indicator.textContent = this.sortDirection === 'asc' ? '↑' : '↓';
+                } else {
+                    indicator.textContent = '↕';
+                }
+            }
+        });
 
         // Create table rows
-        validUsers.forEach((user, index) => {
+        sortedUsers.forEach((user) => {
             const row = document.createElement('tr');
-            
-            // ID cell
-            const idCell = document.createElement('td');
-            idCell.textContent = user.id;
-            idCell.style.fontFamily = 'monospace';
-            idCell.style.fontSize = '12px';
-            row.appendChild(idCell);
             
             // Email cell
             const emailCell = document.createElement('td');
             emailCell.textContent = user.email;
             row.appendChild(emailCell);
             
+            // Company cell
+            const companyCell = document.createElement('td');
+            companyCell.textContent = user.company;
+            row.appendChild(companyCell);
+            
+            // Default Role cell
+            const roleCell = document.createElement('td');
+            roleCell.textContent = user.role;
+            row.appendChild(roleCell);
+            
             tableBody.appendChild(row);
         });
 
         // Update modal title with count
         const modalTitle = document.getElementById('modalTitle');
-        const currentTitle = modalTitle.textContent;
-        modalTitle.textContent = `${currentTitle} (${validUsers.length} users)`;
+        const filterText = document.getElementById('projectUsersFilter').value;
+        const titleSuffix = filterText ? 
+            ` (${sortedUsers.length} filtered / ${this.originalUsers.length} total)` :
+            ` (${sortedUsers.length} users)`;
+        modalTitle.textContent = `Users in: ${this.currentProjectName}${titleSuffix}`;
+    }
+
+    displayUsersTable(users) {
+        // This method is kept for backward compatibility but now just calls renderTable
+        this.renderTable();
     }
 
     closeModal() {
         const modal = document.getElementById('usersModal');
         modal.style.display = 'none';
         
+        // Clear stored data
+        this.originalUsers = [];
+        this.currentProjectName = '';
+        
         // Clear table content
         document.getElementById('usersTableBody').innerHTML = '';
+        
+        // Clear filter
+        const filterInput = document.getElementById('projectUsersFilter');
+        const filterInfo = document.getElementById('projectUsersFilterInfo');
+        if (filterInput) filterInput.value = '';
+        if (filterInfo) filterInfo.textContent = '';
         
         // Reset loading state
         document.getElementById('usersLoadingMessage').textContent = 'Loading users...';
@@ -335,10 +509,21 @@ class ProjectUsersManager {
 }
 
 // Create global instance
-const projectUsersManager = new ProjectUsersManager();
+const projectUsersViewer = new ProjectUsersViewer();
 
 // Global function to be called from main page
-function showProjectUsers(projectId, projectName, accessToken) {
-    projectUsersManager.setAccessToken(accessToken);
-    projectUsersManager.showProjectUsers(projectId, projectName);
+async function showProjectUsers(projectId, projectName, accessToken) {
+    console.log('🎯🎯🎯 showProjectUsers CALLED! 🎯🎯🎯');
+    console.log('Project ID:', projectId);
+    console.log('Project Name:', projectName);
+    
+    try {
+        // Get 2-legged token for project users (Construction Admin API requires 2-legged)
+        const twoLeggedToken = await get2LeggedToken();
+        projectUsersViewer.setAccessToken(twoLeggedToken);
+        projectUsersViewer.showProjectUsers(projectId, projectName);
+    } catch (error) {
+        console.error('Error getting 2-legged token for project users:', error);
+        alert(`Failed to authenticate: ${error.message}`);
+    }
 }

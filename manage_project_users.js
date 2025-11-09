@@ -822,11 +822,14 @@ class ProjectUsersManager {
 // Create global instance
 const projectUsersManager = new ProjectUsersManager();
 
-// Global function to be called from main page
+// DEPRECATED: This function has been moved to get_project_users.js
+// Keeping this commented out to avoid conflicts
+/*
 function showProjectUsers(projectId, projectName, accessToken) {
     projectUsersManager.setAccessToken(accessToken);
     projectUsersManager.showProjectUsers(projectId, projectName);
 }
+*/
 
 // New global functions for the three operations
 function updateProjectUsers(projectId, accountId, accessToken, progressId) {
