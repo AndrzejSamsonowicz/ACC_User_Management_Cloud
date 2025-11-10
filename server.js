@@ -134,6 +134,84 @@ app.get('/load', (req, res) => {
     }
 });
 
+// Endpoint to save folder permissions
+app.post('/save-folder-permissions', (req, res) => {
+    const { projectName, data } = req.body;
+    
+    if (!projectName) {
+        return res.status(400).json({ success: false, message: 'Project name is required' });
+    }
+    
+    const fileName = `${projectName}_folder_permissions.json`;
+    const filePath = path.join(__dirname, fileName);
+    
+    try {
+        // Check if file exists
+        const fileExists = fs.existsSync(filePath);
+        
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        res.json({ 
+            success: true, 
+            message: 'Folder permissions saved successfully',
+            fileName: fileName,
+            existed: fileExists
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error saving folder permissions', 
+            error: error.message 
+        });
+    }
+});
+
+// Endpoint to load folder permissions
+app.get('/load-folder-permissions/:projectName', (req, res) => {
+    const { projectName } = req.params;
+    
+    if (!projectName) {
+        return res.status(400).json({ success: false, message: 'Project name is required' });
+    }
+    
+    const fileName = `${projectName}_folder_permissions.json`;
+    const filePath = path.join(__dirname, fileName);
+    
+    try {
+        if (fs.existsSync(filePath)) {
+            const data = fs.readFileSync(filePath, 'utf8');
+            res.json({ 
+                success: true, 
+                data: JSON.parse(data),
+                exists: true
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                data: null,
+                exists: false
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error loading folder permissions', 
+            error: error.message 
+        });
+    }
+});
+
+// Endpoint to check if folder permissions file exists
+app.get('/check-folder-permissions/:projectName', (req, res) => {
+    const { projectName } = req.params;
+    const fileName = `${projectName}_folder_permissions.json`;
+    const filePath = path.join(__dirname, fileName);
+    
+    res.json({ 
+        exists: fs.existsSync(filePath),
+        fileName: fileName
+    });
+});
+
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
     console.log('Available endpoints:');
@@ -141,4 +219,7 @@ app.listen(port, () => {
     console.log('  POST /save-credentials');
     console.log('  GET  /load');
     console.log('  POST /save');
+    console.log('  POST /save-folder-permissions');
+    console.log('  GET  /load-folder-permissions/:projectName');
+    console.log('  GET  /check-folder-permissions/:projectName');
 });
