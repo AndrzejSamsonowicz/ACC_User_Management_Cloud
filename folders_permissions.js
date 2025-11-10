@@ -68,6 +68,9 @@
             displayFolderHierarchy(folderHierarchy);
             displayUserList(projectUsers);
             
+            // Try to load saved folder permissions
+            await loadFolderPermissions(projectName);
+            
             loadingMessage.style.display = 'none';
             tableContainer.style.display = 'block';
             userListContainer.style.display = 'block';
@@ -409,6 +412,167 @@
         `;
 
         tableContainer.innerHTML = tableHTML;
+        
+        // Setup drag-and-drop for table cells
+        setupTableDragAndDrop();
+    }
+
+    /**
+     * Setup drag-and-drop functionality for table cells
+     */
+    function setupTableDragAndDrop() {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+
+        // Get all table cells (td elements)
+        const cells = table.querySelectorAll('td');
+        
+        cells.forEach((cell, index) => {
+            const cellIndex = Array.from(cell.parentElement.children).indexOf(cell);
+            
+            // Skip first two columns (Level 2 and Level 3 folder names)
+            if (cellIndex < 2) {
+                return;
+            }
+            
+            // Make cells valid drop targets
+            cell.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                cell.classList.add('drag-over');
+            });
+            
+            cell.addEventListener('dragleave', () => {
+                cell.classList.remove('drag-over');
+            });
+            
+            cell.addEventListener('drop', (e) => {
+                e.preventDefault();
+                cell.classList.remove('drag-over');
+                
+                const data = e.dataTransfer.getData('text/plain');
+                if (data) {
+                    cell.textContent = data;
+                    cell.classList.add('has-content');
+                }
+            });
+            
+            // Add click handler for selection
+            cell.addEventListener('click', (e) => {
+                handleCellSelection(cell, e.shiftKey);
+            });
+        });
+        
+        // Add keyboard handler for delete
+        document.addEventListener('keydown', handleDeleteKey);
+    }
+
+    // Track selected cells
+    let selectedCells = [];
+    let lastSelectedCell = null;
+    let copiedCells = []; // Store copied cell data
+
+    /**
+     * Handle cell selection with shift key support
+     */
+    function handleCellSelection(cell, shiftPressed) {
+        const cellIndex = Array.from(cell.parentElement.children).indexOf(cell);
+        
+        // Skip first two columns
+        if (cellIndex < 2) {
+            return;
+        }
+
+        if (!shiftPressed) {
+            // Clear previous selections
+            selectedCells.forEach(c => c.classList.remove('selected'));
+            selectedCells = [];
+            
+            // Select this cell
+            cell.classList.add('selected');
+            selectedCells.push(cell);
+            lastSelectedCell = cell;
+        } else {
+            // Shift is pressed - select range or add to selection
+            if (lastSelectedCell) {
+                // Select range between last selected and current
+                const allCells = Array.from(document.querySelectorAll('.folders-table td'));
+                const startIndex = allCells.indexOf(lastSelectedCell);
+                const endIndex = allCells.indexOf(cell);
+                
+                const start = Math.min(startIndex, endIndex);
+                const end = Math.max(startIndex, endIndex);
+                
+                for (let i = start; i <= end; i++) {
+                    const targetCell = allCells[i];
+                    const targetCellIndex = Array.from(targetCell.parentElement.children).indexOf(targetCell);
+                    
+                    // Skip first two columns
+                    if (targetCellIndex >= 2 && !selectedCells.includes(targetCell)) {
+                        targetCell.classList.add('selected');
+                        selectedCells.push(targetCell);
+                    }
+                }
+            } else {
+                // No previous selection, just select this one
+                cell.classList.add('selected');
+                selectedCells.push(cell);
+                lastSelectedCell = cell;
+            }
+        }
+    }
+
+    /**
+     * Handle delete key press
+     */
+    function handleDeleteKey(e) {
+        if (e.key === 'Delete' && selectedCells.length > 0) {
+            selectedCells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('has-content');
+                cell.classList.remove('selected');
+            });
+            selectedCells = [];
+            lastSelectedCell = null;
+        }
+        
+        // Handle Ctrl+C (Copy)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedCells.length > 0) {
+            e.preventDefault();
+            copiedCells = selectedCells.map(cell => ({
+                content: cell.textContent,
+                hasContent: cell.classList.contains('has-content')
+            }));
+            console.log(`📋 Copied ${copiedCells.length} cells`);
+        }
+        
+        // Handle Ctrl+V (Paste)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v' && copiedCells.length > 0 && selectedCells.length > 0) {
+            e.preventDefault();
+            
+            // Paste copied cells starting from the first selected cell
+            const startCell = selectedCells[0];
+            const allCells = Array.from(document.querySelectorAll('.folders-table td'));
+            const startIndex = allCells.indexOf(startCell);
+            
+            copiedCells.forEach((copiedData, index) => {
+                const targetCell = allCells[startIndex + index];
+                if (targetCell) {
+                    const cellIndex = Array.from(targetCell.parentElement.children).indexOf(targetCell);
+                    
+                    // Skip first two columns
+                    if (cellIndex >= 2) {
+                        targetCell.textContent = copiedData.content;
+                        if (copiedData.hasContent && copiedData.content) {
+                            targetCell.classList.add('has-content');
+                        } else {
+                            targetCell.classList.remove('has-content');
+                        }
+                    }
+                }
+            });
+            
+            console.log(`📌 Pasted ${copiedCells.length} cells`);
+        }
     }
 
     /**
@@ -466,11 +630,14 @@
         userHTML += '<div class="user-list-items">';
         
         itemsToDisplay.forEach(item => {
-            userHTML += `<div class="user-list-item">${item}</div>`;
+            userHTML += `<div class="user-list-item" draggable="true">${item}</div>`;
         });
         
         userHTML += '</div>';
         userListContainer.innerHTML = userHTML;
+        
+        // Setup drag functionality for user list items
+        setupUserListDrag();
         
         // Add event listener for sort change
         const sortSelect = document.getElementById('userSortSelect');
@@ -489,12 +656,255 @@
         });
     }
 
+    /**
+     * Setup drag functionality for user list items
+     */
+    function setupUserListDrag() {
+        const userItems = document.querySelectorAll('.user-list-item');
+        
+        userItems.forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', item.textContent);
+                item.classList.add('dragging');
+            });
+            
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('dragging');
+            });
+        });
+    }
+
     // Add Columns function
     function addColumns() {
         additionalColumnsCount += 10;
         if (currentHierarchy) {
             displayFolderHierarchy(currentHierarchy);
         }
+    }
+
+    /**
+     * Save folder permissions to JSON file
+     */
+    async function saveFolderPermissions() {
+        if (!currentProjectData) {
+            alert('No project data available');
+            return;
+        }
+
+        const table = document.querySelector('.folders-table');
+        if (!table) {
+            alert('No table data to save');
+            return;
+        }
+
+        // Check if file already exists
+        try {
+            const checkResponse = await fetch(`http://localhost:3000/check-folder-permissions/${encodeURIComponent(currentProjectData.projectName)}`);
+            const checkData = await checkResponse.json();
+            
+            if (checkData.exists) {
+                const confirmed = await showConfirmDialog(
+                    'Update Folder Permissions?',
+                    'Do you want to update the folder permissions?'
+                );
+                if (!confirmed) {
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking file existence:', error);
+        }
+
+        const folders = [];
+        const rows = table.querySelectorAll('tbody tr');
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length === 0) return;
+
+            const folderId = row.getAttribute('data-folder-id');
+            const level1 = row.getAttribute('data-level1');
+            const level2 = row.getAttribute('data-level2');
+            
+            // Determine level 2 and level 3 from cell content
+            const level2Cell = cells[0].textContent.trim();
+            const level3Cell = cells[1].textContent.trim();
+
+            // Build permissions object (only non-empty columns)
+            const permissions = {};
+            for (let i = 2; i < cells.length; i++) {
+                const content = cells[i].textContent.trim();
+                if (content) {
+                    permissions[`column${i - 1}`] = content;
+                }
+            }
+
+            // Only add folder if it has permissions or is a folder row
+            if (Object.keys(permissions).length > 0 || level2Cell || level3Cell) {
+                folders.push({
+                    folderId: folderId,
+                    level1: level1,
+                    level2: level2Cell || level2 || null,
+                    level3: level3Cell || null,
+                    permissions: permissions
+                });
+            }
+        });
+
+        const jsonData = {
+            projectName: currentProjectData.projectName,
+            projectId: currentProjectData.projectId,
+            hubId: currentProjectData.hubId,
+            exportDate: new Date().toISOString(),
+            folders: folders
+        };
+
+        // Save to server
+        try {
+            const response = await fetch('http://localhost:3000/save-folder-permissions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    projectName: currentProjectData.projectName,
+                    data: jsonData
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // Success - no alert needed, user can see the data is saved
+                console.log(`💾 Saved folder permissions for project: ${currentProjectData.projectName}`);
+            } else {
+                alert(`❌ Error saving folder permissions: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('Error saving folder permissions:', error);
+            alert(`❌ Error saving folder permissions: ${error.message}`);
+        }
+    }
+
+    /**
+     * Load folder permissions from JSON file
+     */
+    async function loadFolderPermissions(projectName) {
+        try {
+            const response = await fetch(`http://localhost:3000/load-folder-permissions/${encodeURIComponent(projectName)}`);
+            const result = await response.json();
+            
+            if (!result.success || !result.exists || !result.data) {
+                console.log('📂 No saved folder permissions found for this project');
+                return;
+            }
+
+            const data = result.data;
+            console.log(`📂 Loading saved folder permissions for: ${projectName}`);
+
+            // Populate the table with saved data
+            const table = document.querySelector('.folders-table');
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr');
+
+            // Create a map of folderId to permissions
+            const permissionsMap = {};
+            data.folders.forEach(folder => {
+                if (folder.folderId) {
+                    permissionsMap[folder.folderId] = folder.permissions;
+                }
+            });
+
+            // Apply permissions to table cells
+            rows.forEach(row => {
+                const folderId = row.getAttribute('data-folder-id');
+                if (!folderId || !permissionsMap[folderId]) return;
+
+                const permissions = permissionsMap[folderId];
+                const cells = row.querySelectorAll('td');
+
+                // Apply permissions to cells (starting from column 3, which is index 2)
+                Object.keys(permissions).forEach(columnKey => {
+                    const columnIndex = parseInt(columnKey.replace('column', '')) + 1; // column1 -> index 2
+                    if (cells[columnIndex]) {
+                        cells[columnIndex].textContent = permissions[columnKey];
+                        cells[columnIndex].classList.add('has-content');
+                    }
+                });
+            });
+
+            console.log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
+        } catch (error) {
+            console.error('Error loading folder permissions:', error);
+        }
+    }
+
+    /**
+     * Show confirmation dialog
+     */
+    function showConfirmDialog(title, message) {
+        return new Promise((resolve) => {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-modal-overlay';
+            
+            // Create modal content
+            const modal = document.createElement('div');
+            modal.className = 'confirm-modal';
+            modal.innerHTML = `
+                <div class="confirm-modal-header">
+                    <span>${title}</span>
+                    <span class="confirm-modal-close">&times;</span>
+                </div>
+                <div class="confirm-modal-body">${message}</div>
+                <div class="confirm-modal-footer">
+                    <button class="confirm-btn confirm-ok">Update</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // Add event listeners
+            const closeBtn = modal.querySelector('.confirm-modal-close');
+            const okBtn = modal.querySelector('.confirm-ok');
+            
+            const cleanup = () => {
+                document.body.removeChild(overlay);
+            };
+            
+            closeBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+            
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(false);
+                }
+            });
+            
+            okBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+            
+            // Close on escape
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(false);
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+            
+            // Focus OK button
+            setTimeout(() => okBtn.focus(), 100);
+        });
     }
 
     /**
@@ -509,6 +919,7 @@
                     <div class="folders-modal-header">
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
+                        <button id="saveFolderPermissionsBtn" class="save-btn">SAVE</button>
                         <span class="folders-modal-close">&times;</span>
                     </div>
                     <div class="folders-modal-body">
@@ -595,6 +1006,27 @@
 
                 .add-columns-btn:active {
                     background-color: #004085;
+                }
+
+                .save-btn {
+                    padding: 8px 16px;
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: background-color 0.2s;
+                }
+
+                .save-btn:hover {
+                    background-color: #218838;
+                }
+
+                .save-btn:active {
+                    background-color: #1e7e34;
                 }
 
                 .folders-modal-close {
@@ -716,6 +1148,19 @@
                     font-size: 13px;
                     color: #333;
                     word-break: break-all;
+                    cursor: grab;
+                    transition: all 0.2s;
+                }
+
+                .user-list-item:hover {
+                    background-color: #e3f2fd;
+                    border-color: #007bff;
+                    transform: translateX(-2px);
+                }
+
+                .user-list-item.dragging {
+                    opacity: 0.5;
+                    cursor: grabbing;
                 }
 
                 .folders-table {
@@ -731,16 +1176,25 @@
                     text-align: left;
                     font-family: 'Artifact Elements', Arial, sans-serif;
                     white-space: nowrap;
+                    user-select: none;
+                    -webkit-user-select: none;
+                    -moz-user-select: none;
+                    -ms-user-select: none;
                 }
                 
                 .folders-table td:first-child,
                 .folders-table td:nth-child(2) {
                     /* Level 2 and Level 3 folder columns - auto width */
+                    width: auto;
                 }
                 
                 .folders-table td:nth-child(n+3) {
-                    /* Additional columns 3-12 - wide enough for emails */
-                    min-width: 200px;
+                    /* Additional columns - auto width to fit content */
+                    width: auto;
+                    min-width: 100px;
+                    max-width: 400px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                 }
 
                 .folders-table th {
@@ -763,6 +1217,142 @@
                 .folders-table td {
                     font-size: 14px;
                 }
+
+                /* Drag and drop styles */
+                .folders-table td.drag-over {
+                    background-color: #bbdefb !important;
+                    border: 2px dashed #007bff !important;
+                    box-shadow: inset 0 0 8px rgba(0, 123, 255, 0.3);
+                }
+
+                .folders-table td.has-content {
+                    background-color: #c8e6c9 !important;
+                    font-weight: 500;
+                }
+
+                .folders-table td.selected {
+                    background-color: #1976d2 !important;
+                    color: white !important;
+                    outline: 2px solid #0d47a1;
+                    outline-offset: -2px;
+                }
+
+                .folders-table td:nth-child(n+3) {
+                    cursor: cell;
+                }
+
+                .folders-table td:nth-child(n+3):hover:not(.has-content) {
+                    background-color: #f5f5f5;
+                }
+
+                /* Confirmation Modal Styles */
+                .confirm-modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.6);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                }
+
+                .confirm-modal {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                    max-width: 450px;
+                    width: 90%;
+                    overflow: hidden;
+                    animation: confirmModalSlideIn 0.2s ease-out;
+                }
+
+                @keyframes confirmModalSlideIn {
+                    from {
+                        transform: translateY(-50px);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateY(0);
+                        opacity: 1;
+                    }
+                }
+
+                .confirm-modal-header {
+                    padding: 20px 24px;
+                    background-color: #f8f9fa;
+                    border-bottom: 1px solid #dee2e6;
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: #333;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+
+                .confirm-modal-close {
+                    color: #aaa;
+                    font-size: 28px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    line-height: 1;
+                }
+
+                .confirm-modal-close:hover {
+                    color: #000;
+                }
+
+                .confirm-modal-body {
+                    padding: 24px;
+                    font-size: 15px;
+                    color: #555;
+                    line-height: 1.6;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                }
+
+                .confirm-modal-footer {
+                    padding: 16px 24px;
+                    background-color: #f8f9fa;
+                    border-top: 1px solid #dee2e6;
+                    display: flex;
+                    justify-content: center;
+                    gap: 12px;
+                }
+
+                .confirm-btn {
+                    padding: 10px 24px;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                }
+
+                .confirm-cancel {
+                    background-color: #6c757d;
+                    color: white;
+                }
+
+                .confirm-cancel:hover {
+                    background-color: #5a6268;
+                }
+
+                .confirm-ok {
+                    background-color: #28a745;
+                    color: white;
+                }
+
+                .confirm-ok:hover {
+                    background-color: #218838;
+                }
+
+                .confirm-btn:active {
+                    transform: scale(0.97);
+                }
             </style>
         `;
 
@@ -779,6 +1369,7 @@
     function setupFoldersModalEvents() {
         const closeBtn = document.querySelector('.folders-modal-close');
         const addColumnsBtn = document.getElementById('addColumnsBtn');
+        const saveBtn = document.getElementById('saveFolderPermissionsBtn');
 
         closeBtn.addEventListener('click', () => {
             closeFoldersModal();
@@ -786,6 +1377,10 @@
 
         addColumnsBtn.addEventListener('click', () => {
             addColumns();
+        });
+
+        saveBtn.addEventListener('click', () => {
+            saveFolderPermissions();
         });
 
         // Close on Escape key
