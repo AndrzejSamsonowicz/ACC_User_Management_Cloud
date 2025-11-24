@@ -30,10 +30,10 @@ This application provides functionality to manage user permissions and access le
 ## Usage
 
 1. Start the server:
-   npx http-server
+  
    node server.js
 
-3. Open your browser and navigate to `http://localhost:8080/index.html`
+3. Open your browser and navigate to `http://localhost:3000/index.html`
 
 
 
