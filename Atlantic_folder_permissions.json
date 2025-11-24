@@ -1,0 +1,300 @@
+{
+  "projectName": "Atlantic",
+  "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
+  "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
+  "exportDate": "2025-11-24T19:43:30.770Z",
+  "folders": [
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
+      "level1": "Project Files",
+      "level2": "DWG",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "andrzej.jan.samsonowicz@gmail.com",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.bQI8Jo5-TUy8vywjb_jFOQ",
+      "level1": "Project Files",
+      "level2": "Folder 2",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "samson090281@gazeta.pl",
+          "level": "3"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.5VypuXYdSgGqfw0IrRbqgA",
+      "level1": "Project Files",
+      "level2": "Folder 2",
+      "level3": "sub folder 2.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.1yudsMJ-QfCXSq3mXlj9-Q",
+      "level1": "Project Files",
+      "level2": "Folder 2",
+      "level3": "sub folder 2.2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.sn-x1w2pQR6QUpNB5QSDxQ",
+      "level1": "Project Files",
+      "level2": "Folder 3",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "samson090281@gmail.com",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.37PKzJHgQz2UM7935bqZ7Q",
+      "level1": "Project Files",
+      "level2": "Folder 3",
+      "level3": "sub folder 3.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.WrNeLSxoQEKFut13VDGjmQ",
+      "level1": "Project Files",
+      "level2": "Folder 4",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "General Contractor",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.AFJQd4qdQnGDlrXbWNUUiw",
+      "level1": "Project Files",
+      "level2": "Folder 4",
+      "level3": "sub folder 4.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.1tpcrwkKTCe2VqPcdL7VBg",
+      "level1": "Project Files",
+      "level2": "Folder 4",
+      "level3": "sub folder 4.2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.92e3Nyl3Rh2E8CK53qRMyQ",
+      "level1": "Project Files",
+      "level2": "Folder 4",
+      "level3": "sub folder 4.3",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.Bj53kEKhS4WFi0go9uitVg",
+      "level1": "Project Files",
+      "level2": "Folder 4",
+      "level3": "sub folder 4.4",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.CvNiPaBbQqugK5cH3YtBew",
+      "level1": "Project Files",
+      "level2": "Folder 5",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "Bau AG",
+          "level": "1"
+        },
+        "column2": {
+          "user": "andrzej.jan.samsonowicz@gmail.com",
+          "level": "1"
+        },
+        "column3": {
+          "user": "samson090281@gazeta.pl",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.Xt-nMJ1xR-6S6UNOs29QTA",
+      "level1": "Project Files",
+      "level2": "Folder 5",
+      "level3": "sub folder 5.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.eHZ5Jj0PQJCRv9EIRZuvyQ",
+      "level1": "Project Files",
+      "level2": "Folder 6",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "andrzej.samsonowicz@autodesk.com",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.fsqa5SxES5uI79V5OxtiEw",
+      "level1": "Project Files",
+      "level2": "Folder 6",
+      "level3": "sub folder 6.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.4uePejbxQzuXI0djUeSgsQ",
+      "level1": "Project Files",
+      "level2": "Folder 6",
+      "level3": "sub folder 6.2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.JljMnCfrSJOAnNcYy-ykew",
+      "level1": "Project Files",
+      "level2": "Folder 7",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.xYmtpWlgSwKLiFv4cmF3Qw",
+      "level1": "Project Files",
+      "level2": "Folder 7",
+      "level3": "sub folder 7.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.pyi61702Q86ccevLy8fJGg",
+      "level1": "Project Files",
+      "level2": "Folder 7",
+      "level3": "sub folder 7.2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.8Hk1BaskQs2gSpweeHfbcQ",
+      "level1": "Project Files",
+      "level2": "Folder 8",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.V_8mkyQpTCyJCR9b3noDMg",
+      "level1": "Project Files",
+      "level2": "Folder 8",
+      "level3": "sub folder 8.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.30HCkUyoT9apnJByiXNxCA",
+      "level1": "Project Files",
+      "level2": "Folder 9",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.6LORkohdR0OpkqCWoCVJAA",
+      "level1": "Project Files",
+      "level2": "Folder 9",
+      "level3": "sub folder 9.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.fH-_eBMcSZeK4opBjqyq7A",
+      "level1": "Project Files",
+      "level2": "Folder 9",
+      "level3": "sub folder 9.2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.VojAwke-TDaYhwmioT-tJA",
+      "level1": "Project Files",
+      "level2": "Folder 10",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.XkVb_j7QTBCHbKKr6q0fTw",
+      "level1": "Project Files",
+      "level2": "Folder 11",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.N0xAutwpQzSraaay93QBcA",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.CO4n0rVsV0G4GIrAIgxYbQ",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "ARC",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.K7KoaayETUaZ0ngBZjqAtg",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "architekci czerwoni",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.VEZKoJH3SfuZhyjwVuLrKw",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "WIP_nieaktywne",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.cwesjZRCQ1qIF24KnhDojA",
+      "level1": "Project Files",
+      "level2": "WIP",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.hBbd1LpYT7qisT4hfO2Adg",
+      "level1": "Project Files",
+      "level2": "WIP",
+      "level3": "architekci czerwoni",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.ngFY0o_8S66pr3jF4VCasw",
+      "level1": "Project Files",
+      "level2": "xxx",
+      "level3": null,
+      "permissions": {
+        "column1": {
+          "user": "samson090281@op.pl",
+          "level": "1"
+        },
+        "column2": {
+          "user": "samson090281@yahoo.com",
+          "level": "1"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.iLbue97ZQy-67reOdQqG6w",
+      "level1": "Project Files",
+      "level2": "xxx",
+      "level3": "sub folder 1.1",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A",
+      "level1": "Project Files",
+      "level2": "xxx",
+      "level3": "sub folder 1.2",
+      "permissions": {}
+    }
+  ]
+}

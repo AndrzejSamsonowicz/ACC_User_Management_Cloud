@@ -1617,15 +1617,28 @@ class UserTableManager {
         
         Array.from(tbody.rows).forEach(row => {
             const cells = Array.from(row.cells);
-            const email = cells[1].textContent.trim(); // Email is now in cell[1], cell[0] is checkbox
+            
+            // Skip rows that don't have enough cells (minimum: checkbox + email + company + role + 9 products = 13 cells)
+            if (cells.length < 13) {
+                console.warn('⚠️ Skipping row with insufficient cells:', cells.length);
+                return;
+            }
+            
+            const emailCell = cells[1];
+            if (!emailCell) {
+                console.warn('⚠️ Skipping row without email cell');
+                return;
+            }
+            
+            const email = (emailCell.textContent || emailCell.innerText || '').trim();
             
             if (email) {
                 console.log(`💾 Processing user: ${email}`);
                 const user = {
                     email: email,
                     metadata: {
-                        company: cells[2].textContent.trim(), // Company is now in cell[2]
-                        role: cells[3].textContent.trim() // Role is now in cell[3]
+                        company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
+                        role: (cells[3]?.textContent || cells[3]?.innerText || '').trim()
                     },
                     products: []
                 };
@@ -1639,7 +1652,9 @@ class UserTableManager {
                 ];
                 
                 productKeys.forEach((key, index) => {
-                    const access = cells[index + 4].textContent.trim(); // Products now start at cell[4] (0=checkbox, 1=email, 2=company, 3=role)
+                    const cellIndex = index + 4; // Products start at cell[4]
+                    const cell = cells[cellIndex];
+                    const access = (cell?.textContent || cell?.innerText || '').trim() || 'none';
                     user.products.push({
                         key: key,
                         access: access
@@ -1665,7 +1680,7 @@ class UserTableManager {
         
         // Save to server (user_permissions_import.json)
         try {
-            const response = await fetch('http://localhost:3000/save', {
+            const response = await fetch(`${window.location.origin}/save`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1879,6 +1894,10 @@ class UserTableManager {
         importedUsers.forEach(userData => {
             const row = document.createElement('tr');
             
+            // Checkbox cell
+            const checkboxCell = this.createCheckboxCell();
+            row.appendChild(checkboxCell);
+            
             // Email cell
             const emailCell = this.createEmailCell();
             emailCell.textContent = userData.email;
@@ -1904,9 +1923,11 @@ class UserTableManager {
             ];
             
             accessColumns.forEach((columnName, index) => {
-                const cell = this.createAccessCell(columnName, index + 3, tbody.children.length);
+                const cell = this.createAccessCell(columnName, index + 4, tbody.children.length);
                 row.appendChild(cell);
             });
+            
+            tbody.appendChild(row);
             
             tbody.appendChild(row);
         });
@@ -1924,13 +1945,132 @@ class UserTableManager {
     }
 
     /**
+     * Download user_permissions_import.json locally
+     */
+    downloadJsonLocally() {
+        console.log('💾 downloadJsonLocally() called');
+        
+        const tbody = document.getElementById(this.tableBodyId);
+        
+        // Check for duplicate emails
+        const emailsFound = new Map();
+        const duplicateEmails = [];
+        
+        Array.from(tbody.rows).forEach((row, rowIndex) => {
+            const emailCell = row.cells[1]; // Email is in column 1 (after checkbox)
+            const email = (emailCell.textContent || emailCell.innerText || '').trim().toLowerCase();
+            
+            if (email) {
+                if (emailsFound.has(email)) {
+                    emailsFound.get(email).push(rowIndex);
+                    if (!duplicateEmails.includes(email)) {
+                        duplicateEmails.push(email);
+                    }
+                } else {
+                    emailsFound.set(email, [rowIndex]);
+                }
+            }
+        });
+        
+        // If duplicates found, show error
+        if (duplicateEmails.length > 0) {
+            alert(`Cannot download: Duplicate emails found!\n\n${duplicateEmails.join('\n')}\n\nPlease remove duplicates first.`);
+            return;
+        }
+        
+        // Build JSON data
+        const users = [];
+        
+        Array.from(tbody.rows).forEach(row => {
+            const emailCell = row.cells[1]; // Column 1: Email (after checkbox)
+            const companyCell = row.cells[2]; // Column 2: Company
+            const roleCell = row.cells[3]; // Column 3: Role
+            
+            const email = (emailCell.textContent || emailCell.innerText || '').trim();
+            
+            if (!email) return; // Skip empty rows
+            
+            const user = {
+                email: email,
+                metadata: {
+                    company: (companyCell.textContent || companyCell.innerText || '').trim(),
+                    role: (roleCell.textContent || roleCell.innerText || '').trim()
+                },
+                products: [
+                    { key: 'projectAdministration', access: (row.cells[4].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'insight', access: (row.cells[5].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'docs', access: (row.cells[6].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'designCollaboration', access: (row.cells[7].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'modelCoordination', access: (row.cells[8].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'build', access: (row.cells[9].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'cost', access: (row.cells[10].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'forma', access: (row.cells[11].textContent || '').trim().toLowerCase() || 'none' },
+                    { key: 'takeoff', access: (row.cells[12].textContent || '').trim().toLowerCase() || 'none' }
+                ]
+            };
+            
+            users.push(user);
+        });
+        
+        if (users.length === 0) {
+            alert('No users to download. Please add at least one user.');
+            return;
+        }
+        
+        const jsonData = {
+            users: users,
+            exportDate: new Date().toISOString()
+        };
+        
+        // Create download
+        const jsonString = JSON.stringify(jsonData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'user_permissions_import.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log(`💾 Downloaded ${users.length} users to user_permissions_import.json`);
+        
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #d4edda;
+            color: #155724;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+        `;
+        successDiv.textContent = `✓ Downloaded ${users.length} users`;
+        document.body.appendChild(successDiv);
+        
+        setTimeout(() => {
+            successDiv.remove();
+        }, 2000);
+    }
+
+    /**
      * Load table data from server
      */
     loadTableData() {
         console.log('📊 loadTableData() called');
-        console.log('📊 Fetching from: http://localhost:3000/load');
+        const loadUrl = `${window.location.origin}/load`;
+        console.log('📊 Fetching from:', loadUrl);
         
-        fetch('http://localhost:3000/load')
+        fetch(loadUrl)
             .then(response => {
                 console.log('📊 Response status:', response.status);
                 console.log('📊 Response OK:', response.ok);
@@ -2144,6 +2284,12 @@ function saveModalTableToJson() {
 function importCSV() {
     if (userTableManager) {
         userTableManager.importFromCSV();
+    }
+}
+
+function downloadJsonLocally() {
+    if (userTableManager) {
+        userTableManager.downloadJsonLocally();
     }
 }
 

@@ -1,0 +1,28 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Ignore node modules (will be installed on VM)
+node_modules/
+
+# Ignore local environment files
+.env
+.env.local
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore saved permissions files (project-specific data)
+*_folder_permissions.json
+
+# Ignore user data
+user_permissions_import.json

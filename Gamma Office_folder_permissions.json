@@ -1,0 +1,523 @@
+{
+  "projectName": "Gamma Office",
+  "projectId": "decf22ad-191a-4aa6-a2c5-04616b63df7c",
+  "hubId": "b.07ae615b-8111-4067-bcfc-c1621030955b",
+  "exportDate": "2025-11-10T18:57:44.181Z",
+  "folders": [
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.NI8dju3jRpOUjKIbi0zwkQ",
+      "level1": "Project Files",
+      "level2": "5d",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.dNsHveLLWA2jdZN5ZmfiEQ",
+      "level1": "Project Files",
+      "level2": "11- Pont",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.41ekCO7uQcKtnnKMJwYxvw",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.8NBAg84YRkWzks_wRLYtnw",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": "local file1_backup",
+      "permissions": {
+        "column1": "samson090281@gmail.com",
+        "column2": "radoslaw.mazgaj@arkance.world",
+        "column3": "tomas.lendvorsky@autodesk.com"
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.v5_BuxQqQ6-RvwpFIgJpAQ",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": "local file2_backup",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.hRAhOre1S8-4V0BE54ssuw",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": "local file3_backup",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.-lq4aRmZRHCEf-uYsmGWSg",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": "local file_2_backup",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.HJJ7kqfuS3Wj-DCeU0ckJg",
+      "level1": "Project Files",
+      "level2": "ABCtest",
+      "level3": "local file_backup",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.IHEZ2oz5ToOGNYLT3ixRag",
+      "level1": "Project Files",
+      "level2": "ABCtest2",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.FadEeNGgSYuEGc36wiIF9g",
+      "level1": "Project Files",
+      "level2": "ACCConnect",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.AS0q5ttNRHqReP69LfpWfQ",
+      "level1": "Project Files",
+      "level2": "Airport",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.hNn2Bi48T7WQ7s0jKJUI4Q",
+      "level1": "Project Files",
+      "level2": "Airport",
+      "level3": "IFC",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.rGwXj2ZhS_Scy0HYC3vORw",
+      "level1": "Project Files",
+      "level2": "architekci",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Gk85WYXMR-Gu-zAKQ1Dw0A",
+      "level1": "Project Files",
+      "level2": "architekci",
+      "level3": "Consumed",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.NrE94q8IR8-iIpqCfdhuFg",
+      "level1": "Project Files",
+      "level2": "DataExchange",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.YfO35QH-Q-eKpbmXC45nfw",
+      "level1": "Project Files",
+      "level2": "Do przetargu X",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.SarC-BbcTTCpub2JiJ8mLQ",
+      "level1": "Project Files",
+      "level2": "DWG & IFC",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.5_o-_gCNR5quMpbB22tAcQ",
+      "level1": "Project Files",
+      "level2": "families",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.wOG9tL6qTt2XRcD4Y2KczQ",
+      "level1": "Project Files",
+      "level2": "Flash House Dataset",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.6MWIoGtUSnyVjPl7Uib58Q",
+      "level1": "Project Files",
+      "level2": "Flash House Dataset",
+      "level3": "PDF",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.jaulYE6lTdqQ44x-p6OdXw",
+      "level1": "Project Files",
+      "level2": "floor and wall openings",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.iOr5ozmESa6ba6LeCigVOQ",
+      "level1": "Project Files",
+      "level2": "Hybrid approach",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.JuNlcDqYQW2mlyIAh1-0zw",
+      "level1": "Project Files",
+      "level2": "Industry SCAN",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.oM7hi82aShOMLFFNS6A5TQ",
+      "level1": "Project Files",
+      "level2": "Industry SCAN",
+      "level3": "fabryka Support",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.YfJVJIE-RkiWU3wDLGu6ug",
+      "level1": "Project Files",
+      "level2": "Industry SCAN",
+      "level3": "industry scan",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.u7_9xLn_S7SB19wMGgCHSA",
+      "level1": "Project Files",
+      "level2": "Industry SCAN",
+      "level3": "industry scan2",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.bpdOMouiTH-_7lfYIsB6Mw",
+      "level1": "Project Files",
+      "level2": "instalatorzy",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.9xeAVRMgQy2VwGFx2SCNfQ",
+      "level1": "Project Files",
+      "level2": "instalatorzy",
+      "level3": "Consumed",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Z708m-aAQcuOoheR8OH2IA",
+      "level1": "Project Files",
+      "level2": "ISO19650",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.hqAvEh9IRYWw3o9twPSY8g",
+      "level1": "Project Files",
+      "level2": "ISO_Test",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.5JCl8ddqRrCWx0WEp708fw",
+      "level1": "Project Files",
+      "level2": "konstruktorzy",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.qJmUB7wLTVqQ9B8jQtuupQ",
+      "level1": "Project Files",
+      "level2": "konstruktorzy",
+      "level3": "Consumed",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.yFbyRq4SQiOBWXIp14AUFw",
+      "level1": "Project Files",
+      "level2": "LTU models",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.MlWguq4eTLS4kCASyq-T2w",
+      "level1": "Project Files",
+      "level2": "MSK",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.1PuYY75wTle0_TmPZVx9fw",
+      "level1": "Project Files",
+      "level2": "Murapol",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.-MXv1oA8SneKcDCrea6spQ",
+      "level1": "Project Files",
+      "level2": "Nowy folder",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.zi4MRPqzQbCYVsyJtkjTZg",
+      "level1": "Project Files",
+      "level2": "Nowy folder",
+      "level3": "Arkance Factory",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.GB-UgFX9Sb26Oly-ahuTDg",
+      "level1": "Project Files",
+      "level2": "ostrykół",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.t6cgVX-dSbeme7yitBRjXQ",
+      "level1": "Project Files",
+      "level2": "PDF",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.UK0q2nj7QsGWdnwd-mmHXA",
+      "level1": "Project Files",
+      "level2": "PLK",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.AGgKqSUYTLmRIXQ3GbT3Jw",
+      "level1": "Project Files",
+      "level2": "PLK",
+      "level3": "3D buildings",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.WAxwtbLcQ4ywwamxBeIVJQ",
+      "level1": "Project Files",
+      "level2": "PLK",
+      "level3": "Numeric Terrain Model",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Tk5iZxaIRomgEiwlc9ifAg",
+      "level1": "Project Files",
+      "level2": "PLK",
+      "level3": "Ortofoto",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Ct1d6SrVQn-lv6JXA9i2Ig",
+      "level1": "Project Files",
+      "level2": "PLK",
+      "level3": "PLKskan",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.qWBJWFxzTC64cgwyzlEWRw",
+      "level1": "Project Files",
+      "level2": "Powiśle",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.mCwuHSaWRTaE4EDIAQC-uw",
+      "level1": "Project Files",
+      "level2": "Powiśle",
+      "level3": "Revit models",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Q1pRKQs_RNGgUZS789HMGw",
+      "level1": "Project Files",
+      "level2": "PPT",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.1XwjXa9XSTumcwn0RkgUzQ",
+      "level1": "Project Files",
+      "level2": "Retail Fashon House",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.V6TJM9pVSz2dmaFjwQtILg",
+      "level1": "Project Files",
+      "level2": "Review",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.9GOfqFsURNapmnlHkUCSIw",
+      "level1": "Project Files",
+      "level2": "Review",
+      "level3": "Approved files",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.HMtWyjRUQmKUdWWx4Gbblg",
+      "level1": "Project Files",
+      "level2": "Review",
+      "level3": "Source files",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.sWI7XHI9Qkiw2erRQ6eGuw",
+      "level1": "Project Files",
+      "level2": "Revit Upgrade Report",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.iHgSv_nxQBq3bD1r1M4oDg",
+      "level1": "Project Files",
+      "level2": "RevitCloudModelVersions",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.teZXe36yTImKp_WvP2h4ww",
+      "level1": "Project Files",
+      "level2": "RevitCloudModelVersions",
+      "level3": "f5374227-147b-4469-9930-aa2a6ecb2729",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Ykk_I0zvSeSJIVYy1foaYQ",
+      "level1": "Project Files",
+      "level2": "Schedule tool files",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.dWfB5LgXS3uZZqntV8aMqA",
+      "level1": "Project Files",
+      "level2": "Schedule tool files",
+      "level3": "harmonogram",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.cPLTY2xkRp6Obw0FvAcCaQ",
+      "level1": "Project Files",
+      "level2": "Schedule tool files",
+      "level3": "harmonogram02",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.n9Ib7K3SSmGpRFmklcSTeA",
+      "level1": "Project Files",
+      "level2": "Schedule tool files",
+      "level3": "schedule 2007",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.dSZaXTH0QTCbzUaHRRnmQw",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.VETOzwBOT6ySjCuw594rxw",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "architekci",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.d7Gxg_13Umuwuemn_HBM7Q",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "architekci czerwoni",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.NqrOe67gSY2Yb9WNUd3Tjw",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "instalatorzy",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.ECshRJX7T-KmCc1PM2PUWw",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "konstruktorzy",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.tHsowtc6Tui68ukrLjfDDQ",
+      "level1": "Project Files",
+      "level2": "Shared",
+      "level3": "wodkan",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.kTWr7etXSJavHJLgF0DB9g",
+      "level1": "Project Files",
+      "level2": "snapshots",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.t5--AdQOSxq0etN6knTSTw",
+      "level1": "Project Files",
+      "level2": "Snowdon Towers",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.FH0A1cCnS9em1_nzHW8YdQ",
+      "level1": "Project Files",
+      "level2": "Test widoczności",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.vUBOLAoLSXOPKLxXaROGUg",
+      "level1": "Project Files",
+      "level2": "Toronto",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.yIBKLa0iQ7qWXYDYKsewag",
+      "level1": "Project Files",
+      "level2": "wodkan",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.Y0uPSicyQ9OXekEnMEYCwA",
+      "level1": "Project Files",
+      "level2": "wodkan",
+      "level3": "Consumed",
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.ADRp-o70RMqTzDdCfyUZGw",
+      "level1": "Project Files",
+      "level2": "Wydane 1",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.3jF1-WGKQ1uUIKnvp97AMw",
+      "level1": "Project Files",
+      "level2": "Wydane 2",
+      "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipprod:fs.folder:co.x05ancteRq62E3jHniZvoQ",
+      "level1": "Project Files",
+      "level2": "Żerań",
+      "level3": null,
+      "permissions": {}
+    }
+  ]
+}
