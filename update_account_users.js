@@ -385,7 +385,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         console.log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
         // Load import JSON from local server endpoint
-        const importData = await fetchJSON('http://localhost:3000/load');
+        const importData = await fetchJSON(`${window.location.origin}/load`);
         const importUsersList = importData.users || []; // Renamed to avoid conflict with function
         console.log(`Loaded ${importUsersList.length} users from import file`);
 

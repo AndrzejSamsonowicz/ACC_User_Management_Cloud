@@ -379,28 +379,27 @@
         // Store the original hubs data globally and current access token
         var currentAccessToken = null; // Make it global
         let originalHubsData = null;
-        // Credentials will be loaded from .env file
+        // Credentials will be loaded from localStorage (browser storage)
         let CLIENT_ID = '';
         let CLIENT_SECRET = '';
-        // Use the exact redirect URI that's configured in your Autodesk APS application
-        const REDIRECT_URI = 'http://localhost:8080/index.html';
+        // Use dynamic redirect URI based on current location (works on localhost and cloud)
+        const REDIRECT_URI = `${window.location.origin}/index.html`;
 
-        // Load credentials from .env file on startup
-        async function loadCredentials() {
+        // Load credentials from localStorage on startup
+        function loadCredentials() {
             try {
-                const response = await fetch('http://localhost:3000/load-credentials');
-                const data = await response.json();
+                const storedClientId = localStorage.getItem('APS_CLIENT_ID');
+                const storedClientSecret = localStorage.getItem('APS_CLIENT_SECRET');
                 
-                if (data.success) {
-                    CLIENT_ID = data.clientId || '';
-                    CLIENT_SECRET = data.clientSecret || '';
-                    console.log('Credentials loaded from .env file');
+                if (storedClientId && storedClientSecret) {
+                    CLIENT_ID = storedClientId;
+                    CLIENT_SECRET = storedClientSecret;
+                    console.log('Credentials loaded from browser storage');
                 } else {
-                    console.warn('Could not load credentials from .env file');
+                    console.warn('No credentials found in browser storage');
                 }
             } catch (error) {
                 console.error('Error loading credentials:', error);
-                // If server is not running or .env doesn't exist, use empty values
                 CLIENT_ID = '';
                 CLIENT_SECRET = '';
             }
@@ -577,52 +576,36 @@
                 return;
             }
 
-            // Show saving message
-            messageDiv.textContent = 'Saving credentials to .env file...';
-            messageDiv.style.backgroundColor = '#fff3cd';
-            messageDiv.style.color = '#856404';
-            messageDiv.style.border = '1px solid #ffeaa7';
-            messageDiv.style.display = 'block';
+            try {
+                // Save to browser localStorage
+                localStorage.setItem('APS_CLIENT_ID', clientId);
+                localStorage.setItem('APS_CLIENT_SECRET', clientSecret);
+                
+                // Update global variables
+                CLIENT_ID = clientId;
+                CLIENT_SECRET = clientSecret;
 
-            // Save to .env file via server
-            fetch('http://localhost:3000/save-credentials', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    clientId: clientId,
-                    clientSecret: clientSecret
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update global variables
-                    CLIENT_ID = clientId;
-                    CLIENT_SECRET = clientSecret;
+                // Show success message
+                messageDiv.textContent = 'Credentials saved to your browser successfully! You can now login with Autodesk.';
+                messageDiv.style.backgroundColor = '#d4edda';
+                messageDiv.style.color = '#155724';
+                messageDiv.style.border = '1px solid #c3e6cb';
+                messageDiv.style.display = 'block';
 
-                    // Show success message
-                    messageDiv.textContent = 'Credentials saved to .env file successfully! You can now login with Autodesk.';
-                    messageDiv.style.backgroundColor = '#d4edda';
-                    messageDiv.style.color = '#155724';
-                    messageDiv.style.border = '1px solid #c3e6cb';
+                console.log('Credentials saved to browser storage');
 
-                    // Auto-close after 2 seconds
-                    setTimeout(() => {
-                        closeCredentialsModal();
-                    }, 2000);
-                } else {
-                    throw new Error(data.message || 'Failed to save credentials');
-                }
-            })
-            .catch(error => {
+                // Auto-close after 2 seconds
+                setTimeout(() => {
+                    closeCredentialsModal();
+                }, 2000);
+            } catch (error) {
                 console.error('Error saving credentials:', error);
                 messageDiv.textContent = `Error saving credentials: ${error.message}`;
                 messageDiv.style.backgroundColor = '#f8d7da';
                 messageDiv.style.color = '#721c24';
                 messageDiv.style.border = '1px solid #f5c6cb';
-            });
+                messageDiv.style.display = 'block';
+            }
         }
 
         function openApsGuide() {
@@ -1054,8 +1037,8 @@
 
         // Check for authorization code in URL
         window.onload = async function() {
-            // Load credentials from .env file first
-            await loadCredentials();
+            // Load credentials from localStorage first
+            loadCredentials();
             
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -2400,6 +2383,7 @@
     <script src="get_account_users.js?v=2025110205"></script>
     <script src="get_project_users.js?v=20251109171700"></script>
     <script src="manage_project_users.js?v=2025110206"></script>
+    <script src="read_project_folders.js?v=2025110301"></script>
     <script src="folders_permissions.js?v=2025110301"></script>
     <script>
         // Initialize user table management when DOM is ready
@@ -2439,7 +2423,8 @@
                         <button onclick="clearModalTable()">Clear Table</button>
                     </div>
                     <div>
-                        <button onclick="saveModalTableToJson()">Save</button>
+                        <button onclick="saveModalTableToJson()">Save to Server</button>
+                        <button onclick="downloadJsonLocally()">Download JSON</button>
                         <button onclick="importCSV()">Import CSV</button>
                     </div>
                 </div>

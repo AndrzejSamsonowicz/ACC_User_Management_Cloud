@@ -7,6 +7,27 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+// Request logging middleware with geolocation
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
+    const method = req.method;
+    const url = req.url;
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    
+    // Log to console (will be captured by PM2 and Google Cloud)
+    console.log(JSON.stringify({
+        timestamp,
+        ip,
+        method,
+        url,
+        userAgent,
+        type: 'http_request'
+    }));
+    
+    next();
+});
+
 // Add CORS headers to allow requests from http-server (port 8080)
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
