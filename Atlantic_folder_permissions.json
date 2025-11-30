@@ -2,19 +2,49 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-11-24T19:43:30.770Z",
+  "exportDate": "2025-11-30T21:13:12.056Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
       "level1": "Project Files",
       "level2": "DWG",
       "level3": null,
+      "permissions": {}
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.ngFY0o_8S66pr3jF4VCasw",
+      "level1": "Project Files",
+      "level2": "Folder 1",
+      "level3": null,
       "permissions": {
         "column1": {
+          "subjectId": "c73a4a72-5507-447b-9cfa-5c5cb1313077",
+          "subjectType": "COMPANY",
+          "user": "Ciule",
+          "level": "4"
+        }
+      }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.iLbue97ZQy-67reOdQqG6w",
+      "level1": "Project Files",
+      "level2": "Folder 1",
+      "level3": "sub folder 1.1",
+      "permissions": {
+        "column1": {
+          "subjectId": "b59a6163-aadc-41d0-aab0-516ee815d1c7",
+          "subjectType": "USER",
           "user": "andrzej.jan.samsonowicz@gmail.com",
           "level": "1"
         }
       }
+    },
+    {
+      "folderId": "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A",
+      "level1": "Project Files",
+      "level2": "Folder 1",
+      "level3": "sub folder 1.2",
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.bQI8Jo5-TUy8vywjb_jFOQ",
@@ -23,8 +53,16 @@
       "level3": null,
       "permissions": {
         "column1": {
-          "user": "samson090281@gazeta.pl",
-          "level": "3"
+          "subjectId": "51d2b8fb-9c0c-4285-8ffc-746f0d5f832f",
+          "subjectType": "COMPANY",
+          "user": "Fabix",
+          "level": "1"
+        },
+        "column2": {
+          "subjectId": "1e8e55d4-bb61-4906-9018-bf48fe211a36",
+          "subjectType": "ROLE",
+          "user": "General Contractor",
+          "level": "1"
         }
       }
     },
@@ -33,7 +71,20 @@
       "level1": "Project Files",
       "level2": "Folder 2",
       "level3": "sub folder 2.1",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "5240b40f-b4a9-4452-825f-0a05c30cdf35",
+          "subjectType": "USER",
+          "user": "samson090281@gazeta.pl",
+          "level": "1"
+        },
+        "column2": {
+          "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
+          "subjectType": "USER",
+          "user": "samson090281@op.pl",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.1yudsMJ-QfCXSq3mXlj9-Q",
@@ -49,7 +100,9 @@
       "level3": null,
       "permissions": {
         "column1": {
-          "user": "samson090281@gmail.com",
+          "subjectId": "890e49ce-ac6c-4146-aa96-536b4d13ccac",
+          "subjectType": "ROLE",
+          "user": "Investor",
           "level": "1"
         }
       }
@@ -59,19 +112,21 @@
       "level1": "Project Files",
       "level2": "Folder 3",
       "level3": "sub folder 3.1",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
+          "subjectType": "USER",
+          "user": "samson090281@wp.pl",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.WrNeLSxoQEKFut13VDGjmQ",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "user": "General Contractor",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.AFJQd4qdQnGDlrXbWNUUiw",
@@ -106,20 +161,7 @@
       "level1": "Project Files",
       "level2": "Folder 5",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "user": "Bau AG",
-          "level": "1"
-        },
-        "column2": {
-          "user": "andrzej.jan.samsonowicz@gmail.com",
-          "level": "1"
-        },
-        "column3": {
-          "user": "samson090281@gazeta.pl",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.Xt-nMJ1xR-6S6UNOs29QTA",
@@ -133,12 +175,7 @@
       "level1": "Project Files",
       "level2": "Folder 6",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "user": "andrzej.samsonowicz@autodesk.com",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.fsqa5SxES5uI79V5OxtiEw",
@@ -264,36 +301,6 @@
       "level1": "Project Files",
       "level2": "WIP",
       "level3": "architekci czerwoni",
-      "permissions": {}
-    },
-    {
-      "folderId": "urn:adsk.wipemea:fs.folder:co.ngFY0o_8S66pr3jF4VCasw",
-      "level1": "Project Files",
-      "level2": "xxx",
-      "level3": null,
-      "permissions": {
-        "column1": {
-          "user": "samson090281@op.pl",
-          "level": "1"
-        },
-        "column2": {
-          "user": "samson090281@yahoo.com",
-          "level": "1"
-        }
-      }
-    },
-    {
-      "folderId": "urn:adsk.wipemea:fs.folder:co.iLbue97ZQy-67reOdQqG6w",
-      "level1": "Project Files",
-      "level2": "xxx",
-      "level3": "sub folder 1.1",
-      "permissions": {}
-    },
-    {
-      "folderId": "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A",
-      "level1": "Project Files",
-      "level2": "xxx",
-      "level3": "sub folder 1.2",
       "permissions": {}
     }
   ]
