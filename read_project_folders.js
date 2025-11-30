@@ -11,6 +11,7 @@
     let currentProjectData = null;
     let currentHierarchy = null;
     let currentProjectUsers = null;
+    let currentProjectUsersRaw = null; // Store raw API data for subjectId lookup
     let additionalColumnsCount = 10; // Start with 10 additional columns
 
     /**
@@ -55,18 +56,19 @@
 
         try {
             // Fetch folder hierarchy and project users in parallel
-            const [folderHierarchy, projectUsers] = await Promise.all([
+            const [folderHierarchy, usersData] = await Promise.all([
                 fetchFolderHierarchy(hubId, projectId, accessToken),
                 fetchProjectUsers(hubId, projectId, accessToken)
             ]);
             
             // Store hierarchy and users for re-rendering when adding columns
             currentHierarchy = folderHierarchy;
-            currentProjectUsers = projectUsers;
+            currentProjectUsers = usersData.displayUsers;
+            currentProjectUsersRaw = usersData.rawUsers; // Store raw data for ID lookup
             
             // Display in table and user list
             displayFolderHierarchy(folderHierarchy);
-            displayUserList(projectUsers);
+            displayUserList(usersData.displayUsers);
             
             // Try to load saved folder permissions
             await loadFolderPermissions(projectName);
@@ -269,8 +271,20 @@
             }
         }
         
-        // Extract user data
-        const users = allUsers.map(user => {
+        // Store raw user data for ID lookup (including products for admin detection)
+        const rawUsers = allUsers.map(user => ({
+            id: user.id,
+            email: user.email,
+            companyId: user.companyId,
+            companyName: user.companyName || user.company || user.company_name,
+            roleIds: user.roleIds || [],
+            roles: user.roles || [],
+            autodeskId: user.autodeskId,
+            products: user.products || [] // For admin detection
+        }));
+        
+        // Extract display user data
+        const displayUsers = allUsers.map(user => {
             // Extract role name from roles array
             let roleName = 'No Role';
             if (user.roles && user.roles.length > 0) {
@@ -294,9 +308,14 @@
             return userData;
         });
         
-        console.log(`✅ Fetched ${users.length} project users`);
-        console.log('Sample user data:', users[0]); // Log first user to check fields
-        return users;
+        console.log(`✅ Fetched ${displayUsers.length} project users`);
+        console.log('Sample display user:', displayUsers[0]);
+        console.log('Sample raw user:', rawUsers[0]);
+        
+        return {
+            displayUsers: displayUsers,
+            rawUsers: rawUsers
+        };
     }
 
     /**
@@ -819,6 +838,652 @@
     }
 
     /**
+     * Lookup subjectId and subjectType for a user/company/role name
+     */
+    function lookupSubjectInfo(userName) {
+        console.log(`🔍 Looking up subject info for: "${userName}"`);
+        
+        if (!currentProjectUsersRaw || currentProjectUsersRaw.length === 0) {
+            console.error('❌ No raw user data available for lookup!');
+            console.log('currentProjectUsersRaw:', currentProjectUsersRaw);
+            return null;
+        }
+
+        console.log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
+
+        // Check if it's an email (USER)
+        if (userName.includes('@')) {
+            console.log('✉️ Detected as EMAIL');
+            const user = currentProjectUsersRaw.find(u => u.email === userName);
+            if (user) {
+                console.log(`✅ Found USER - ID: ${user.id}`);
+                return {
+                    subjectId: user.id,
+                    subjectType: 'USER'
+                };
+            }
+            console.warn(`⚠️ Email not found: ${userName}`);
+        }
+
+        // Check if it's a company name (COMPANY)
+        console.log('🏢 Checking as COMPANY');
+        const companyUser = currentProjectUsersRaw.find(u => u.companyName === userName);
+        if (companyUser && companyUser.companyId) {
+            console.log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
+            return {
+                subjectId: companyUser.companyId,
+                subjectType: 'COMPANY'
+            };
+        }
+
+        // Check if it's a role name (ROLE)
+        console.log('👤 Checking as ROLE');
+        for (const user of currentProjectUsersRaw) {
+            if (user.roles && Array.isArray(user.roles)) {
+                const matchingRole = user.roles.find(r => r.name === userName);
+                if (matchingRole && user.roleIds && user.roleIds.length > 0) {
+                    console.log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
+                    return {
+                        subjectId: user.roleIds[0],
+                        subjectType: 'ROLE'
+                    };
+                }
+            }
+        }
+
+        console.error(`❌ Could not find subject info for: "${userName}"`);
+        console.log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
+        console.log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
+        return null;
+    }
+
+    /**
+     * Convert permission level (1-6) to ACC actions array
+     */
+    function levelToActions(level) {
+        const levelNum = parseInt(level);
+        switch (levelNum) {
+            case 1:
+                return ["VIEW", "COLLABORATE"];
+            case 2:
+                return ["VIEW", "DOWNLOAD", "COLLABORATE"];
+            case 3:
+                return ["VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP"];
+            case 4:
+                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP"];
+            case 5:
+                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP", "EDIT"];
+            case 6:
+                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP", "EDIT", "CONTROL"];
+            default:
+                console.error(`Invalid permission level: ${level}`);
+                return ["VIEW", "COLLABORATE"]; // Default to level 1
+        }
+    }
+
+    /**
+     * Fetch current folder permissions from ACC
+     */
+    async function fetchFolderPermissions(projectId, folderId, accessToken) {
+        try {
+            // Extract folder URN from folderId if needed
+            const folderUrn = encodeURIComponent(folderId);
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions`;
+            
+            console.log(`📥 Fetching permissions for folder: ${folderId}`);
+            
+            const response = await fetch(apiUrl, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    console.log(`No permissions found for folder (404)`);
+                    return [];
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log(`📥 Raw API response:`, data);
+            
+            // API returns array directly, not {results: [...]}
+            const results = Array.isArray(data) ? data : (data.results || []);
+            console.log(`📥 Processing ${results.length} permission entries`);
+            
+            // Return all permissions - get ALL users who have ANY access
+            const permissions = results.map(perm => {
+                const effective = (perm.actions && perm.actions.length > 0) ? perm.actions : (perm.inheritActions || []);
+                return {
+                    ...perm,
+                    effectiveActions: effective
+                };
+            });
+            
+            console.log(`📥 Returning ${permissions.length} permissions`);
+            return permissions;
+        } catch (error) {
+            console.error(`Error fetching folder permissions:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * Check if a user is a project admin
+     */
+    function isProjectAdmin(subjectId, subjectType) {
+        if (subjectType !== 'USER') {
+            return false; // Only users can be admins
+        }
+
+        if (!currentProjectUsersRaw) {
+            console.warn('No raw user data available to check admin status');
+            return false;
+        }
+
+        const user = currentProjectUsersRaw.find(u => u.id === subjectId);
+        if (!user) {
+            return false;
+        }
+
+        // Check if user has products field with projectAdministration administrator access
+        if (user.products && Array.isArray(user.products)) {
+            const adminProduct = user.products.find(p => 
+                p.key === 'projectAdministration' && p.access === 'administrator'
+            );
+            if (adminProduct) {
+                console.log(`✅ User ${user.email} is a project admin`);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Batch create folder permissions
+     */
+    async function batchCreatePermissions(projectId, folderId, permissions, accessToken) {
+        if (permissions.length === 0) return { success: true, results: [] };
+
+        try {
+            const folderUrn = encodeURIComponent(folderId);
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-create`;
+            
+            console.log(`📤 Creating ${permissions.length} permissions...`);
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(permissions)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            return { success: true, results: data.results || [] };
+        } catch (error) {
+            console.error(`Error creating permissions:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Batch update folder permissions
+     */
+    async function batchUpdatePermissions(projectId, folderId, permissions, accessToken) {
+        if (permissions.length === 0) return { success: true, results: [] };
+
+        try {
+            const folderUrn = encodeURIComponent(folderId);
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-update`;
+            
+            console.log(`📤 Updating ${permissions.length} permissions...`);
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(permissions)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            return { success: true, results: data.results || [] };
+        } catch (error) {
+            console.error(`Error updating permissions:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Batch delete folder permissions
+     */
+    async function batchDeletePermissions(projectId, folderId, permissions, accessToken) {
+        if (permissions.length === 0) return { success: true, results: [] };
+
+        try {
+            const folderUrn = encodeURIComponent(folderId);
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-delete`;
+            
+            console.log(`📤 Deleting ${permissions.length} permissions...`);
+            console.log(`📤 DELETE API URL: ${apiUrl}`);
+            console.log(`📤 DELETE Request Body:`, JSON.stringify(permissions, null, 2));
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(permissions)
+            });
+
+            console.log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`📤 DELETE Error Response:`, errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const responseText = await response.text();
+            console.log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
+
+            return { success: true };
+        } catch (error) {
+            console.error(`Error deleting permissions:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Sync permissions to ACC
+     */
+    async function syncPermissionsToACC() {
+        if (!currentProjectData) {
+            alert('No project data available');
+            return;
+        }
+
+        // Show progress container
+        const progressContainer = document.getElementById('syncProgressContainer');
+        const progressBar = document.getElementById('syncProgressBar');
+        const progressTitle = document.getElementById('syncProgressTitle');
+        const progressDetails = document.getElementById('syncProgressDetails');
+        const progressSummary = document.getElementById('syncProgressSummary');
+        const progressStats = document.getElementById('syncProgressStats');
+        const tableContainer = document.getElementById('foldersTableContainer');
+        const userList = document.getElementById('foldersUserList');
+
+        // Hide table and user list, show progress
+        if (tableContainer) tableContainer.style.display = 'none';
+        if (userList) userList.style.display = 'none';
+        progressContainer.style.display = 'block';
+        progressSummary.style.display = 'none';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '0%';
+        progressTitle.textContent = 'Syncing to ACC...';
+        progressDetails.innerHTML = 'Loading folder permissions...';
+
+        // Load JSON file first to get source of truth
+        try {
+            const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.projectName)}`);
+            const loadResult = await loadResponse.json();
+            
+            if (!loadResult.success || !loadResult.exists || !loadResult.data) {
+                progressTitle.textContent = '❌ Sync Failed';
+                progressTitle.style.color = '#dc3545';
+                progressDetails.innerHTML = 'No saved folder permissions found. Please save permissions first.';
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    if (tableContainer) tableContainer.style.display = 'block';
+                    if (userList) userList.style.display = 'block';
+                }, 3000);
+                return;
+            }
+
+            const jsonData = loadResult.data;
+            console.log('\n🔄 ========== STARTING SYNC TO ACC ==========');
+            console.log(`📁 Project: ${currentProjectData.projectName}`);
+            console.log(`📊 Total folders in JSON: ${jsonData.folders.length}`);
+
+            // 🧪 TEST: Get raw permissions for sub folder 1.2
+            console.log(`\n\n🧪 ========== TEST: Getting permissions for "sub folder 1.2" ==========`);
+            const testFolderId = "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A";
+            const testFolderUrn = encodeURIComponent(testFolderId);
+            const testApiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${currentProjectData.projectId}/folders/${testFolderUrn}/permissions`;
+            console.log(`📍 API URL: ${testApiUrl}`);
+            
+            const testResponse = await fetch(testApiUrl, {
+                headers: {
+                    'Authorization': `Bearer ${currentProjectData.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const testData = await testResponse.json();
+            console.log(`\n📥 RAW API RESPONSE for "sub folder 1.2":`);
+            console.log(JSON.stringify(testData, null, 2));
+            
+            if (testData.results && testData.results.length > 0) {
+                console.log(`\n👥 Found ${testData.results.length} users with access to "sub folder 1.2":`);
+                testData.results.forEach(perm => {
+                    console.log(`\n  User: ${perm.email || perm.name || perm.subjectId}`);
+                    console.log(`    Subject ID: ${perm.subjectId}`);
+                    console.log(`    Subject Type: ${perm.subjectType}`);
+                    console.log(`    Actions (explicit): ${JSON.stringify(perm.actions || [])}`);
+                    console.log(`    InheritActions (inherited): ${JSON.stringify(perm.inheritActions || [])}`);
+                });
+            } else {
+                console.log(`\n✅ No permissions found for "sub folder 1.2"`);
+            }
+            console.log(`\n========== END TEST ==========\n\n`);
+
+            const syncSummary = {
+                totalFolders: jsonData.folders.length,
+                processedFolders: 0,
+                created: 0,
+                updated: 0,
+                deleted: 0,
+                skipped: 0,
+                errors: []
+            };
+
+            // Process all folders
+            for (let i = 0; i < jsonData.folders.length; i++) {
+                const folder = jsonData.folders[i];
+                const folderName = `${folder.level2}${folder.level3 ? ' > ' + folder.level3 : ''}`;
+                
+                // Update progress
+                const progress = Math.round(((i + 1) / jsonData.folders.length) * 100);
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+                progressDetails.innerHTML = `Processing folder ${i + 1} of ${jsonData.folders.length}<br><strong>${folderName}</strong>`;
+
+                console.log(`\n📂 Processing: ${folderName}`);
+                
+                try {
+                    // Fetch current permissions from ACC
+                    const currentPermissions = await fetchFolderPermissions(
+                        currentProjectData.projectId,
+                        folder.folderId,
+                        currentProjectData.accessToken
+                    );
+
+                    // Build permission maps
+                    const jsonPermMap = new Map();
+                    const accPermMap = new Map();
+
+                    // Parse JSON permissions
+                    Object.values(folder.permissions).forEach(perm => {
+                        if (perm.subjectId && perm.subjectType && perm.level) {
+                            const key = `${perm.subjectId}_${perm.subjectType}`;
+                            jsonPermMap.set(key, {
+                                subjectId: perm.subjectId,
+                                subjectType: perm.subjectType,
+                                actions: levelToActions(perm.level),
+                                user: perm.user
+                            });
+                        }
+                    });
+
+                    // Parse ACC permissions - get ALL users with access (explicit OR inherited)
+                    console.log(`  📊 Processing ${currentPermissions.length} permissions from ACC...`);
+                    currentPermissions.forEach(perm => {
+                        const key = `${perm.subjectId}_${perm.subjectType}`;
+                        const userName = perm.name || perm.email || perm.subjectId;
+                        
+                        // Only add to accPermMap if user has EXPLICIT permissions (not just inherited)
+                        // Inherited permissions cannot be deleted at this folder level
+                        const hasExplicitPermissions = perm.actions && perm.actions.length > 0;
+                        
+                        if (hasExplicitPermissions) {
+                            console.log(`    - Adding to accPermMap: ${userName} (${perm.subjectType}), actions:`, perm.actions);
+                            
+                            accPermMap.set(key, {
+                                subjectId: perm.subjectId,
+                                subjectType: perm.subjectType,
+                                actions: perm.actions,
+                                user: userName
+                            });
+                        } else {
+                            console.log(`    - Skipping inherited: ${userName} (${perm.subjectType}), inheritActions:`, perm.inheritActions);
+                        }
+                    });
+
+                    console.log(`  JSON has ${jsonPermMap.size} permissions, ACC has ${accPermMap.size} permissions`);
+                    
+                    // Debug: Show what's in each map
+                    if (jsonPermMap.size > 0) {
+                        console.log(`  JSON permissions:`, Array.from(jsonPermMap.keys()));
+                    }
+                    if (accPermMap.size > 0) {
+                        console.log(`  ACC permissions:`, Array.from(accPermMap.keys()));
+                    }
+
+                    // Determine operations
+                    const toCreate = [];
+                    const toUpdate = [];
+                    const toDelete = [];
+
+                    // Check for CREATE and UPDATE
+                    jsonPermMap.forEach((jsonPerm, key) => {
+                        if (!accPermMap.has(key)) {
+                            // Need to create
+                            toCreate.push({
+                                subjectId: jsonPerm.subjectId,
+                                subjectType: jsonPerm.subjectType,
+                                actions: jsonPerm.actions
+                            });
+                            console.log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                        } else {
+                            // Check if update needed (compare actions)
+                            const accPerm = accPermMap.get(key);
+                            const actionsMatch = JSON.stringify(jsonPerm.actions.sort()) === JSON.stringify(accPerm.actions.sort());
+                            
+                            if (!actionsMatch) {
+                                toUpdate.push({
+                                    subjectId: jsonPerm.subjectId,
+                                    subjectType: jsonPerm.subjectType,
+                                    actions: jsonPerm.actions
+                                });
+                                console.log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                            }
+                        }
+                    });
+
+                    // Check for DELETE (in ACC but not in JSON)
+                    accPermMap.forEach((accPerm, key) => {
+                        if (!jsonPermMap.has(key)) {
+                            // Check if it's a project admin (don't delete)
+                            if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType)) {
+                                console.log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
+                                syncSummary.skipped++;
+                            } else {
+                                toDelete.push({
+                                    subjectId: accPerm.subjectId,
+                                    subjectType: accPerm.subjectType
+                                });
+                                console.log(`  ➖ WILL DELETE: ${accPerm.user} (${accPerm.subjectType}) - ID: ${accPerm.subjectId}`);
+                            }
+                        }
+                    });
+
+                    // Execute operations - GROUP BY SUBJECT TYPE (API requirement)
+                    // CREATE operations
+                    if (toCreate.length > 0) {
+                        const createByType = {
+                            USER: toCreate.filter(p => p.subjectType === 'USER'),
+                            COMPANY: toCreate.filter(p => p.subjectType === 'COMPANY'),
+                            ROLE: toCreate.filter(p => p.subjectType === 'ROLE')
+                        };
+
+                        for (const [type, permissions] of Object.entries(createByType)) {
+                            if (permissions.length > 0) {
+                                console.log(`  📤 Creating ${permissions.length} ${type} permissions...`);
+                                const result = await batchCreatePermissions(
+                                    currentProjectData.projectId,
+                                    folder.folderId,
+                                    permissions,
+                                    currentProjectData.accessToken
+                                );
+                                if (result.success) {
+                                    syncSummary.created += permissions.length;
+                                } else {
+                                    syncSummary.errors.push(`${folder.level2}: Create ${type} failed - ${result.error}`);
+                                }
+                            }
+                        }
+                    }
+
+                    // UPDATE operations
+                    if (toUpdate.length > 0) {
+                        const updateByType = {
+                            USER: toUpdate.filter(p => p.subjectType === 'USER'),
+                            COMPANY: toUpdate.filter(p => p.subjectType === 'COMPANY'),
+                            ROLE: toUpdate.filter(p => p.subjectType === 'ROLE')
+                        };
+
+                        for (const [type, permissions] of Object.entries(updateByType)) {
+                            if (permissions.length > 0) {
+                                console.log(`  📤 Updating ${permissions.length} ${type} permissions...`);
+                                const result = await batchUpdatePermissions(
+                                    currentProjectData.projectId,
+                                    folder.folderId,
+                                    permissions,
+                                    currentProjectData.accessToken
+                                );
+                                if (result.success) {
+                                    syncSummary.updated += permissions.length;
+                                } else {
+                                    syncSummary.errors.push(`${folder.level2}: Update ${type} failed - ${result.error}`);
+                                }
+                            }
+                        }
+                    }
+
+                    // DELETE operations
+                    if (toDelete.length > 0) {
+                        const deleteByType = {
+                            USER: toDelete.filter(p => p.subjectType === 'USER'),
+                            COMPANY: toDelete.filter(p => p.subjectType === 'COMPANY'),
+                            ROLE: toDelete.filter(p => p.subjectType === 'ROLE')
+                        };
+
+                        for (const [type, permissions] of Object.entries(deleteByType)) {
+                            if (permissions.length > 0) {
+                                console.log(`  📤 Deleting ${permissions.length} ${type} permissions...`);
+                                const result = await batchDeletePermissions(
+                                    currentProjectData.projectId,
+                                    folder.folderId,
+                                    permissions,
+                                    currentProjectData.accessToken
+                                );
+                                if (result.success) {
+                                    syncSummary.deleted += permissions.length;
+                                } else {
+                                    syncSummary.errors.push(`${folder.level2}: Delete ${type} failed - ${result.error}`);
+                                }
+                            }
+                        }
+                    }
+
+                    syncSummary.processedFolders++;
+
+                } catch (error) {
+                    console.error(`❌ Error processing folder ${folderName}:`, error);
+                    syncSummary.errors.push(`${folderName}: ${error.message}`);
+                }
+            }
+
+            // Display summary
+            console.log('\n🔄 ========== SYNC COMPLETE ==========');
+            console.log(`📊 Summary:`);
+            console.log(`  Folders processed: ${syncSummary.processedFolders}/${syncSummary.totalFolders}`);
+            console.log(`  ➕ Created: ${syncSummary.created}`);
+            console.log(`  🔄 Updated: ${syncSummary.updated}`);
+            console.log(`  ➖ Deleted: ${syncSummary.deleted}`);
+            console.log(`  ⚠️ Skipped (admins): ${syncSummary.skipped}`);
+            console.log(`  ❌ Errors: ${syncSummary.errors.length}`);
+            
+            if (syncSummary.errors.length > 0) {
+                console.log(`\nErrors:`);
+                syncSummary.errors.forEach(err => console.log(`  - ${err}`));
+            }
+
+            // Show summary in UI
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100%';
+            progressBar.style.backgroundColor = syncSummary.errors.length > 0 ? '#ffc107' : '#28a745';
+            progressTitle.textContent = '✅ Sync Complete!';
+            progressTitle.style.color = '#28a745';
+            progressDetails.innerHTML = '';
+
+            let statsHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><strong>Folders processed:</strong></div><div>${syncSummary.processedFolders}/${syncSummary.totalFolders}</div>
+                    <div><strong>➕ Created:</strong></div><div style="color: #28a745; font-weight: bold;">${syncSummary.created}</div>
+                    <div><strong>🔄 Updated:</strong></div><div style="color: #007bff; font-weight: bold;">${syncSummary.updated}</div>
+                    <div><strong>➖ Deleted:</strong></div><div style="color: #dc3545; font-weight: bold;">${syncSummary.deleted}</div>
+            `;
+            
+            if (syncSummary.skipped > 0) {
+                statsHTML += `<div><strong>⚠️ Skipped (admins):</strong></div><div style="color: #ffc107; font-weight: bold;">${syncSummary.skipped}</div>`;
+            }
+            
+            if (syncSummary.errors.length > 0) {
+                statsHTML += `<div><strong>❌ Errors:</strong></div><div style="color: #dc3545; font-weight: bold;">${syncSummary.errors.length}</div>`;
+                statsHTML += `</div><div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-radius: 4px; font-size: 12px; max-height: 150px; overflow-y: auto;">`;
+                statsHTML += `<strong>Error details:</strong><br>`;
+                syncSummary.errors.forEach(err => {
+                    statsHTML += `<div style="margin-top: 5px;">• ${err}</div>`;
+                });
+            } else {
+                statsHTML += `</div>`;
+            }
+            
+            progressStats.innerHTML = statsHTML;
+            progressSummary.style.display = 'block';
+
+            // Close button handler
+            document.getElementById('closeSyncProgress').onclick = () => {
+                progressContainer.style.display = 'none';
+                if (tableContainer) tableContainer.style.display = 'block';
+                if (userList) userList.style.display = 'block';
+            };
+
+        } catch (error) {
+            console.error('❌ Sync error:', error);
+            progressBar.style.backgroundColor = '#dc3545';
+            progressTitle.textContent = '❌ Sync Failed';
+            progressTitle.style.color = '#dc3545';
+            progressDetails.innerHTML = `<div style="color: #dc3545; padding: 15px; background-color: #ffebee; border-radius: 4px;">${error.message}</div>`;
+            
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+                if (tableContainer) tableContainer.style.display = 'block';
+                if (userList) userList.style.display = 'block';
+            }, 5000);
+        }
+    }
+
+    /**
      * Save folder permissions to JSON file
      */
     async function saveFolderPermissions() {
@@ -854,6 +1519,9 @@
         const folders = [];
         const rows = table.querySelectorAll('tbody tr');
 
+        console.log('💾 Starting save operation...');
+        console.log(`📊 Current raw users available: ${currentProjectUsersRaw ? currentProjectUsersRaw.length : 0}`);
+
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
             if (cells.length === 0) return;
@@ -870,19 +1538,40 @@
             const permissions = {};
             for (let i = 2; i < cells.length; i++) {
                 const cell = cells[i];
-                const userName = cell.getAttribute('data-user');
-                const permissionInput = cell.querySelector('.cell-permission-level');
-                const permissionLevel = permissionInput ? permissionInput.value : cell.getAttribute('data-permission-level');
                 
-                if (userName && permissionLevel) {
-                    permissions[`column${i - 1}`] = {
-                        user: userName,
-                        level: permissionLevel
-                    };
-                } else if (cell.textContent.trim()) {
-                    // Backward compatibility: if no structured data, store as string
-                    permissions[`column${i - 1}`] = cell.textContent.trim();
+                // Check if cell has actual content (username span exists and is not empty)
+                const usernameSpan = cell.querySelector('.cell-username');
+                const permissionInput = cell.querySelector('.cell-permission-level');
+                
+                // Only process if both username and permission level exist with content
+                if (usernameSpan && usernameSpan.textContent.trim() && permissionInput && permissionInput.value.trim()) {
+                    const userName = usernameSpan.textContent.trim();
+                    const permissionLevel = permissionInput.value.trim();
+                    
+                    console.log(`\n📝 Processing permission for: ${userName}`);
+                    
+                    // Look up subjectId and subjectType
+                    const subjectInfo = lookupSubjectInfo(userName);
+                    
+                    if (subjectInfo) {
+                        console.log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
+                        permissions[`column${i - 1}`] = {
+                            subjectId: subjectInfo.subjectId,
+                            subjectType: subjectInfo.subjectType,
+                            user: userName,
+                            level: permissionLevel
+                        };
+                    } else {
+                        // Fallback: save without subjectId if lookup fails
+                        console.error(`❌ LOOKUP FAILED for: ${userName} - Saving without subjectId`);
+                        permissions[`column${i - 1}`] = {
+                            user: userName,
+                            level: permissionLevel
+                        };
+                    }
                 }
+                // Note: If cell is empty or cleared, we simply don't add it to permissions
+                // This ensures removed users are not saved
             }
 
             // Only add folder if it has permissions or is a folder row
@@ -1095,6 +1784,7 @@
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
                         <button id="saveFolderPermissionsBtn" class="save-btn">SAVE</button>
+                        <button id="syncToACCBtn" class="sync-btn">SYNC TO ACC</button>
                         <span class="folders-modal-close">&times;</span>
                     </div>
                     <div class="folders-modal-body">
@@ -1102,6 +1792,18 @@
                             Loading folder structure...
                         </div>
                         <div id="foldersErrorMessage" style="display: none; padding: 20px; background-color: #ffebee; color: #d32f2f; border-radius: 4px; margin-bottom: 20px;">
+                        </div>
+                        <div id="syncProgressContainer" style="display: none; padding: 20px; background-color: #f8f9fa; border-radius: 4px; margin: 20px;">
+                            <h4 id="syncProgressTitle" style="margin: 0 0 15px 0; color: #333;">Syncing to ACC...</h4>
+                            <div style="background-color: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden; margin-bottom: 15px;">
+                                <div id="syncProgressBar" style="background-color: #ff6b00; height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;"></div>
+                            </div>
+                            <div id="syncProgressDetails" style="font-size: 13px; color: #666; line-height: 1.6;"></div>
+                            <div id="syncProgressSummary" style="display: none; margin-top: 15px; padding: 15px; background-color: white; border-radius: 4px; border: 1px solid #ddd;">
+                                <h5 style="margin: 0 0 10px 0; color: #28a745;">✅ Sync Complete!</h5>
+                                <div id="syncProgressStats" style="font-size: 13px; line-height: 1.8;"></div>
+                                <button id="closeSyncProgress" style="margin-top: 15px; padding: 8px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Close</button>
+                            </div>
                         </div>
                         <div class="folders-content-wrapper">
                             <div id="foldersTableContainer" style="display: none; overflow-x: auto;">
@@ -1202,6 +1904,27 @@
 
                 .save-btn:active {
                     background-color: #1e7e34;
+                }
+
+                .sync-btn {
+                    padding: 8px 16px;
+                    background-color: #ff6b00;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: background-color 0.2s;
+                }
+
+                .sync-btn:hover {
+                    background-color: #e55d00;
+                }
+
+                .sync-btn:active {
+                    background-color: #cc5200;
                 }
 
                 .folders-modal-close {
@@ -1582,6 +2305,7 @@
         const closeBtn = document.querySelector('.folders-modal-close');
         const addColumnsBtn = document.getElementById('addColumnsBtn');
         const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+        const syncBtn = document.getElementById('syncToACCBtn');
 
         closeBtn.addEventListener('click', () => {
             closeFoldersModal();
@@ -1593,6 +2317,10 @@
 
         saveBtn.addEventListener('click', () => {
             saveFolderPermissions();
+        });
+
+        syncBtn.addEventListener('click', () => {
+            syncPermissionsToACC();
         });
 
         // Close on Escape key
