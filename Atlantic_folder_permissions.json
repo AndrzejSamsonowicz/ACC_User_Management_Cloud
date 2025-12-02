@@ -2,7 +2,7 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-11-30T21:13:12.056Z",
+  "exportDate": "2025-12-02T18:13:18.015Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
@@ -18,10 +18,10 @@
       "level3": null,
       "permissions": {
         "column1": {
-          "subjectId": "c73a4a72-5507-447b-9cfa-5c5cb1313077",
+          "subjectId": "51d2b8fb-9c0c-4285-8ffc-746f0d5f832f",
           "subjectType": "COMPANY",
-          "user": "Ciule",
-          "level": "4"
+          "user": "Fabix",
+          "level": "5"
         }
       }
     },
@@ -35,7 +35,7 @@
           "subjectId": "b59a6163-aadc-41d0-aab0-516ee815d1c7",
           "subjectType": "USER",
           "user": "andrzej.jan.samsonowicz@gmail.com",
-          "level": "1"
+          "level": "5"
         }
       }
     },
@@ -51,20 +51,7 @@
       "level1": "Project Files",
       "level2": "Folder 2",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "subjectId": "51d2b8fb-9c0c-4285-8ffc-746f0d5f832f",
-          "subjectType": "COMPANY",
-          "user": "Fabix",
-          "level": "1"
-        },
-        "column2": {
-          "subjectId": "1e8e55d4-bb61-4906-9018-bf48fe211a36",
-          "subjectType": "ROLE",
-          "user": "General Contractor",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.5VypuXYdSgGqfw0IrRbqgA",
@@ -73,10 +60,10 @@
       "level3": "sub folder 2.1",
       "permissions": {
         "column1": {
-          "subjectId": "5240b40f-b4a9-4452-825f-0a05c30cdf35",
+          "subjectId": "7c69fb9f-b4d1-4dee-8df1-e87592a02855",
           "subjectType": "USER",
-          "user": "samson090281@gazeta.pl",
-          "level": "1"
+          "user": "samson090281@yahoo.com",
+          "level": "4"
         },
         "column2": {
           "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
@@ -91,7 +78,14 @@
       "level1": "Project Files",
       "level2": "Folder 2",
       "level3": "sub folder 2.2",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "890e49ce-ac6c-4146-aa96-536b4d13ccac",
+          "subjectType": "ROLE",
+          "user": "Investor",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.sn-x1w2pQR6QUpNB5QSDxQ",
@@ -117,7 +111,7 @@
           "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
           "subjectType": "USER",
           "user": "samson090281@wp.pl",
-          "level": "1"
+          "level": "2"
         }
       }
     },
@@ -126,35 +120,88 @@
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": null,
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "1e8e55d4-bb61-4906-9018-bf48fe211a36",
+          "subjectType": "ROLE",
+          "user": "General Contractor",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.AFJQd4qdQnGDlrXbWNUUiw",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.1",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "5240b40f-b4a9-4452-825f-0a05c30cdf35",
+          "subjectType": "USER",
+          "user": "samson090281@gazeta.pl",
+          "level": "1"
+        },
+        "column2": {
+          "subjectId": "7c69fb9f-b4d1-4dee-8df1-e87592a02855",
+          "subjectType": "USER",
+          "user": "samson090281@yahoo.com",
+          "level": "4"
+        },
+        "column3": {
+          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
+          "subjectType": "USER",
+          "user": "samson090281@gmail.com",
+          "level": "6"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.1tpcrwkKTCe2VqPcdL7VBg",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.2",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
+          "subjectType": "USER",
+          "user": "samson090281@wp.pl",
+          "level": "1"
+        },
+        "column2": {
+          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
+          "subjectType": "USER",
+          "user": "samson090281@gmail.com",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.92e3Nyl3Rh2E8CK53qRMyQ",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.3",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
+          "subjectType": "USER",
+          "user": "samson090281@op.pl",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.Bj53kEKhS4WFi0go9uitVg",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.4",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
+          "subjectType": "USER",
+          "user": "samson090281@gmail.com",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.CvNiPaBbQqugK5cH3YtBew",
