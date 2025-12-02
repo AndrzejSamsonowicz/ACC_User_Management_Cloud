@@ -15,6 +15,49 @@
     let additionalColumnsCount = 10; // Start with 10 additional columns
 
     /**
+     * Progress modal functions
+     */
+    function showLoadingProgress(message, percent) {
+        let progressModal = document.getElementById('folderLoadingProgress');
+        if (!progressModal) {
+            progressModal = document.createElement('div');
+            progressModal.id = 'folderLoadingProgress';
+            progressModal.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                    <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); min-width: 400px;">
+                        <h4 id="folderLoadingMessage" style="margin: 0 0 20px 0; color: #333; font-size: 16px; text-align: center;"></h4>
+                        <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
+                            <div id="folderLoadingBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(progressModal);
+        }
+        progressModal.style.display = 'block';
+        updateLoadingProgress(message, percent);
+    }
+
+    function updateLoadingProgress(message, percent) {
+        const messageEl = document.getElementById('folderLoadingMessage');
+        const barEl = document.getElementById('folderLoadingBar');
+        if (messageEl) messageEl.textContent = message;
+        if (barEl) {
+            barEl.style.width = `${percent}%`;
+            barEl.textContent = `${Math.round(percent)}%`;
+        }
+    }
+
+    function hideLoadingProgress() {
+        const progressModal = document.getElementById('folderLoadingProgress');
+        if (progressModal) {
+            progressModal.style.display = 'none';
+        }
+    }
+
+
+
+    /**
      * Initialize the folders permissions module
      */
     window.initFoldersPermissions = function() {
@@ -85,22 +128,41 @@
     };
 
     /**
-     * Fetch complete folder hierarchy (3 levels)
+     * Fetch complete folder hierarchy (3 levels) with parallel API calls
      */
     async function fetchFolderHierarchy(hubId, projectId, accessToken) {
         console.log('📂 Fetching folder hierarchy...');
         
+        // Show progress modal
+        showLoadingProgress('Loading folder structure...', 0);
+        
         // Step 1: Get top-level folders
         const topFolders = await fetchTopFolders(hubId, projectId, accessToken);
         console.log(`📂 Found ${topFolders.length} top-level folders`);
+        updateLoadingProgress('Fetching level 2 folders...', 10);
 
         const hierarchy = [];
+        let totalFolders = topFolders.length;
+        let processedFolders = 0;
 
-        // Step 2: For each top-level folder, get its children (level 2)
-        for (const level1Folder of topFolders) {
+        // Step 2: Fetch ALL level 2 folders in PARALLEL
+        const level2Promises = topFolders.map(async (level1Folder) => {
             const level2Folders = await fetchFolderContents(projectId, level1Folder.id, accessToken);
             console.log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
+            
+            processedFolders++;
+            const progress = 10 + (processedFolders / totalFolders) * 40; // 10% to 50%
+            updateLoadingProgress(`Loading folders: ${processedFolders}/${totalFolders}`, progress);
+            
+            return { level1Folder, level2Folders };
+        });
 
+        const level2Results = await Promise.all(level2Promises);
+        updateLoadingProgress('Fetching level 3 folders...', 50);
+
+        // Step 3: Fetch ALL level 3 folders in PARALLEL
+        const level3Promises = [];
+        for (const { level1Folder, level2Folders } of level2Results) {
             if (level2Folders.length === 0) {
                 // No children, just add the level 1 folder
                 hierarchy.push({
@@ -109,34 +171,62 @@
                     level3: null
                 });
             } else {
-                // Has children
                 for (const level2Folder of level2Folders) {
-                    // Step 3: For each level 2 folder, get its children (level 3)
-                    const level3Folders = await fetchFolderContents(projectId, level2Folder.id, accessToken);
-                    console.log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
-
-                    if (level3Folders.length === 0) {
-                        // No children at level 3
-                        hierarchy.push({
-                            level1: level1Folder,
-                            level2: level2Folder,
-                            level3: null
-                        });
-                    } else {
-                        // Has children at level 3
-                        for (const level3Folder of level3Folders) {
-                            hierarchy.push({
-                                level1: level1Folder,
-                                level2: level2Folder,
-                                level3: level3Folder
-                            });
-                        }
-                    }
+                    level3Promises.push(
+                        fetchFolderContents(projectId, level2Folder.id, accessToken)
+                            .then(level3Folders => ({
+                                level1Folder,
+                                level2Folder,
+                                level3Folders
+                            }))
+                    );
                 }
             }
         }
 
+        totalFolders = level3Promises.length;
+        processedFolders = 0;
+
+        // Process level 3 results as they come in
+        const level3Results = await Promise.all(
+            level3Promises.map(async (promise) => {
+                const result = await promise;
+                processedFolders++;
+                const progress = 50 + (processedFolders / Math.max(totalFolders, 1)) * 40; // 50% to 90%
+                updateLoadingProgress(`Loading subfolders: ${processedFolders}/${totalFolders}`, progress);
+                return result;
+            })
+        );
+
+        updateLoadingProgress('Building hierarchy...', 90);
+
+        // Build final hierarchy
+        for (const { level1Folder, level2Folder, level3Folders } of level3Results) {
+            console.log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
+            
+            if (level3Folders.length === 0) {
+                hierarchy.push({
+                    level1: level1Folder,
+                    level2: level2Folder,
+                    level3: null
+                });
+            } else {
+                for (const level3Folder of level3Folders) {
+                    hierarchy.push({
+                        level1: level1Folder,
+                        level2: level2Folder,
+                        level3: level3Folder
+                    });
+                }
+            }
+        }
+
+        updateLoadingProgress('Complete!', 100);
         console.log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
+        
+        // Hide progress modal after a brief delay
+        setTimeout(() => hideLoadingProgress(), 500);
+        
         return hierarchy;
     }
 
@@ -440,6 +530,35 @@
     }
 
     /**
+     * Get background color for permission level (1-6)
+     * Level 1: rgb(228, 243, 251) - lightest
+     * Level 6: rgb(6, 150, 215) - darkest
+     */
+    function getPermissionLevelColor(level) {
+        const levelNum = parseInt(level);
+        if (isNaN(levelNum) || levelNum < 1 || levelNum > 6) {
+            return { background: 'rgb(228, 243, 251)', color: 'black' }; // Default to level 1 color
+        }
+        
+        // Define color range
+        const colorStart = { r: 228, g: 243, b: 251 }; // Level 1
+        const colorEnd = { r: 6, g: 150, b: 215 };     // Level 6
+        
+        // Calculate interpolation (0 to 1, where 0 is level 1 and 1 is level 6)
+        const t = (levelNum - 1) / 5;
+        
+        // Interpolate RGB values
+        const r = Math.round(colorStart.r + (colorEnd.r - colorStart.r) * t);
+        const g = Math.round(colorStart.g + (colorEnd.g - colorStart.g) * t);
+        const b = Math.round(colorStart.b + (colorEnd.b - colorStart.b) * t);
+        
+        // Use white text for levels 4, 5 and 6 (darker backgrounds)
+        const textColor = levelNum >= 4 ? 'white' : 'black';
+        
+        return { background: `rgb(${r}, ${g}, ${b})`, color: textColor };
+    }
+
+    /**
      * Setup drag-and-drop functionality for table cells
      */
     function setupTableDragAndDrop() {
@@ -474,12 +593,18 @@
                 const userName = e.dataTransfer.getData('text/plain');
                 if (userName) {
                     // Create cell content with user name and editable permission level
+                    const defaultLevel = '1';
                     cell.innerHTML = `
                         <span class="cell-username">${userName}</span>
-                        <input type="text" class="cell-permission-level" value="1" maxlength="1" />
+                        <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
                     `;
                     cell.setAttribute('data-user', userName);
                     cell.classList.add('has-content');
+                    
+                    // Apply background and text color based on permission level
+                    const colors = getPermissionLevelColor(defaultLevel);
+                    cell.style.backgroundColor = colors.background;
+                    cell.style.color = colors.color;
                     
                     // Setup permission level input validation
                     const permissionInput = cell.querySelector('.cell-permission-level');
@@ -508,10 +633,22 @@
                             }
                         });
                         
-                        // Update data attribute when value changes
+                        // Update data attribute and background color when value changes
                         permissionInput.addEventListener('change', (event) => {
                             const level = event.target.value || '6';
                             cell.setAttribute('data-permission-level', level);
+                            const colors = getPermissionLevelColor(level);
+                            cell.style.backgroundColor = colors.background;
+                            cell.style.color = colors.color;
+                        });
+                        
+                        permissionInput.addEventListener('input', (event) => {
+                            const level = event.target.value;
+                            if (level && level >= '1' && level <= '6') {
+                                const colors = getPermissionLevelColor(level);
+                                cell.style.backgroundColor = colors.background;
+                                cell.style.color = colors.color;
+                            }
                         });
                         
                         // Set initial data attribute
@@ -635,6 +772,9 @@
                 cell.textContent = '';
                 cell.classList.remove('has-content');
                 cell.classList.remove('selected');
+                cell.removeAttribute('data-user');
+                cell.removeAttribute('data-permission-level');
+                cell.style.backgroundColor = '';
             });
             selectedCells = [];
             lastSelectedCell = null;
@@ -683,6 +823,11 @@
                             targetCell.setAttribute('data-permission-level', copiedData.permissionLevel);
                             targetCell.classList.add('has-content');
                             
+                            // Apply background and text color based on permission level
+                            const colors = getPermissionLevelColor(copiedData.permissionLevel);
+                            targetCell.style.backgroundColor = colors.background;
+                            targetCell.style.color = colors.color;
+                            
                             // Setup validation for pasted input
                             const permissionInput = targetCell.querySelector('.cell-permission-level');
                             if (permissionInput) {
@@ -690,6 +835,10 @@
                                     const value = event.target.value;
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
                                         event.target.value = value.slice(0, -1);
+                                    } else if (value && value >= '1' && value <= '6') {
+                                        const colors = getPermissionLevelColor(value);
+                                        targetCell.style.backgroundColor = colors.background;
+                                        targetCell.style.color = colors.color;
                                     }
                                 });
                                 
@@ -709,6 +858,9 @@
                                 permissionInput.addEventListener('change', (event) => {
                                     const level = event.target.value || '1';
                                     targetCell.setAttribute('data-permission-level', level);
+                                    const colors = getPermissionLevelColor(level);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
                                 });
                             }
                         } else {
@@ -717,6 +869,8 @@
                             targetCell.classList.remove('has-content');
                             targetCell.removeAttribute('data-user');
                             targetCell.removeAttribute('data-permission-level');
+                            targetCell.style.backgroundColor = '';
+                            targetCell.style.color = '';
                         }
                     }
                 }
@@ -831,10 +985,118 @@
 
     // Add Columns function
     function addColumns() {
+        // Save current cell data before adding columns
+        const savedCellData = {};
+        const table = document.querySelector('.folders-table');
+        if (table) {
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const folderId = row.getAttribute('data-folder-id');
+                if (folderId) {
+                    savedCellData[folderId] = {};
+                    const cells = row.querySelectorAll('td');
+                    cells.forEach((cell, index) => {
+                        if (index >= 2 && cell.classList.contains('has-content')) {
+                            const userName = cell.getAttribute('data-user');
+                            const permissionLevel = cell.getAttribute('data-permission-level');
+                            if (userName && permissionLevel) {
+                                savedCellData[folderId][`column${index - 1}`] = {
+                                    user: userName,
+                                    level: permissionLevel
+                                };
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        
         additionalColumnsCount += 10;
+        
         if (currentHierarchy) {
             displayFolderHierarchy(currentHierarchy);
+            
+            // Restore saved cell data
+            if (Object.keys(savedCellData).length > 0) {
+                const newTable = document.querySelector('.folders-table');
+                if (newTable) {
+                    const newRows = newTable.querySelectorAll('tbody tr');
+                    newRows.forEach(row => {
+                        const folderId = row.getAttribute('data-folder-id');
+                        if (folderId && savedCellData[folderId]) {
+                            const cells = row.querySelectorAll('td');
+                            const folderData = savedCellData[folderId];
+                            
+                            Object.keys(folderData).forEach(columnKey => {
+                                const columnIndex = parseInt(columnKey.replace('column', '')) + 1;
+                                if (cells[columnIndex]) {
+                                    const permissionData = folderData[columnKey];
+                                    cells[columnIndex].innerHTML = `
+                                        <span class="cell-username">${permissionData.user}</span>
+                                        <input type="text" class="cell-permission-level" value="${permissionData.level}" maxlength="1" />
+                                    `;
+                                    cells[columnIndex].setAttribute('data-user', permissionData.user);
+                                    cells[columnIndex].setAttribute('data-permission-level', permissionData.level);
+                                    cells[columnIndex].classList.add('has-content');
+                                    
+                                    // Apply colors
+                                    const colors = getPermissionLevelColor(permissionData.level);
+                                    cells[columnIndex].style.backgroundColor = colors.background;
+                                    cells[columnIndex].style.color = colors.color;
+                                    
+                                    // Setup validation for restored input
+                                    const permissionInput = cells[columnIndex].querySelector('.cell-permission-level');
+                                    if (permissionInput) {
+                                        permissionInput.addEventListener('input', (event) => {
+                                            const value = event.target.value;
+                                            if (value && (value < '1' || value > '6' || isNaN(value))) {
+                                                event.target.value = value.slice(0, -1);
+                                            } else if (value && value >= '1' && value <= '6') {
+                                                const colors = getPermissionLevelColor(value);
+                                                cells[columnIndex].style.backgroundColor = colors.background;
+                                                cells[columnIndex].style.color = colors.color;
+                                            }
+                                        });
+                                        
+                                        permissionInput.addEventListener('change', (event) => {
+                                            const level = event.target.value || '6';
+                                            cells[columnIndex].setAttribute('data-permission-level', level);
+                                            const colors = getPermissionLevelColor(level);
+                                            cells[columnIndex].style.backgroundColor = colors.background;
+                                            cells[columnIndex].style.color = colors.color;
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            }
         }
+    }
+
+    // Clean Table function - removes all users from table without affecting saved JSON
+    function cleanTable() {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            cells.forEach((cell, index) => {
+                // Skip first two columns (folder names)
+                if (index >= 2 && cell.classList.contains('has-content')) {
+                    cell.innerHTML = '';
+                    cell.classList.remove('has-content');
+                    cell.removeAttribute('data-user');
+                    cell.removeAttribute('data-permission-level');
+                    cell.style.backgroundColor = '';
+                    cell.style.color = '';
+                }
+            });
+        });
+
+        console.log('🧹 Table cleaned - all users removed from display');
     }
 
     /**
@@ -900,586 +1162,17 @@
     /**
      * Convert permission level (1-6) to ACC actions array
      */
-    function levelToActions(level) {
-        const levelNum = parseInt(level);
-        switch (levelNum) {
-            case 1:
-                return ["VIEW", "COLLABORATE"];
-            case 2:
-                return ["VIEW", "DOWNLOAD", "COLLABORATE"];
-            case 3:
-                return ["VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP"];
-            case 4:
-                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP"];
-            case 5:
-                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP", "EDIT"];
-            case 6:
-                return ["PUBLISH", "VIEW", "DOWNLOAD", "COLLABORATE", "PUBLISH_MARKUP", "EDIT", "CONTROL"];
-            default:
-                console.error(`Invalid permission level: ${level}`);
-                return ["VIEW", "COLLABORATE"]; // Default to level 1
-        }
-    }
-
     /**
-     * Fetch current folder permissions from ACC
+     * Sync permissions to ACC - delegated to update_folder_permission.js
      */
-    async function fetchFolderPermissions(projectId, folderId, accessToken) {
-        try {
-            // Extract folder URN from folderId if needed
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions`;
-            
-            console.log(`📥 Fetching permissions for folder: ${folderId}`);
-            
-            const response = await fetch(apiUrl, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    console.log(`No permissions found for folder (404)`);
-                    return [];
-                }
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log(`📥 Raw API response:`, data);
-            
-            // API returns array directly, not {results: [...]}
-            const results = Array.isArray(data) ? data : (data.results || []);
-            console.log(`📥 Processing ${results.length} permission entries`);
-            
-            // Return all permissions - get ALL users who have ANY access
-            const permissions = results.map(perm => {
-                const effective = (perm.actions && perm.actions.length > 0) ? perm.actions : (perm.inheritActions || []);
-                return {
-                    ...perm,
-                    effectiveActions: effective
-                };
-            });
-            
-            console.log(`📥 Returning ${permissions.length} permissions`);
-            return permissions;
-        } catch (error) {
-            console.error(`Error fetching folder permissions:`, error);
-            return [];
-        }
-    }
-
-    /**
-     * Check if a user is a project admin
-     */
-    function isProjectAdmin(subjectId, subjectType) {
-        if (subjectType !== 'USER') {
-            return false; // Only users can be admins
-        }
-
-        if (!currentProjectUsersRaw) {
-            console.warn('No raw user data available to check admin status');
-            return false;
-        }
-
-        const user = currentProjectUsersRaw.find(u => u.id === subjectId);
-        if (!user) {
-            return false;
-        }
-
-        // Check if user has products field with projectAdministration administrator access
-        if (user.products && Array.isArray(user.products)) {
-            const adminProduct = user.products.find(p => 
-                p.key === 'projectAdministration' && p.access === 'administrator'
-            );
-            if (adminProduct) {
-                console.log(`✅ User ${user.email} is a project admin`);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Batch create folder permissions
-     */
-    async function batchCreatePermissions(projectId, folderId, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
-
-        try {
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-create`;
-            
-            console.log(`📤 Creating ${permissions.length} permissions...`);
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(permissions)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
-            }
-
-            const data = await response.json();
-            return { success: true, results: data.results || [] };
-        } catch (error) {
-            console.error(`Error creating permissions:`, error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Batch update folder permissions
-     */
-    async function batchUpdatePermissions(projectId, folderId, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
-
-        try {
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-update`;
-            
-            console.log(`📤 Updating ${permissions.length} permissions...`);
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(permissions)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
-            }
-
-            const data = await response.json();
-            return { success: true, results: data.results || [] };
-        } catch (error) {
-            console.error(`Error updating permissions:`, error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Batch delete folder permissions
-     */
-    async function batchDeletePermissions(projectId, folderId, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
-
-        try {
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-delete`;
-            
-            console.log(`📤 Deleting ${permissions.length} permissions...`);
-            console.log(`📤 DELETE API URL: ${apiUrl}`);
-            console.log(`📤 DELETE Request Body:`, JSON.stringify(permissions, null, 2));
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(permissions)
-            });
-
-            console.log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`📤 DELETE Error Response:`, errorText);
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
-            }
-
-            const responseText = await response.text();
-            console.log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
-
-            return { success: true };
-        } catch (error) {
-            console.error(`Error deleting permissions:`, error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Sync permissions to ACC
-     */
-    async function syncPermissionsToACC() {
-        if (!currentProjectData) {
-            alert('No project data available');
-            return;
-        }
-
-        // Show progress container
-        const progressContainer = document.getElementById('syncProgressContainer');
-        const progressBar = document.getElementById('syncProgressBar');
-        const progressTitle = document.getElementById('syncProgressTitle');
-        const progressDetails = document.getElementById('syncProgressDetails');
-        const progressSummary = document.getElementById('syncProgressSummary');
-        const progressStats = document.getElementById('syncProgressStats');
-        const tableContainer = document.getElementById('foldersTableContainer');
-        const userList = document.getElementById('foldersUserList');
-
-        // Hide table and user list, show progress
-        if (tableContainer) tableContainer.style.display = 'none';
-        if (userList) userList.style.display = 'none';
-        progressContainer.style.display = 'block';
-        progressSummary.style.display = 'none';
-        progressBar.style.width = '0%';
-        progressBar.textContent = '0%';
-        progressTitle.textContent = 'Syncing to ACC...';
-        progressDetails.innerHTML = 'Loading folder permissions...';
-
-        // Load JSON file first to get source of truth
-        try {
-            const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.projectName)}`);
-            const loadResult = await loadResponse.json();
-            
-            if (!loadResult.success || !loadResult.exists || !loadResult.data) {
-                progressTitle.textContent = '❌ Sync Failed';
-                progressTitle.style.color = '#dc3545';
-                progressDetails.innerHTML = 'No saved folder permissions found. Please save permissions first.';
-                setTimeout(() => {
-                    progressContainer.style.display = 'none';
-                    if (tableContainer) tableContainer.style.display = 'block';
-                    if (userList) userList.style.display = 'block';
-                }, 3000);
-                return;
-            }
-
-            const jsonData = loadResult.data;
-            console.log('\n🔄 ========== STARTING SYNC TO ACC ==========');
-            console.log(`📁 Project: ${currentProjectData.projectName}`);
-            console.log(`📊 Total folders in JSON: ${jsonData.folders.length}`);
-
-            // 🧪 TEST: Get raw permissions for sub folder 1.2
-            console.log(`\n\n🧪 ========== TEST: Getting permissions for "sub folder 1.2" ==========`);
-            const testFolderId = "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A";
-            const testFolderUrn = encodeURIComponent(testFolderId);
-            const testApiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${currentProjectData.projectId}/folders/${testFolderUrn}/permissions`;
-            console.log(`📍 API URL: ${testApiUrl}`);
-            
-            const testResponse = await fetch(testApiUrl, {
-                headers: {
-                    'Authorization': `Bearer ${currentProjectData.accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            const testData = await testResponse.json();
-            console.log(`\n📥 RAW API RESPONSE for "sub folder 1.2":`);
-            console.log(JSON.stringify(testData, null, 2));
-            
-            if (testData.results && testData.results.length > 0) {
-                console.log(`\n👥 Found ${testData.results.length} users with access to "sub folder 1.2":`);
-                testData.results.forEach(perm => {
-                    console.log(`\n  User: ${perm.email || perm.name || perm.subjectId}`);
-                    console.log(`    Subject ID: ${perm.subjectId}`);
-                    console.log(`    Subject Type: ${perm.subjectType}`);
-                    console.log(`    Actions (explicit): ${JSON.stringify(perm.actions || [])}`);
-                    console.log(`    InheritActions (inherited): ${JSON.stringify(perm.inheritActions || [])}`);
-                });
-            } else {
-                console.log(`\n✅ No permissions found for "sub folder 1.2"`);
-            }
-            console.log(`\n========== END TEST ==========\n\n`);
-
-            const syncSummary = {
-                totalFolders: jsonData.folders.length,
-                processedFolders: 0,
-                created: 0,
-                updated: 0,
-                deleted: 0,
-                skipped: 0,
-                errors: []
-            };
-
-            // Process all folders
-            for (let i = 0; i < jsonData.folders.length; i++) {
-                const folder = jsonData.folders[i];
-                const folderName = `${folder.level2}${folder.level3 ? ' > ' + folder.level3 : ''}`;
-                
-                // Update progress
-                const progress = Math.round(((i + 1) / jsonData.folders.length) * 100);
-                progressBar.style.width = `${progress}%`;
-                progressBar.textContent = `${progress}%`;
-                progressDetails.innerHTML = `Processing folder ${i + 1} of ${jsonData.folders.length}<br><strong>${folderName}</strong>`;
-
-                console.log(`\n📂 Processing: ${folderName}`);
-                
-                try {
-                    // Fetch current permissions from ACC
-                    const currentPermissions = await fetchFolderPermissions(
-                        currentProjectData.projectId,
-                        folder.folderId,
-                        currentProjectData.accessToken
-                    );
-
-                    // Build permission maps
-                    const jsonPermMap = new Map();
-                    const accPermMap = new Map();
-
-                    // Parse JSON permissions
-                    Object.values(folder.permissions).forEach(perm => {
-                        if (perm.subjectId && perm.subjectType && perm.level) {
-                            const key = `${perm.subjectId}_${perm.subjectType}`;
-                            jsonPermMap.set(key, {
-                                subjectId: perm.subjectId,
-                                subjectType: perm.subjectType,
-                                actions: levelToActions(perm.level),
-                                user: perm.user
-                            });
-                        }
-                    });
-
-                    // Parse ACC permissions - get ALL users with access (explicit OR inherited)
-                    console.log(`  📊 Processing ${currentPermissions.length} permissions from ACC...`);
-                    currentPermissions.forEach(perm => {
-                        const key = `${perm.subjectId}_${perm.subjectType}`;
-                        const userName = perm.name || perm.email || perm.subjectId;
-                        
-                        // Only add to accPermMap if user has EXPLICIT permissions (not just inherited)
-                        // Inherited permissions cannot be deleted at this folder level
-                        const hasExplicitPermissions = perm.actions && perm.actions.length > 0;
-                        
-                        if (hasExplicitPermissions) {
-                            console.log(`    - Adding to accPermMap: ${userName} (${perm.subjectType}), actions:`, perm.actions);
-                            
-                            accPermMap.set(key, {
-                                subjectId: perm.subjectId,
-                                subjectType: perm.subjectType,
-                                actions: perm.actions,
-                                user: userName
-                            });
-                        } else {
-                            console.log(`    - Skipping inherited: ${userName} (${perm.subjectType}), inheritActions:`, perm.inheritActions);
-                        }
-                    });
-
-                    console.log(`  JSON has ${jsonPermMap.size} permissions, ACC has ${accPermMap.size} permissions`);
-                    
-                    // Debug: Show what's in each map
-                    if (jsonPermMap.size > 0) {
-                        console.log(`  JSON permissions:`, Array.from(jsonPermMap.keys()));
-                    }
-                    if (accPermMap.size > 0) {
-                        console.log(`  ACC permissions:`, Array.from(accPermMap.keys()));
-                    }
-
-                    // Determine operations
-                    const toCreate = [];
-                    const toUpdate = [];
-                    const toDelete = [];
-
-                    // Check for CREATE and UPDATE
-                    jsonPermMap.forEach((jsonPerm, key) => {
-                        if (!accPermMap.has(key)) {
-                            // Need to create
-                            toCreate.push({
-                                subjectId: jsonPerm.subjectId,
-                                subjectType: jsonPerm.subjectType,
-                                actions: jsonPerm.actions
-                            });
-                            console.log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
-                        } else {
-                            // Check if update needed (compare actions)
-                            const accPerm = accPermMap.get(key);
-                            const actionsMatch = JSON.stringify(jsonPerm.actions.sort()) === JSON.stringify(accPerm.actions.sort());
-                            
-                            if (!actionsMatch) {
-                                toUpdate.push({
-                                    subjectId: jsonPerm.subjectId,
-                                    subjectType: jsonPerm.subjectType,
-                                    actions: jsonPerm.actions
-                                });
-                                console.log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
-                            }
-                        }
-                    });
-
-                    // Check for DELETE (in ACC but not in JSON)
-                    accPermMap.forEach((accPerm, key) => {
-                        if (!jsonPermMap.has(key)) {
-                            // Check if it's a project admin (don't delete)
-                            if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType)) {
-                                console.log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
-                                syncSummary.skipped++;
-                            } else {
-                                toDelete.push({
-                                    subjectId: accPerm.subjectId,
-                                    subjectType: accPerm.subjectType
-                                });
-                                console.log(`  ➖ WILL DELETE: ${accPerm.user} (${accPerm.subjectType}) - ID: ${accPerm.subjectId}`);
-                            }
-                        }
-                    });
-
-                    // Execute operations - GROUP BY SUBJECT TYPE (API requirement)
-                    // CREATE operations
-                    if (toCreate.length > 0) {
-                        const createByType = {
-                            USER: toCreate.filter(p => p.subjectType === 'USER'),
-                            COMPANY: toCreate.filter(p => p.subjectType === 'COMPANY'),
-                            ROLE: toCreate.filter(p => p.subjectType === 'ROLE')
-                        };
-
-                        for (const [type, permissions] of Object.entries(createByType)) {
-                            if (permissions.length > 0) {
-                                console.log(`  📤 Creating ${permissions.length} ${type} permissions...`);
-                                const result = await batchCreatePermissions(
-                                    currentProjectData.projectId,
-                                    folder.folderId,
-                                    permissions,
-                                    currentProjectData.accessToken
-                                );
-                                if (result.success) {
-                                    syncSummary.created += permissions.length;
-                                } else {
-                                    syncSummary.errors.push(`${folder.level2}: Create ${type} failed - ${result.error}`);
-                                }
-                            }
-                        }
-                    }
-
-                    // UPDATE operations
-                    if (toUpdate.length > 0) {
-                        const updateByType = {
-                            USER: toUpdate.filter(p => p.subjectType === 'USER'),
-                            COMPANY: toUpdate.filter(p => p.subjectType === 'COMPANY'),
-                            ROLE: toUpdate.filter(p => p.subjectType === 'ROLE')
-                        };
-
-                        for (const [type, permissions] of Object.entries(updateByType)) {
-                            if (permissions.length > 0) {
-                                console.log(`  📤 Updating ${permissions.length} ${type} permissions...`);
-                                const result = await batchUpdatePermissions(
-                                    currentProjectData.projectId,
-                                    folder.folderId,
-                                    permissions,
-                                    currentProjectData.accessToken
-                                );
-                                if (result.success) {
-                                    syncSummary.updated += permissions.length;
-                                } else {
-                                    syncSummary.errors.push(`${folder.level2}: Update ${type} failed - ${result.error}`);
-                                }
-                            }
-                        }
-                    }
-
-                    // DELETE operations
-                    if (toDelete.length > 0) {
-                        const deleteByType = {
-                            USER: toDelete.filter(p => p.subjectType === 'USER'),
-                            COMPANY: toDelete.filter(p => p.subjectType === 'COMPANY'),
-                            ROLE: toDelete.filter(p => p.subjectType === 'ROLE')
-                        };
-
-                        for (const [type, permissions] of Object.entries(deleteByType)) {
-                            if (permissions.length > 0) {
-                                console.log(`  📤 Deleting ${permissions.length} ${type} permissions...`);
-                                const result = await batchDeletePermissions(
-                                    currentProjectData.projectId,
-                                    folder.folderId,
-                                    permissions,
-                                    currentProjectData.accessToken
-                                );
-                                if (result.success) {
-                                    syncSummary.deleted += permissions.length;
-                                } else {
-                                    syncSummary.errors.push(`${folder.level2}: Delete ${type} failed - ${result.error}`);
-                                }
-                            }
-                        }
-                    }
-
-                    syncSummary.processedFolders++;
-
-                } catch (error) {
-                    console.error(`❌ Error processing folder ${folderName}:`, error);
-                    syncSummary.errors.push(`${folderName}: ${error.message}`);
-                }
-            }
-
-            // Display summary
-            console.log('\n🔄 ========== SYNC COMPLETE ==========');
-            console.log(`📊 Summary:`);
-            console.log(`  Folders processed: ${syncSummary.processedFolders}/${syncSummary.totalFolders}`);
-            console.log(`  ➕ Created: ${syncSummary.created}`);
-            console.log(`  🔄 Updated: ${syncSummary.updated}`);
-            console.log(`  ➖ Deleted: ${syncSummary.deleted}`);
-            console.log(`  ⚠️ Skipped (admins): ${syncSummary.skipped}`);
-            console.log(`  ❌ Errors: ${syncSummary.errors.length}`);
-            
-            if (syncSummary.errors.length > 0) {
-                console.log(`\nErrors:`);
-                syncSummary.errors.forEach(err => console.log(`  - ${err}`));
-            }
-
-            // Show summary in UI
-            progressBar.style.width = '100%';
-            progressBar.textContent = '100%';
-            progressBar.style.backgroundColor = syncSummary.errors.length > 0 ? '#ffc107' : '#28a745';
-            progressTitle.textContent = '✅ Sync Complete!';
-            progressTitle.style.color = '#28a745';
-            progressDetails.innerHTML = '';
-
-            let statsHTML = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div><strong>Folders processed:</strong></div><div>${syncSummary.processedFolders}/${syncSummary.totalFolders}</div>
-                    <div><strong>➕ Created:</strong></div><div style="color: #28a745; font-weight: bold;">${syncSummary.created}</div>
-                    <div><strong>🔄 Updated:</strong></div><div style="color: #007bff; font-weight: bold;">${syncSummary.updated}</div>
-                    <div><strong>➖ Deleted:</strong></div><div style="color: #dc3545; font-weight: bold;">${syncSummary.deleted}</div>
-            `;
-            
-            if (syncSummary.skipped > 0) {
-                statsHTML += `<div><strong>⚠️ Skipped (admins):</strong></div><div style="color: #ffc107; font-weight: bold;">${syncSummary.skipped}</div>`;
-            }
-            
-            if (syncSummary.errors.length > 0) {
-                statsHTML += `<div><strong>❌ Errors:</strong></div><div style="color: #dc3545; font-weight: bold;">${syncSummary.errors.length}</div>`;
-                statsHTML += `</div><div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-radius: 4px; font-size: 12px; max-height: 150px; overflow-y: auto;">`;
-                statsHTML += `<strong>Error details:</strong><br>`;
-                syncSummary.errors.forEach(err => {
-                    statsHTML += `<div style="margin-top: 5px;">• ${err}</div>`;
-                });
-            } else {
-                statsHTML += `</div>`;
-            }
-            
-            progressStats.innerHTML = statsHTML;
-            progressSummary.style.display = 'block';
-
-            // Close button handler
-            document.getElementById('closeSyncProgress').onclick = () => {
-                progressContainer.style.display = 'none';
-                if (tableContainer) tableContainer.style.display = 'block';
-                if (userList) userList.style.display = 'block';
-            };
-
-        } catch (error) {
-            console.error('❌ Sync error:', error);
-            progressBar.style.backgroundColor = '#dc3545';
-            progressTitle.textContent = '❌ Sync Failed';
-            progressTitle.style.color = '#dc3545';
-            progressDetails.innerHTML = `<div style="color: #dc3545; padding: 15px; background-color: #ffebee; border-radius: 4px;">${error.message}</div>`;
-            
-            setTimeout(() => {
-                progressContainer.style.display = 'none';
-                if (tableContainer) tableContainer.style.display = 'block';
-                if (userList) userList.style.display = 'block';
-            }, 5000);
+    async function handleSyncPermissions() {
+        // Call the sync function from the external module
+        // Pass the required context data
+        if (typeof window.syncPermissionsToACC === 'function') {
+            await window.syncPermissionsToACC(currentProjectData, currentProjectUsersRaw);
+        } else {
+            console.error('❌ Sync module not loaded!');
+            alert('Sync module not loaded. Please refresh the page.');
         }
     }
 
@@ -1675,6 +1368,11 @@
                             cells[columnIndex].setAttribute('data-user', permissionData.user);
                             cells[columnIndex].setAttribute('data-permission-level', permissionData.level);
                             
+                            // Apply background and text color based on permission level
+                            const colors = getPermissionLevelColor(permissionData.level);
+                            cells[columnIndex].style.backgroundColor = colors.background;
+                            cells[columnIndex].style.color = colors.color;
+                            
                             // Setup validation for loaded input
                             const permissionInput = cells[columnIndex].querySelector('.cell-permission-level');
                             if (permissionInput) {
@@ -1682,12 +1380,19 @@
                                     const value = event.target.value;
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
                                         event.target.value = value.slice(0, -1);
+                                    } else if (value && value >= '1' && value <= '6') {
+                                        const colors = getPermissionLevelColor(value);
+                                        cells[columnIndex].style.backgroundColor = colors.background;
+                                        cells[columnIndex].style.color = colors.color;
                                     }
                                 });
                                 
                                 permissionInput.addEventListener('change', (event) => {
                                     const level = event.target.value || '6';
                                     cells[columnIndex].setAttribute('data-permission-level', level);
+                                    const colors = getPermissionLevelColor(level);
+                                    cells[columnIndex].style.backgroundColor = colors.background;
+                                    cells[columnIndex].style.color = colors.color;
                                 });
                             }
                         } else {
@@ -1782,9 +1487,10 @@
                 <div class="folders-modal-content">
                     <div class="folders-modal-header">
                         <h3 id="foldersModalTitle">Folder Structure</h3>
+                        <button id="cleanTableBtn" class="clean-table-btn">Clean Table</button>
                         <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
-                        <button id="saveFolderPermissionsBtn" class="save-btn">SAVE</button>
-                        <button id="syncToACCBtn" class="sync-btn">SYNC TO ACC</button>
+                        <button id="saveFolderPermissionsBtn" class="save-btn">Save folders permissions</button>
+                        <button id="syncToACCBtn" class="sync-btn">Update to the project</button>
                         <span class="folders-modal-close">&times;</span>
                     </div>
                     <div class="folders-modal-body">
@@ -1865,6 +1571,27 @@
                     flex: 1;
                 }
 
+                .clean-table-btn {
+                    padding: 8px 16px;
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: background-color 0.2s;
+                }
+
+                .clean-table-btn:hover {
+                    background-color: #c82333;
+                }
+
+                .clean-table-btn:active {
+                    background-color: #bd2130;
+                }
+
                 .add-columns-btn {
                     padding: 8px 16px;
                     background-color: #007bff;
@@ -1907,14 +1634,14 @@
                 }
 
                 .sync-btn {
-                    padding: 8px 16px;
+                    padding: 10px 24px;
                     background-color: #ff6b00;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
                     font-family: 'Artifact Elements', Arial, sans-serif;
-                    font-size: 14px;
+                    font-size: 15px;
                     font-weight: bold;
                     transition: background-color 0.2s;
                 }
@@ -2161,7 +1888,6 @@
                 }
 
                 .folders-table td.has-content {
-                    background-color: #c8e6c9 !important;
                     font-weight: 500;
                 }
 
@@ -2303,12 +2029,17 @@
      */
     function setupFoldersModalEvents() {
         const closeBtn = document.querySelector('.folders-modal-close');
+        const cleanTableBtn = document.getElementById('cleanTableBtn');
         const addColumnsBtn = document.getElementById('addColumnsBtn');
         const saveBtn = document.getElementById('saveFolderPermissionsBtn');
         const syncBtn = document.getElementById('syncToACCBtn');
 
         closeBtn.addEventListener('click', () => {
             closeFoldersModal();
+        });
+
+        cleanTableBtn.addEventListener('click', () => {
+            cleanTable();
         });
 
         addColumnsBtn.addEventListener('click', () => {
@@ -2320,7 +2051,7 @@
         });
 
         syncBtn.addEventListener('click', () => {
-            syncPermissionsToACC();
+            handleSyncPermissions();
         });
 
         // Close on Escape key
