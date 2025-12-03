@@ -88,16 +88,19 @@ class UserTableManager {
                 return;
             }
             
-            // Only start drag on left mouse button
-            if (e.button !== 0) return;
+            // Only start drag when Shift key is pressed
+            if (!e.shiftKey) return;
             
-            // Prepare for potential drag (but don't prevent default yet - allow editing)
+            // Prevent text selection when dragging with Shift
+            e.preventDefault();
+            
+            // Prepare for potential drag
             this.dragSourceCell = cell;
             this.dragSourceValue = cell.textContent.trim();
             this.draggedCells.clear();
             this.draggedCells.add(cell);
             
-            console.log('🖱️ Drag ready from cell:', this.dragSourceValue);
+            console.log('🖱️ Drag ready from cell (Shift+drag):', this.dragSourceValue);
         });
         
         tbody.addEventListener('mousemove', (e) => {
@@ -1788,19 +1791,96 @@ class UserTableManager {
      */
     importFromCSV() {
         console.log('📁 importFromCSV() called');
-        const fileInput = document.getElementById('csvFileInput');
         
-        // Trigger file selection dialog
-        fileInput.click();
-        
-        // Handle file selection
-        fileInput.onchange = (event) => {
-            const file = event.target.files[0];
+        // Create import modal
+        this.showImportCSVModal();
+    }
+
+    /**
+     * Show CSV import modal
+     */
+    showImportCSVModal() {
+        // Remove existing modal if present
+        const existingModal = document.getElementById('csvImportModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const modalHTML = `
+            <div id="csvImportModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+                <div style="background-color: white; padding: 30px; border-radius: 8px; width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">Import Users from CSV</h2>
+                        <span class="csv-import-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;">&times;</span>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <p style="margin: 0 0 15px 0; font-family: 'Artifact Elements', Arial, sans-serif; color: #666;">
+                            Select a CSV file with the following format:<br>
+                            <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">Email;Company;Role</code>
+                        </p>
+                        
+                        <input type="file" id="csvFileInputModal" accept=".csv" style="width: 100%; padding: 10px; border: 2px dashed #0696D7; border-radius: 4px; font-family: 'Artifact Elements', Arial, sans-serif; cursor: pointer;" />
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: space-between;">
+                        <button id="downloadSampleBtn" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px;">
+                            Download CSV Sample
+                        </button>
+                        <button id="importCsvBtn" style="padding: 10px 20px; background-color: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px;">
+                            Import CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Setup event listeners
+        const modal = document.getElementById('csvImportModal');
+        const closeBtn = modal.querySelector('.csv-import-modal-close');
+        const downloadBtn = document.getElementById('downloadSampleBtn');
+        const importBtn = document.getElementById('importCsvBtn');
+        const fileInput = document.getElementById('csvFileInputModal');
+
+        // Close modal
+        closeBtn.onclick = () => modal.remove();
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+
+        // Download sample CSV
+        downloadBtn.onclick = () => {
+            const sampleCSV = `Email;Company;Role
+andrew.architect@Lecorbu.com;LeCorbusier & Associates;BIM Manager
+bob.contractor@gi.com;GoldenInvestment Inc;General Contractor
+carl.architect@Lecorbu.om;LeCorbusier & Associates;Architect
+john.engineer@solst.com;Solid Structures Inc;Structural Engineer
+luise.investor@gi.com;GoldenInvestment Inc;Investor
+sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
+
+            const blob = new Blob([sampleCSV], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'SampleUsers.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('✅ Sample CSV downloaded');
+        };
+
+        // Import CSV file
+        importBtn.onclick = () => {
+            const file = fileInput.files[0];
             if (!file) {
-                console.log('📁 No file selected');
+                alert('Please select a CSV file first');
                 return;
             }
-            
+
             console.log('📁 Processing CSV file:', file.name);
             
             const reader = new FileReader();
@@ -1809,17 +1889,14 @@ class UserTableManager {
                     const csvContent = e.target.result;
                     console.log('📁 CSV content loaded');
                     this.parseAndImportCSV(csvContent);
+                    modal.remove();
                 } catch (error) {
                     console.error('💥 Error reading CSV file:', error);
-                    this.showTooltip(document.querySelector('button[onclick="importCSV()"]'), 
-                        '✗ Error reading CSV file');
+                    alert('Error reading CSV file: ' + error.message);
                 }
             };
             
             reader.readAsText(file);
-            
-            // Reset file input for future use
-            fileInput.value = '';
         };
     }
 
@@ -1846,6 +1923,12 @@ class UserTableManager {
         lines.forEach((line, index) => {
             const trimmedLine = line.trim();
             if (!trimmedLine) return;
+            
+            // Skip first line (header row)
+            if (index === 0) {
+                console.log(`📊 Skipping header row: ${trimmedLine}`);
+                return;
+            }
             
             // Split by semicolon (format: email;company;role)
             const parts = trimmedLine.split(';');
@@ -1942,124 +2025,6 @@ class UserTableManager {
         this.showTooltip(document.querySelector('button[onclick="importCSV()"]'), message);
         
         console.log('🎉 CSV import completed!');
-    }
-
-    /**
-     * Download user_permissions_import.json locally
-     */
-    downloadJsonLocally() {
-        console.log('💾 downloadJsonLocally() called');
-        
-        const tbody = document.getElementById(this.tableBodyId);
-        
-        // Check for duplicate emails
-        const emailsFound = new Map();
-        const duplicateEmails = [];
-        
-        Array.from(tbody.rows).forEach((row, rowIndex) => {
-            const emailCell = row.cells[1]; // Email is in column 1 (after checkbox)
-            const email = (emailCell.textContent || emailCell.innerText || '').trim().toLowerCase();
-            
-            if (email) {
-                if (emailsFound.has(email)) {
-                    emailsFound.get(email).push(rowIndex);
-                    if (!duplicateEmails.includes(email)) {
-                        duplicateEmails.push(email);
-                    }
-                } else {
-                    emailsFound.set(email, [rowIndex]);
-                }
-            }
-        });
-        
-        // If duplicates found, show error
-        if (duplicateEmails.length > 0) {
-            alert(`Cannot download: Duplicate emails found!\n\n${duplicateEmails.join('\n')}\n\nPlease remove duplicates first.`);
-            return;
-        }
-        
-        // Build JSON data
-        const users = [];
-        
-        Array.from(tbody.rows).forEach(row => {
-            const emailCell = row.cells[1]; // Column 1: Email (after checkbox)
-            const companyCell = row.cells[2]; // Column 2: Company
-            const roleCell = row.cells[3]; // Column 3: Role
-            
-            const email = (emailCell.textContent || emailCell.innerText || '').trim();
-            
-            if (!email) return; // Skip empty rows
-            
-            const user = {
-                email: email,
-                metadata: {
-                    company: (companyCell.textContent || companyCell.innerText || '').trim(),
-                    role: (roleCell.textContent || roleCell.innerText || '').trim()
-                },
-                products: [
-                    { key: 'projectAdministration', access: (row.cells[4].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'insight', access: (row.cells[5].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'docs', access: (row.cells[6].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'designCollaboration', access: (row.cells[7].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'modelCoordination', access: (row.cells[8].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'build', access: (row.cells[9].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'cost', access: (row.cells[10].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'forma', access: (row.cells[11].textContent || '').trim().toLowerCase() || 'none' },
-                    { key: 'takeoff', access: (row.cells[12].textContent || '').trim().toLowerCase() || 'none' }
-                ]
-            };
-            
-            users.push(user);
-        });
-        
-        if (users.length === 0) {
-            alert('No users to download. Please add at least one user.');
-            return;
-        }
-        
-        const jsonData = {
-            users: users,
-            exportDate: new Date().toISOString()
-        };
-        
-        // Create download
-        const jsonString = JSON.stringify(jsonData, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'user_permissions_import.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        console.log(`💾 Downloaded ${users.length} users to user_permissions_import.json`);
-        
-        // Show success message
-        const successDiv = document.createElement('div');
-        successDiv.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #d4edda;
-            color: #155724;
-            padding: 20px 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 10000;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-            font-size: 16px;
-            font-weight: bold;
-        `;
-        successDiv.textContent = `✓ Downloaded ${users.length} users`;
-        document.body.appendChild(successDiv);
-        
-        setTimeout(() => {
-            successDiv.remove();
-        }, 2000);
     }
 
     /**
@@ -2284,12 +2249,6 @@ function saveModalTableToJson() {
 function importCSV() {
     if (userTableManager) {
         userTableManager.importFromCSV();
-    }
-}
-
-function downloadJsonLocally() {
-    if (userTableManager) {
-        userTableManager.downloadJsonLocally();
     }
 }
 

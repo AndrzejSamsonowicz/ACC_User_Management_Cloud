@@ -1,6 +1,276 @@
 {
   "users": [
     {
+      "email": "samson090281@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "andrzej.jan.samsonowicz@gmail.com",
+      "metadata": {
+        "company": "GoldenInvestment Inc",
+        "role": "General Contractor"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@gazeta.pl",
+      "metadata": {
+        "company": "Structural Engineers Inc",
+        "role": "Architect"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "member"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "member"
+        },
+        {
+          "key": "build",
+          "access": "member"
+        },
+        {
+          "key": "cost",
+          "access": "member"
+        },
+        {
+          "key": "forma",
+          "access": "member"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@yahoo.com",
+      "metadata": {
+        "company": "General Electric Inc",
+        "role": "Electrical Engineer"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@wp.pl",
+      "metadata": {
+        "company": "BIM Consulting",
+        "role": "Structural Engineer"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@op.pl",
+      "metadata": {
+        "company": "Solid Structures Inc",
+        "role": "Investor"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
       "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
         "company": "Bau AG",
@@ -89,277 +359,7 @@
           "access": "administrator"
         }
       ]
-    },
-    {
-      "email": "andrzej.jan.samsonowicz@gmail.com",
-      "metadata": {
-        "company": "Ciule",
-        "role": "General Contractor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@op.pl",
-      "metadata": {
-        "company": "Fabix",
-        "role": "Investor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@wp.pl",
-      "metadata": {
-        "company": "Fabix",
-        "role": "Investor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@gazeta.pl",
-      "metadata": {
-        "company": "Fabix",
-        "role": "Investor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@gmail.com",
-      "metadata": {
-        "company": "Ciule",
-        "role": "Structural Engineer"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "member"
-        },
-        {
-          "key": "build",
-          "access": "member"
-        },
-        {
-          "key": "cost",
-          "access": "member"
-        },
-        {
-          "key": "forma",
-          "access": "member"
-        },
-        {
-          "key": "takeoff",
-          "access": "member"
-        }
-      ]
-    },
-    {
-      "email": "samson090281@yahoo.com",
-      "metadata": {
-        "company": "Ciule",
-        "role": "Structural Engineer"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "none"
-        },
-        {
-          "key": "insight",
-          "access": "member"
-        },
-        {
-          "key": "docs",
-          "access": "member"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "member"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "none"
-        },
-        {
-          "key": "build",
-          "access": "none"
-        },
-        {
-          "key": "cost",
-          "access": "none"
-        },
-        {
-          "key": "forma",
-          "access": "none"
-        },
-        {
-          "key": "takeoff",
-          "access": "none"
-        }
-      ]
     }
   ],
-  "exportDate": "2025-11-22T16:58:08.766Z"
+  "exportDate": "2025-12-03T16:52:20.199Z"
 }
