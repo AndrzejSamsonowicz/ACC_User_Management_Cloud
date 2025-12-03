@@ -559,6 +559,62 @@
     }
 
     /**
+     * Setup tooltip for permission level input
+     */
+    function setupPermissionTooltip(inputElement) {
+        let tooltipTimeout = null;
+        let tooltip = null;
+
+        const tooltipText = `1 - View Only
+2 - View/Download
+3 - View/Download+PublishMarkups
+4 - View/Download+PublishMarkups+Upload
+5 - View/Download+PublishMarkups+Upload+Edit
+6 - Full control`;
+
+        inputElement.addEventListener('mouseenter', (e) => {
+            // Set timeout for 1 second
+            tooltipTimeout = setTimeout(() => {
+                // Create tooltip
+                tooltip = document.createElement('div');
+                tooltip.className = 'permission-tooltip';
+                tooltip.textContent = tooltipText;
+                document.body.appendChild(tooltip);
+
+                // Position tooltip near the input
+                const rect = inputElement.getBoundingClientRect();
+                tooltip.style.left = `${rect.left}px`;
+                tooltip.style.top = `${rect.bottom + 5}px`;
+            }, 1000);
+        });
+
+        inputElement.addEventListener('mouseleave', () => {
+            // Clear timeout if mouse leaves before 1 second
+            if (tooltipTimeout) {
+                clearTimeout(tooltipTimeout);
+                tooltipTimeout = null;
+            }
+            // Remove tooltip if it exists
+            if (tooltip) {
+                tooltip.remove();
+                tooltip = null;
+            }
+        });
+
+        // Also remove tooltip on input focus (when user starts typing)
+        inputElement.addEventListener('focus', () => {
+            if (tooltipTimeout) {
+                clearTimeout(tooltipTimeout);
+                tooltipTimeout = null;
+            }
+            if (tooltip) {
+                tooltip.remove();
+                tooltip = null;
+            }
+        });
+    }
+
+    /**
      * Setup drag-and-drop functionality for table cells
      */
     function setupTableDragAndDrop() {
@@ -590,8 +646,116 @@
                 e.preventDefault();
                 cell.classList.remove('drag-over');
                 
-                const userName = e.dataTransfer.getData('text/plain');
-                if (userName) {
+                // Check if multiple users are being dragged
+                const multiUserData = e.dataTransfer.getData('application/json');
+                let usersToPlace = [];
+                
+                if (multiUserData) {
+                    // Multiple users
+                    try {
+                        usersToPlace = JSON.parse(multiUserData);
+                    } catch (err) {
+                        console.error('Failed to parse multi-user data:', err);
+                        usersToPlace = [e.dataTransfer.getData('text/plain')];
+                    }
+                } else {
+                    // Single user
+                    const userName = e.dataTransfer.getData('text/plain');
+                    if (userName) {
+                        usersToPlace = [userName];
+                    }
+                }
+                
+                if (usersToPlace.length === 0) return;
+                
+                // Get the row and starting cell index
+                const row = cell.parentElement;
+                const cells = Array.from(row.children);
+                const startIndex = cells.indexOf(cell);
+                
+                // Place users horizontally starting from the drop cell
+                usersToPlace.forEach((userName, index) => {
+                    const targetIndex = startIndex + index;
+                    if (targetIndex < cells.length) {
+                        const targetCell = cells[targetIndex];
+                        
+                        // Create cell content with user name and editable permission level
+                        const defaultLevel = '1';
+                        targetCell.innerHTML = `
+                            <span class="cell-username">${userName}</span>
+                            <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
+                        `;
+                        targetCell.setAttribute('data-user', userName);
+                        targetCell.classList.add('has-content');
+                        
+                        // Apply background and text color based on permission level
+                        const colors = getPermissionLevelColor(defaultLevel);
+                        targetCell.style.backgroundColor = colors.background;
+                        targetCell.style.color = colors.color;
+                        
+                        // Setup permission level input validation
+                        const permissionInput = targetCell.querySelector('.cell-permission-level');
+                        if (permissionInput) {
+                            // Add tooltip on hover
+                            setupPermissionTooltip(permissionInput);
+                            
+                            permissionInput.addEventListener('input', (event) => {
+                                const value = event.target.value;
+                                // Only allow numbers 1-6
+                                if (value && (value < '1' || value > '6' || isNaN(value))) {
+                                    event.target.value = value.slice(0, -1); // Remove last character
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('keydown', (event) => {
+                                // Allow: backspace, delete, tab, escape, enter
+                                if ([8, 9, 27, 13, 46].indexOf(event.keyCode) !== -1 ||
+                                    // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                                    (event.keyCode === 65 && event.ctrlKey === true) ||
+                                    (event.keyCode === 67 && event.ctrlKey === true) ||
+                                    (event.keyCode === 86 && event.ctrlKey === true) ||
+                                    (event.keyCode === 88 && event.ctrlKey === true)) {
+                                    return;
+                                }
+                                // Ensure that it's a number 1-6 and stop the keypress
+                                if ((event.shiftKey || (event.keyCode < 49 || event.keyCode > 54)) && (event.keyCode < 97 || event.keyCode > 102)) {
+                                    event.preventDefault();
+                                }
+                            });
+                            
+                            // Update data attribute and background color when value changes
+                            permissionInput.addEventListener('change', (event) => {
+                                const level = event.target.value || '6';
+                                targetCell.setAttribute('data-permission-level', level);
+                                const colors = getPermissionLevelColor(level);
+                                targetCell.style.backgroundColor = colors.background;
+                                targetCell.style.color = colors.color;
+                            });
+                            
+                            permissionInput.addEventListener('input', (event) => {
+                                const level = event.target.value;
+                                if (level && level >= '1' && level <= '6') {
+                                    const colors = getPermissionLevelColor(level);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
+                                }
+                            });
+                            
+                            // Set initial data attribute
+                            targetCell.setAttribute('data-permission-level', '6');
+                        }
+                    }
+                });
+                
+                // Clear user selection after drop
+                selectedUsers = [];
+                document.querySelectorAll('.user-list-item').forEach(item => {
+                    item.classList.remove('user-selected');
+                });
+                
+                // For backwards compatibility, keep the original single-user logic
+                if (usersToPlace.length === 1) {
+                    const userName = usersToPlace[0];
                     // Create cell content with user name and editable permission level
                     const defaultLevel = '1';
                     cell.innerHTML = `
@@ -609,6 +773,9 @@
                     // Setup permission level input validation
                     const permissionInput = cell.querySelector('.cell-permission-level');
                     if (permissionInput) {
+                        // Add tooltip on hover
+                        setupPermissionTooltip(permissionInput);
+                        
                         permissionInput.addEventListener('input', (event) => {
                             const value = event.target.value;
                             // Only allow numbers 1-6
@@ -712,6 +879,9 @@
     let selectedCells = [];
     let lastSelectedCell = null;
     let copiedCells = []; // Store copied cell data
+    
+    // Track selected users for multi-drag
+    let selectedUsers = [];
 
     /**
      * Handle cell selection with shift key support
@@ -734,8 +904,16 @@
             selectedCells.push(cell);
             lastSelectedCell = cell;
         } else {
-            // Shift is pressed - select range or add to selection
-            if (lastSelectedCell) {
+            // Shift is pressed - toggle selection or select range
+            if (selectedCells.includes(cell)) {
+                // Cell is already selected - deselect it
+                cell.classList.remove('selected');
+                selectedCells = selectedCells.filter(c => c !== cell);
+                // Update lastSelectedCell if we deselected it
+                if (lastSelectedCell === cell) {
+                    lastSelectedCell = selectedCells.length > 0 ? selectedCells[selectedCells.length - 1] : null;
+                }
+            } else if (lastSelectedCell) {
                 // Select range between last selected and current
                 const allCells = Array.from(document.querySelectorAll('.folders-table td'));
                 const startIndex = allCells.indexOf(lastSelectedCell);
@@ -831,6 +1009,9 @@
                             // Setup validation for pasted input
                             const permissionInput = targetCell.querySelector('.cell-permission-level');
                             if (permissionInput) {
+                                // Add tooltip on hover
+                                setupPermissionTooltip(permissionInput);
+                                
                                 permissionInput.addEventListener('input', (event) => {
                                     const value = event.target.value;
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
@@ -968,12 +1149,45 @@
         const userItems = document.querySelectorAll('.user-list-item');
         
         userItems.forEach(item => {
+            // Handle click for selection (with Shift for multi-select)
+            item.addEventListener('click', (e) => {
+                const userName = item.textContent;
+                
+                if (e.shiftKey) {
+                    // Multi-select mode
+                    if (selectedUsers.includes(userName)) {
+                        // Deselect
+                        selectedUsers = selectedUsers.filter(u => u !== userName);
+                        item.classList.remove('user-selected');
+                    } else {
+                        // Add to selection
+                        selectedUsers.push(userName);
+                        item.classList.add('user-selected');
+                    }
+                } else {
+                    // Single select - clear previous selection
+                    document.querySelectorAll('.user-list-item').forEach(i => {
+                        i.classList.remove('user-selected');
+                    });
+                    selectedUsers = [userName];
+                    item.classList.add('user-selected');
+                }
+            });
+            
             item.addEventListener('dragstart', (e) => {
                 e.dataTransfer.effectAllowed = 'copy';
                 const userName = item.textContent;
                 
-                // Just transfer the user name (permission level will be added in the cell)
-                e.dataTransfer.setData('text/plain', userName);
+                // If this item is part of a multi-selection, drag all selected users
+                if (selectedUsers.length > 1 && selectedUsers.includes(userName)) {
+                    // Transfer multiple users as JSON
+                    e.dataTransfer.setData('application/json', JSON.stringify(selectedUsers));
+                    e.dataTransfer.setData('text/plain', selectedUsers[0]); // Fallback
+                } else {
+                    // Single user drag
+                    e.dataTransfer.setData('text/plain', userName);
+                }
+                
                 item.classList.add('dragging');
             });
             
@@ -1047,6 +1261,9 @@
                                     // Setup validation for restored input
                                     const permissionInput = cells[columnIndex].querySelector('.cell-permission-level');
                                     if (permissionInput) {
+                                        // Add tooltip on hover
+                                        setupPermissionTooltip(permissionInput);
+                                        
                                         permissionInput.addEventListener('input', (event) => {
                                             const value = event.target.value;
                                             if (value && (value < '1' || value > '6' || isNaN(value))) {
@@ -1376,6 +1593,9 @@
                             // Setup validation for loaded input
                             const permissionInput = cells[columnIndex].querySelector('.cell-permission-level');
                             if (permissionInput) {
+                                // Add tooltip on hover
+                                setupPermissionTooltip(permissionInput);
+                                
                                 permissionInput.addEventListener('input', (event) => {
                                     const value = event.target.value;
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
@@ -1789,6 +2009,13 @@
                     border-color: #007bff;
                     transform: translateX(-2px);
                 }
+                
+                .user-list-item.user-selected {
+                    background-color: #1976d2;
+                    color: white;
+                    border-color: #0d47a1;
+                    font-weight: bold;
+                }
 
                 .user-list-item.dragging {
                     opacity: 0.5;
@@ -1823,6 +2050,21 @@
                     outline: none;
                     border-color: #0056b3;
                     background-color: #bbdefb;
+                }
+
+                .permission-tooltip {
+                    position: absolute;
+                    background-color: #333;
+                    color: white;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    white-space: pre-line;
+                    z-index: 10000;
+                    pointer-events: none;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    line-height: 1.6;
                 }
 
                 .folders-table {

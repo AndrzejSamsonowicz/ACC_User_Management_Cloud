@@ -2,7 +2,7 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-12-02T18:13:18.015Z",
+  "exportDate": "2025-12-03T16:39:05.224Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
@@ -16,14 +16,7 @@
       "level1": "Project Files",
       "level2": "Folder 1",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "subjectId": "51d2b8fb-9c0c-4285-8ffc-746f0d5f832f",
-          "subjectType": "COMPANY",
-          "user": "Fabix",
-          "level": "5"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.iLbue97ZQy-67reOdQqG6w",
@@ -78,14 +71,7 @@
       "level1": "Project Files",
       "level2": "Folder 2",
       "level3": "sub folder 2.2",
-      "permissions": {
-        "column1": {
-          "subjectId": "890e49ce-ac6c-4146-aa96-536b4d13ccac",
-          "subjectType": "ROLE",
-          "user": "Investor",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.sn-x1w2pQR6QUpNB5QSDxQ",
@@ -208,7 +194,32 @@
       "level1": "Project Files",
       "level2": "Folder 5",
       "level3": null,
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "e977f20c-39b5-4d07-97ab-d355b8fe9073",
+          "subjectType": "COMPANY",
+          "user": "Bau AG",
+          "level": "1"
+        },
+        "column2": {
+          "subjectId": "14fab0bf-045b-40f3-8625-f1d8a0379ce8",
+          "subjectType": "COMPANY",
+          "user": "BIM Consulting",
+          "level": "1"
+        },
+        "column3": {
+          "subjectId": "c6601c68-6252-4d9b-a7e5-ce949868649f",
+          "subjectType": "COMPANY",
+          "user": "General Electric Inc",
+          "level": "1"
+        },
+        "column4": {
+          "subjectId": "d2ce65ac-f42d-425f-878f-2c52d4ad524e",
+          "subjectType": "COMPANY",
+          "user": "GoldenInvestment Inc",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.Xt-nMJ1xR-6S6UNOs29QTA",
