@@ -2,7 +2,7 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-12-03T16:39:05.224Z",
+  "exportDate": "2025-12-04T07:34:59.892Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
@@ -23,14 +23,7 @@
       "level1": "Project Files",
       "level2": "Folder 1",
       "level3": "sub folder 1.1",
-      "permissions": {
-        "column1": {
-          "subjectId": "b59a6163-aadc-41d0-aab0-516ee815d1c7",
-          "subjectType": "USER",
-          "user": "andrzej.jan.samsonowicz@gmail.com",
-          "level": "5"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A",
@@ -51,20 +44,7 @@
       "level1": "Project Files",
       "level2": "Folder 2",
       "level3": "sub folder 2.1",
-      "permissions": {
-        "column1": {
-          "subjectId": "7c69fb9f-b4d1-4dee-8df1-e87592a02855",
-          "subjectType": "USER",
-          "user": "samson090281@yahoo.com",
-          "level": "4"
-        },
-        "column2": {
-          "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
-          "subjectType": "USER",
-          "user": "samson090281@op.pl",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.1yudsMJ-QfCXSq3mXlj9-Q",
@@ -78,148 +58,56 @@
       "level1": "Project Files",
       "level2": "Folder 3",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "subjectId": "890e49ce-ac6c-4146-aa96-536b4d13ccac",
-          "subjectType": "ROLE",
-          "user": "Investor",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.37PKzJHgQz2UM7935bqZ7Q",
       "level1": "Project Files",
       "level2": "Folder 3",
       "level3": "sub folder 3.1",
-      "permissions": {
-        "column1": {
-          "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
-          "subjectType": "USER",
-          "user": "samson090281@wp.pl",
-          "level": "2"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.WrNeLSxoQEKFut13VDGjmQ",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "subjectId": "1e8e55d4-bb61-4906-9018-bf48fe211a36",
-          "subjectType": "ROLE",
-          "user": "General Contractor",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.AFJQd4qdQnGDlrXbWNUUiw",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.1",
-      "permissions": {
-        "column1": {
-          "subjectId": "5240b40f-b4a9-4452-825f-0a05c30cdf35",
-          "subjectType": "USER",
-          "user": "samson090281@gazeta.pl",
-          "level": "1"
-        },
-        "column2": {
-          "subjectId": "7c69fb9f-b4d1-4dee-8df1-e87592a02855",
-          "subjectType": "USER",
-          "user": "samson090281@yahoo.com",
-          "level": "4"
-        },
-        "column3": {
-          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
-          "subjectType": "USER",
-          "user": "samson090281@gmail.com",
-          "level": "6"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.1tpcrwkKTCe2VqPcdL7VBg",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.2",
-      "permissions": {
-        "column1": {
-          "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
-          "subjectType": "USER",
-          "user": "samson090281@wp.pl",
-          "level": "1"
-        },
-        "column2": {
-          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
-          "subjectType": "USER",
-          "user": "samson090281@gmail.com",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.92e3Nyl3Rh2E8CK53qRMyQ",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.3",
-      "permissions": {
-        "column1": {
-          "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
-          "subjectType": "USER",
-          "user": "samson090281@op.pl",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.Bj53kEKhS4WFi0go9uitVg",
       "level1": "Project Files",
       "level2": "Folder 4",
       "level3": "sub folder 4.4",
-      "permissions": {
-        "column1": {
-          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
-          "subjectType": "USER",
-          "user": "samson090281@gmail.com",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.CvNiPaBbQqugK5cH3YtBew",
       "level1": "Project Files",
       "level2": "Folder 5",
       "level3": null,
-      "permissions": {
-        "column1": {
-          "subjectId": "e977f20c-39b5-4d07-97ab-d355b8fe9073",
-          "subjectType": "COMPANY",
-          "user": "Bau AG",
-          "level": "1"
-        },
-        "column2": {
-          "subjectId": "14fab0bf-045b-40f3-8625-f1d8a0379ce8",
-          "subjectType": "COMPANY",
-          "user": "BIM Consulting",
-          "level": "1"
-        },
-        "column3": {
-          "subjectId": "c6601c68-6252-4d9b-a7e5-ce949868649f",
-          "subjectType": "COMPANY",
-          "user": "General Electric Inc",
-          "level": "1"
-        },
-        "column4": {
-          "subjectId": "d2ce65ac-f42d-425f-878f-2c52d4ad524e",
-          "subjectType": "COMPANY",
-          "user": "GoldenInvestment Inc",
-          "level": "1"
-        }
-      }
+      "permissions": {}
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.Xt-nMJ1xR-6S6UNOs29QTA",
