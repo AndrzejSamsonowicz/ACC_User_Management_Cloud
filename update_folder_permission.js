@@ -80,7 +80,9 @@
                 <strong>Summary:</strong><br>
                 ➕ Created: ${summary.created}<br>
                 🔄 Updated: ${summary.updated}<br>
-                ➖ Deleted: ${summary.deleted}
+                ➖ Deleted: ${summary.deleted}<br>
+                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}<br>
+                ⚠️ Skipped (Not in Project): ${summary.skippedNonExistent || 0}
             </div>
         `;
 
@@ -112,6 +114,17 @@
                     <strong>Deleted Users:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #ffebee; border-radius: 4px;">
                         ${summary.deletedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✗ ${u}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        if (summary.nonExistentUsers && summary.nonExistentUsers.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px;">
+                    <strong>Users Not in Project (Skipped):</strong><br>
+                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
+                        ${summary.nonExistentUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${u}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -198,6 +211,23 @@
             console.error(`Error fetching folder permissions:`, error);
             return [];
         }
+    }
+
+    /**
+     * Check if a user exists in the project
+     */
+    function userExistsInProject(subjectId, subjectType, currentProjectUsersRaw) {
+        if (subjectType !== 'USER') {
+            return true; // Companies and roles are not checked
+        }
+
+        if (!currentProjectUsersRaw) {
+            console.warn('No raw user data available to check user existence');
+            return false;
+        }
+
+        const user = currentProjectUsersRaw.find(u => u.id === subjectId);
+        return !!user;
     }
 
     /**
@@ -390,11 +420,13 @@
                 created: 0,
                 updated: 0,
                 deleted: 0,
-                skipped: 0,
+                skippedAdmins: 0,
+                skippedNonExistent: 0,
                 errors: [],
                 createdUsers: [],
                 updatedUsers: [],
-                deletedUsers: []
+                deletedUsers: [],
+                nonExistentUsers: []
             };
 
             // Process folders in PARALLEL batches for speed
@@ -468,25 +500,49 @@
                         // Check for CREATE and UPDATE
                         jsonPermMap.forEach((jsonPerm, key) => {
                             if (!accPermMap.has(key)) {
-                                toCreate.push({
-                                    subjectId: jsonPerm.subjectId,
-                                    subjectType: jsonPerm.subjectType,
-                                    actions: jsonPerm.actions,
-                                    user: jsonPerm.user
-                                });
-                                console.log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
-                            } else {
-                                const accPerm = accPermMap.get(key);
-                                const actionsMatch = JSON.stringify(jsonPerm.actions.sort()) === JSON.stringify(accPerm.actions.sort());
-                                
-                                if (!actionsMatch) {
-                                    toUpdate.push({
+                                // Check if user exists in project
+                                if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    console.log(`  ⚠️ SKIP CREATE: User doesn't exist in project (${jsonPerm.user})`);
+                                    syncSummary.skippedNonExistent++;
+                                    if (!syncSummary.nonExistentUsers.includes(jsonPerm.user)) {
+                                        syncSummary.nonExistentUsers.push(jsonPerm.user);
+                                    }
+                                } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    console.log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
+                                    syncSummary.skippedAdmins++;
+                                } else {
+                                    toCreate.push({
                                         subjectId: jsonPerm.subjectId,
                                         subjectType: jsonPerm.subjectType,
                                         actions: jsonPerm.actions,
                                         user: jsonPerm.user
                                     });
-                                    console.log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                                    console.log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                                }
+                            } else {
+                                const accPerm = accPermMap.get(key);
+                                const actionsMatch = JSON.stringify(jsonPerm.actions.sort()) === JSON.stringify(accPerm.actions.sort());
+                                
+                                if (!actionsMatch) {
+                                    // Check if user exists in project
+                                    if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                        console.log(`  ⚠️ SKIP UPDATE: User doesn't exist in project (${jsonPerm.user})`);
+                                        syncSummary.skippedNonExistent++;
+                                        if (!syncSummary.nonExistentUsers.includes(jsonPerm.user)) {
+                                            syncSummary.nonExistentUsers.push(jsonPerm.user);
+                                        }
+                                    } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                        console.log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
+                                        syncSummary.skippedAdmins++;
+                                    } else {
+                                        toUpdate.push({
+                                            subjectId: jsonPerm.subjectId,
+                                            subjectType: jsonPerm.subjectType,
+                                            actions: jsonPerm.actions,
+                                            user: jsonPerm.user
+                                        });
+                                        console.log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                                    }
                                 }
                             }
                         });
@@ -496,7 +552,7 @@
                             if (!jsonPermMap.has(key)) {
                                 if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType, currentProjectUsersRaw)) {
                                     console.log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
-                                    syncSummary.skipped++;
+                                    syncSummary.skippedAdmins++;
                                 } else {
                                     toDelete.push({
                                         subjectId: accPerm.subjectId,

@@ -882,6 +882,7 @@
     
     // Track selected users for multi-drag
     let selectedUsers = [];
+    let lastSelectedUser = null; // Track last selected user for range selection
 
     /**
      * Handle cell selection with shift key support
@@ -1147,14 +1148,35 @@
      */
     function setupUserListDrag() {
         const userItems = document.querySelectorAll('.user-list-item');
+        const userItemsArray = Array.from(userItems);
         
-        userItems.forEach(item => {
-            // Handle click for selection (with Shift for multi-select)
+        userItems.forEach((item, index) => {
+            // Handle click for selection (with Shift for range selection)
             item.addEventListener('click', (e) => {
                 const userName = item.textContent;
                 
-                if (e.shiftKey) {
-                    // Multi-select mode
+                if (e.shiftKey && lastSelectedUser !== null) {
+                    // Range selection mode
+                    const lastIndex = userItemsArray.findIndex(i => i.textContent === lastSelectedUser);
+                    const currentIndex = index;
+                    
+                    if (lastIndex !== -1) {
+                        const startIndex = Math.min(lastIndex, currentIndex);
+                        const endIndex = Math.max(lastIndex, currentIndex);
+                        
+                        // Select all users in the range
+                        for (let i = startIndex; i <= endIndex; i++) {
+                            const rangeItem = userItemsArray[i];
+                            const rangeUserName = rangeItem.textContent;
+                            
+                            if (!selectedUsers.includes(rangeUserName)) {
+                                selectedUsers.push(rangeUserName);
+                                rangeItem.classList.add('user-selected');
+                            }
+                        }
+                    }
+                } else if (e.ctrlKey || e.metaKey) {
+                    // Toggle individual selection (Ctrl/Cmd+Click)
                     if (selectedUsers.includes(userName)) {
                         // Deselect
                         selectedUsers = selectedUsers.filter(u => u !== userName);
@@ -1163,6 +1185,7 @@
                         // Add to selection
                         selectedUsers.push(userName);
                         item.classList.add('user-selected');
+                        lastSelectedUser = userName;
                     }
                 } else {
                     // Single select - clear previous selection
@@ -1171,6 +1194,7 @@
                     });
                     selectedUsers = [userName];
                     item.classList.add('user-selected');
+                    lastSelectedUser = userName;
                 }
             });
             

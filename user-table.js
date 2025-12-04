@@ -139,7 +139,11 @@ class UserTableManager {
             }
         });
         
-        document.addEventListener('mouseup', (e) => {
+        // Store mouseup handler for cleanup
+        if (this.documentMouseUpHandler) {
+            document.removeEventListener('mouseup', this.documentMouseUpHandler);
+        }
+        this.documentMouseUpHandler = (e) => {
             // Only process if we were dragging
             if (!this.isDragging && !this.dragSourceCell) {
                 return;
@@ -197,7 +201,8 @@ class UserTableManager {
             this.dragSourceCell = null;
             this.dragSourceValue = null;
             this.draggedCells.clear();
-        });
+        };
+        document.addEventListener('mouseup', this.documentMouseUpHandler);
     }
 
     /**
@@ -1816,7 +1821,9 @@ class UserTableManager {
                     
                     <div style="margin-bottom: 20px;">
                         <p style="margin: 0 0 15px 0; font-family: 'Artifact Elements', Arial, sans-serif; color: #666;">
-                            Select a CSV file with the following format:<br>
+                            Select a CSV file with one of the following formats:<br>
+                            <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">Email</code><br>
+                            <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">Email;Company</code> or <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">Email;Role</code><br>
                             <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">Email;Company;Role</code>
                         </p>
                         
@@ -1930,18 +1937,35 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 return;
             }
             
-            // Split by semicolon (format: email;company;role)
+            // Split by semicolon (format: email OR email;company OR email;role OR email;company;role)
             const parts = trimmedLine.split(';');
             
-            if (parts.length !== 3) {
-                console.warn(`⚠️ Line ${index + 1}: Invalid format, expected 3 parts separated by semicolons`);
+            // Validate format: 1, 2, or 3 columns
+            if (parts.length < 1 || parts.length > 3) {
+                console.warn(`⚠️ Line ${index + 1}: Invalid format, expected 1-3 columns separated by semicolons`);
                 errorCount++;
                 return;
             }
             
             const email = parts[0].trim();
-            const company = parts[1].trim();
-            const role = parts[2].trim();
+            let company = '';
+            let role = '';
+            
+            // Determine if second column is company or role based on header (if available)
+            // For 2 columns: check if it looks more like a company (has common company words) or role
+            if (parts.length === 2) {
+                const secondColumn = parts[1].trim();
+                // Simple heuristic: if it contains common company suffixes, treat as company
+                if (/\b(Inc|LLC|Ltd|GmbH|Corp|Corporation|Company|Associates|Group)\b/i.test(secondColumn)) {
+                    company = secondColumn;
+                } else {
+                    // Otherwise treat as role
+                    role = secondColumn;
+                }
+            } else if (parts.length === 3) {
+                company = parts[1].trim();
+                role = parts[2].trim();
+            }
             
             // Validate email
             if (!this.emailRegex.test(email)) {
@@ -1957,7 +1981,13 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             });
             validCount++;
             
-            console.log(`✅ Line ${index + 1}: ${email} | ${company} | ${role}`);
+            if (parts.length === 3) {
+                console.log(`✅ Line ${index + 1}: ${email} | ${company} | ${role}`);
+            } else if (parts.length === 2) {
+                console.log(`✅ Line ${index + 1}: ${email} | ${company || role}`);
+            } else {
+                console.log(`✅ Line ${index + 1}: ${email}`);
+            }
         });
         
         console.log(`📊 Import summary: ${validCount} valid users, ${errorCount} errors`);
