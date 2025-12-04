@@ -81,8 +81,7 @@
                 ➕ Created: ${summary.created}<br>
                 🔄 Updated: ${summary.updated}<br>
                 ➖ Deleted: ${summary.deleted}<br>
-                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}<br>
-                ⚠️ Skipped (Not in Project): ${summary.skippedNonExistent || 0}
+                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}
             </div>
         `;
 
@@ -119,12 +118,14 @@
             `;
         }
 
-        if (summary.nonExistentUsers && summary.nonExistentUsers.length > 0) {
+        // Combine non-existent and incomplete users into single list
+        const allMissingUsers = [...(summary.nonExistentUsers || []), ...(summary.incompleteUsers || [])];
+        if (allMissingUsers.length > 0) {
             html += `
                 <div style="margin-bottom: 15px;">
-                    <strong>Users Not in Project (Skipped):</strong><br>
+                    <strong>Users don't exist in the project:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
-                        ${summary.nonExistentUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${u}</div>`).join('')}
+                        ${allMissingUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${u}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -422,11 +423,13 @@
                 deleted: 0,
                 skippedAdmins: 0,
                 skippedNonExistent: 0,
+                skippedIncomplete: 0,
                 errors: [],
                 createdUsers: [],
                 updatedUsers: [],
                 deletedUsers: [],
-                nonExistentUsers: []
+                nonExistentUsers: [],
+                incompleteUsers: []
             };
 
             // Process folders in PARALLEL batches for speed
@@ -470,6 +473,11 @@
                                     user: perm.user
                                 });
                                 console.log(`    📄 JSON: ${perm.user} | Key: ${key}`);
+                            } else {
+                                // Permission is missing required fields (subjectId, subjectType, or level)
+                                console.warn(`  ⚠️ SKIP: Incomplete permission data for ${perm.user} (missing subjectId, subjectType, or level)`);
+                                syncSummary.skippedIncomplete++;
+                                syncSummary.incompleteUsers.push(perm.user || 'Unknown User');
                             }
                         });
 
@@ -504,9 +512,8 @@
                                 if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                     console.log(`  ⚠️ SKIP CREATE: User doesn't exist in project (${jsonPerm.user})`);
                                     syncSummary.skippedNonExistent++;
-                                    if (!syncSummary.nonExistentUsers.includes(jsonPerm.user)) {
-                                        syncSummary.nonExistentUsers.push(jsonPerm.user);
-                                    }
+                                    // Always add to show every occurrence across folders
+                                    syncSummary.nonExistentUsers.push(jsonPerm.user);
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                     console.log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
@@ -528,9 +535,8 @@
                                     if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                         console.log(`  ⚠️ SKIP UPDATE: User doesn't exist in project (${jsonPerm.user})`);
                                         syncSummary.skippedNonExistent++;
-                                        if (!syncSummary.nonExistentUsers.includes(jsonPerm.user)) {
-                                            syncSummary.nonExistentUsers.push(jsonPerm.user);
-                                        }
+                                        // Always add to show every occurrence across folders
+                                        syncSummary.nonExistentUsers.push(jsonPerm.user);
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                         console.log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
