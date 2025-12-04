@@ -2,7 +2,7 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-12-04T07:34:59.892Z",
+  "exportDate": "2025-12-04T14:21:52.127Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
@@ -16,7 +16,152 @@
       "level1": "Project Files",
       "level2": "Folder 1",
       "level3": null,
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "6f91fd9a-e79a-472a-9010-27885c26ddc7",
+          "subjectType": "USER",
+          "user": "andrzej.samsonowicz@autodesk.com",
+          "level": "3"
+        },
+        "column2": {
+          "subjectId": "dbccd2eb-f8bf-4709-9896-0aef716ff95f",
+          "subjectType": "USER",
+          "user": "anja.architektin@gmail.com",
+          "level": "1"
+        },
+        "column3": {
+          "subjectId": "f8eb5dcc-a5b1-431c-b513-9f090ad8ccdc",
+          "subjectType": "USER",
+          "user": "ben.bauherr@gmail.com",
+          "level": "1"
+        },
+        "column4": {
+          "subjectId": "ed691e19-5a9e-4ee7-ba8b-52843012ffd1",
+          "subjectType": "USER",
+          "user": "bert.bauleiter@gmail.com",
+          "level": "4"
+        },
+        "column5": {
+          "subjectId": "d3c1bcd3-3a94-4a04-997a-c571424a8d54",
+          "subjectType": "USER",
+          "user": "betti.bim360@gmail.com",
+          "level": "4"
+        },
+        "column6": {
+          "subjectId": "5ce2fb45-3e3b-4ba7-9ea3-8c45b9c2c39c",
+          "subjectType": "USER",
+          "user": "bob.baumeister360@gmail.com",
+          "level": "4"
+        },
+        "column7": {
+          "subjectId": "5c6b0321-3e57-44b5-8c39-5948584a9845",
+          "subjectType": "USER",
+          "user": "elias.elektro360@gmail.com",
+          "level": "4"
+        },
+        "column8": {
+          "subjectId": "d529dd6e-d0ff-4805-b695-9d38ae06957b",
+          "subjectType": "USER",
+          "user": "hans.haustechnik@gmail.com",
+          "level": "5"
+        },
+        "column9": {
+          "subjectId": "5ac03f4a-ef74-4d74-925d-25a21a53048e",
+          "subjectType": "USER",
+          "user": "kay.kosten@gmail.com",
+          "level": "5"
+        },
+        "column10": {
+          "subjectId": "8d6d72f7-ecab-4292-be79-c6446cf5523f",
+          "subjectType": "USER",
+          "user": "lotte.leitung@gmail.com",
+          "level": "5"
+        },
+        "column11": {
+          "subjectId": "6503ad7f-cb55-405d-9cf5-cc5db60e7b13",
+          "subjectType": "USER",
+          "user": "maggie.manage@gmail.com",
+          "level": "5"
+        },
+        "column12": {
+          "subjectId": "d0812d5d-ca47-463f-b426-5df77e97a3ce",
+          "subjectType": "USER",
+          "user": "mateja.kovacic@autodesk.com",
+          "level": "1"
+        },
+        "column13": {
+          "subjectId": "d4834819-e708-4194-99cf-3bebe682678c",
+          "subjectType": "USER",
+          "user": "mike.metall360@gmail.com",
+          "level": "1"
+        },
+        "column14": {
+          "subjectId": "367d05b1-450f-40fe-ad12-7268263c7817",
+          "subjectType": "USER",
+          "user": "paul.planer360@gmail.com",
+          "level": "1"
+        },
+        "column15": {
+          "subjectId": "e2cac062-225b-46d1-8db2-d71793da22c4",
+          "subjectType": "USER",
+          "user": "poldi.polierer@gmail.com",
+          "level": "1"
+        },
+        "column16": {
+          "subjectId": "5240b40f-b4a9-4452-825f-0a05c30cdf35",
+          "subjectType": "USER",
+          "user": "samson090281@gazeta.pl",
+          "level": "1"
+        },
+        "column17": {
+          "subjectId": "79fc6b18-9470-4348-96fc-621ce6e9ef6a",
+          "subjectType": "USER",
+          "user": "samson090281@gmail.com",
+          "level": "1"
+        },
+        "column18": {
+          "subjectId": "6e303db0-c3d3-40a1-ba68-7ecd81b84a8c",
+          "subjectType": "USER",
+          "user": "samson090281@op.pl",
+          "level": "1"
+        },
+        "column19": {
+          "subjectId": "067de486-afee-41a6-ab5e-4cc070f92475",
+          "subjectType": "USER",
+          "user": "samson090281@wp.pl",
+          "level": "1"
+        },
+        "column20": {
+          "subjectId": "7c69fb9f-b4d1-4dee-8df1-e87592a02855",
+          "subjectType": "USER",
+          "user": "samson090281@yahoo.com",
+          "level": "1"
+        },
+        "column21": {
+          "subjectId": "6ab68d5d-4599-4b4c-be11-0005c6f451b8",
+          "subjectType": "USER",
+          "user": "sven.statiker@gmail.com",
+          "level": "1"
+        },
+        "column22": {
+          "subjectId": "c418b8a4-29b5-4e90-ad1e-baccabf05101",
+          "subjectType": "USER",
+          "user": "tom.trocken360@gmail.com",
+          "level": "1"
+        },
+        "column23": {
+          "subjectId": "3f304949-ca4e-4108-8743-33a65cbc513f",
+          "subjectType": "USER",
+          "user": "wolfi.wasser@gmail.com",
+          "level": "1"
+        },
+        "column24": {
+          "subjectId": "6f2425b5-3132-4ad1-99f4-4e5a9bf786ca",
+          "subjectType": "USER",
+          "user": "zarah.zeichner@gmail.com",
+          "level": "1"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.iLbue97ZQy-67reOdQqG6w",

@@ -1,55 +1,100 @@
 {
   "users": [
     {
-      "email": "samson090281@gmail.com",
+      "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau Agata",
+        "role": "Investor"
       },
       "products": [
         {
           "key": "projectAdministration",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "insight",
-          "access": "member"
+          "access": "administrator"
         },
         {
           "key": "docs",
-          "access": "member"
+          "access": "administrator"
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "modelCoordination",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "build",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "cost",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "forma",
-          "access": "none"
+          "access": "administrator"
         },
         {
           "key": "takeoff",
-          "access": "none"
+          "access": "administrator"
         }
       ]
     },
     {
-      "email": "andrzej.jan.samsonowicz@gmail.com",
+      "email": "mateja.kovacic@autodesk.com",
       "metadata": {
-        "company": "GoldenInvestment Inc",
-        "role": "General Contractor"
+        "company": "Bau AG",
+        "role": "Investor"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "administrator"
+        },
+        {
+          "key": "insight",
+          "access": "administrator"
+        },
+        {
+          "key": "docs",
+          "access": "administrator"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "administrator"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "administrator"
+        },
+        {
+          "key": "build",
+          "access": "administrator"
+        },
+        {
+          "key": "cost",
+          "access": "administrator"
+        },
+        {
+          "key": "forma",
+          "access": "administrator"
+        },
+        {
+          "key": "takeoff",
+          "access": "administrator"
+        }
+      ]
+    },
+    {
+      "email": "samson090281@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
       },
       "products": [
         {
@@ -267,96 +312,6 @@
         {
           "key": "takeoff",
           "access": "none"
-        }
-      ]
-    },
-    {
-      "email": "andrzej.samsonowicz@autodesk.com",
-      "metadata": {
-        "company": "Bau AG",
-        "role": "Investor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "administrator"
-        },
-        {
-          "key": "insight",
-          "access": "administrator"
-        },
-        {
-          "key": "docs",
-          "access": "administrator"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "administrator"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "administrator"
-        },
-        {
-          "key": "build",
-          "access": "administrator"
-        },
-        {
-          "key": "cost",
-          "access": "administrator"
-        },
-        {
-          "key": "forma",
-          "access": "administrator"
-        },
-        {
-          "key": "takeoff",
-          "access": "administrator"
-        }
-      ]
-    },
-    {
-      "email": "mateja.kovacic@autodesk.com",
-      "metadata": {
-        "company": "Bau AG",
-        "role": "Investor"
-      },
-      "products": [
-        {
-          "key": "projectAdministration",
-          "access": "administrator"
-        },
-        {
-          "key": "insight",
-          "access": "administrator"
-        },
-        {
-          "key": "docs",
-          "access": "administrator"
-        },
-        {
-          "key": "designCollaboration",
-          "access": "administrator"
-        },
-        {
-          "key": "modelCoordination",
-          "access": "administrator"
-        },
-        {
-          "key": "build",
-          "access": "administrator"
-        },
-        {
-          "key": "cost",
-          "access": "administrator"
-        },
-        {
-          "key": "forma",
-          "access": "administrator"
-        },
-        {
-          "key": "takeoff",
-          "access": "administrator"
         }
       ]
     },
@@ -1124,7 +1079,52 @@
           "access": "none"
         }
       ]
+    },
+    {
+      "email": "andrzej.jan.samsonowicz@gmail.com",
+      "metadata": {
+        "company": "Fabix",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "member"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "member"
+        },
+        {
+          "key": "build",
+          "access": "member"
+        },
+        {
+          "key": "cost",
+          "access": "member"
+        },
+        {
+          "key": "forma",
+          "access": "member"
+        },
+        {
+          "key": "takeoff",
+          "access": "member"
+        }
+      ]
     }
   ],
-  "exportDate": "2025-12-04T13:40:45.741Z"
+  "exportDate": "2025-12-04T14:25:10.879Z"
 }

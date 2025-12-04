@@ -670,8 +670,41 @@
                 
                 // Get the row and starting cell index
                 const row = cell.parentElement;
-                const cells = Array.from(row.children);
+                let cells = Array.from(row.children);
                 const startIndex = cells.indexOf(cell);
+                
+                // Check if we need more columns
+                const requiredColumns = startIndex + usersToPlace.length;
+                const currentColumns = cells.length;
+                
+                if (requiredColumns > currentColumns) {
+                    // Need to add more columns to all rows
+                    const columnsToAdd = requiredColumns - currentColumns;
+                    console.log(`📊 Need to add ${columnsToAdd} columns (current: ${currentColumns}, required: ${requiredColumns})`);
+                    
+                    // Add columns to the entire table
+                    const table = document.querySelector('.folders-table');
+                    if (table) {
+                        const allRows = table.querySelectorAll('tbody tr');
+                        allRows.forEach(tableRow => {
+                            for (let i = 0; i < columnsToAdd; i++) {
+                                const newCell = document.createElement('td');
+                                // Don't add extra classes or styles here - let setupTableDragAndDrop handle it
+                                tableRow.appendChild(newCell);
+                            }
+                        });
+                        
+                        // Update additionalColumnsCount
+                        additionalColumnsCount += columnsToAdd;
+                        console.log(`📊 Added ${columnsToAdd} columns, total additional columns: ${additionalColumnsCount}`);
+                        
+                        // Re-setup drag and drop for ALL cells (including new ones)
+                        setupTableDragAndDrop();
+                    }
+                    
+                    // Update cells array for current row
+                    cells = Array.from(row.children);
+                }
                 
                 // Place users horizontally starting from the drop cell
                 usersToPlace.forEach((userName, index) => {
@@ -923,6 +956,10 @@
                 const start = Math.min(startIndex, endIndex);
                 const end = Math.max(startIndex, endIndex);
                 
+                // Get the permission level from the first selected cell (lastSelectedCell)
+                const sourcePermissionInput = lastSelectedCell.querySelector('.cell-permission-level');
+                const sourcePermissionLevel = sourcePermissionInput ? sourcePermissionInput.value : null;
+                
                 for (let i = start; i <= end; i++) {
                     const targetCell = allCells[i];
                     const targetCellIndex = Array.from(targetCell.parentElement.children).indexOf(targetCell);
@@ -931,6 +968,22 @@
                     if (targetCellIndex >= 2 && !selectedCells.includes(targetCell)) {
                         targetCell.classList.add('selected');
                         selectedCells.push(targetCell);
+                        
+                        // Apply the source permission level to this cell if it has content
+                        if (sourcePermissionLevel && targetCell.classList.contains('has-content')) {
+                            const targetPermissionInput = targetCell.querySelector('.cell-permission-level');
+                            if (targetPermissionInput) {
+                                targetPermissionInput.value = sourcePermissionLevel;
+                                targetCell.setAttribute('data-permission-level', sourcePermissionLevel);
+                                
+                                // Update background color
+                                const colors = getPermissionLevelColor(sourcePermissionLevel);
+                                targetCell.style.backgroundColor = colors.background;
+                                targetCell.style.color = colors.color;
+                                
+                                console.log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                            }
+                        }
                     }
                 }
             } else {
