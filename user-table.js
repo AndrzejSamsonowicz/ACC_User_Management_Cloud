@@ -34,14 +34,21 @@ class UserTableManager {
             columnIndex: null,
             ascending: true
         };
-        // Drag-to-fill state
+        // Shift+hover drag-to-fill state (for filling cells)
         this.isDragging = false;
         this.dragSourceCell = null;
         this.dragSourceValue = null;
         this.draggedCells = new Set();
+        // Mouse-based multi-select state (for copy/paste)
+        this.isMouseSelecting = false;
+        this.mouseSelectStart = null;
+        this.selectedCells = new Set();
         // Hub tracking for modal
         this.modalHubId = null;
         this.modalHubName = null;
+        // Copy/paste state
+        this.copiedData = null;
+        this.copiedRange = null;
     }
 
     /**
@@ -52,6 +59,8 @@ class UserTableManager {
         this.setupSortingListeners();
         this.setupCheckboxListeners();
         this.setupDragToFillListeners();
+        this.setupMouseSelectionListeners();
+        this.setupCopyPasteListeners();
     }
 
     /**
@@ -70,6 +79,33 @@ class UserTableManager {
                 console.log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all rows`);
             });
         }
+        
+        // Shift+click range selection for checkboxes
+        const tbody = document.getElementById(this.tableBodyId);
+        let lastCheckedIndex = null;
+        
+        tbody.addEventListener('click', (e) => {
+            const checkbox = e.target;
+            if (checkbox.type !== 'checkbox' || !checkbox.classList.contains('row-checkbox')) return;
+            
+            const checkboxes = Array.from(tbody.querySelectorAll('input[type="checkbox"].row-checkbox'));
+            const currentIndex = checkboxes.indexOf(checkbox);
+            
+            if (e.shiftKey && lastCheckedIndex !== null && lastCheckedIndex !== currentIndex) {
+                // Shift+click: select range between last and current
+                const start = Math.min(lastCheckedIndex, currentIndex);
+                const end = Math.max(lastCheckedIndex, currentIndex);
+                const checkState = checkbox.checked;
+                
+                for (let i = start; i <= end; i++) {
+                    checkboxes[i].checked = checkState;
+                }
+                
+                console.log(`✅ Shift-selected checkboxes from ${start} to ${end}`);
+            }
+            
+            lastCheckedIndex = currentIndex;
+        });
     }
 
     /**
@@ -78,131 +114,554 @@ class UserTableManager {
     setupDragToFillListeners() {
         const tbody = document.getElementById(this.tableBodyId);
         
-        // Use event delegation for dynamic rows
-        tbody.addEventListener('mousedown', (e) => {
-            const cell = e.target.closest('td');
-            if (!cell) return;
+        // Track Shift key state
+        let shiftPressed = false;
+        
+        // Listen for Shift key press/release globally
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Shift') {
+                shiftPressed = true;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') {
+                shiftPressed = false;
+                
+                // If we were dragging, fill the cells before clearing
+                if (this.isDragging && this.draggedCells.size > 1) {
+                    console.log(`🖱️ Shift released, filling ${this.draggedCells.size} cells`);
+                    
+                    // Fill all dragged cells with source value
+                    this.draggedCells.forEach(cell => {
+                        if (cell !== this.dragSourceCell) {
+                            // Check if dragging to email column - validate format
+                            if (cell.cellIndex === 1) { // Email column (index 1 after checkbox)
+                                if (!this.emailRegex.test(this.dragSourceValue)) {
+                                    console.log(`❌ Cannot drag non-email "${this.dragSourceValue}" to email column`);
+                                    cell.style.backgroundColor = ''; // Clear highlight
+                                    return; // Skip this cell
+                                }
+                            }
+                            
+                            // Remove highlight
+                            cell.style.backgroundColor = '';
+                            
+                            // Fill with source value
+                            const oldValue = cell.textContent.trim();
+                            cell.textContent = this.dragSourceValue;
+                            
+                            console.log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
+                            
+                            // If this is an access cell, apply administrator class if needed
+                            if (cell.classList.contains('modal-access-cell')) {
+                                cell.classList.toggle('administrator', this.dragSourceValue === 'administrator');
+                                
+                                // Trigger auto-upgrade if filled with administrator
+                                if (this.dragSourceValue === 'administrator') {
+                                    this.upgradeAllAccessToAdministrator(cell);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Re-check duplicates if email column was modified
+                    this.recheckDuplicates();
+                    this.updateUserCount();
+                    
+                    console.log('🖱️ Drag fill completed!');
+                }
+                
+                // Clear drag state when Shift is released
+                this.isDragging = false;
+                this.dragSourceCell = null;
+                this.dragSourceValue = null;
+                // Clear yellow highlights
+                this.draggedCells.forEach(cell => {
+                    cell.style.backgroundColor = '';
+                });
+                this.draggedCells.clear();
+            }
+        });
+        
+        // Use mousemove to detect hovering with Shift pressed
+        tbody.addEventListener('mousemove', (e) => {
+            const currentCell = e.target.closest('td');
+            if (!currentCell) return;
             
-            // Don't start drag if clicking on checkbox cell or checkbox
-            if (cell.cellIndex === 0 || e.target.type === 'checkbox') {
+            // Skip checkbox cells
+            if (currentCell.cellIndex === 0 || e.target.type === 'checkbox') {
                 return;
             }
             
-            // Only start drag when Shift key is pressed
-            if (!e.shiftKey) return;
+            // Only work when Shift key is pressed
+            if (!shiftPressed) return;
             
-            // Prevent text selection when dragging with Shift
-            e.preventDefault();
+            // If we don't have a source cell yet, set it
+            if (!this.dragSourceCell) {
+                this.dragSourceCell = currentCell;
+                this.dragSourceValue = currentCell.textContent.trim();
+                this.draggedCells.clear();
+                this.draggedCells.add(currentCell);
+                // Highlight the first cell immediately
+                currentCell.style.backgroundColor = '#b3d9ff';
+                console.log('🖱️ Source cell set (Shift hover):', this.dragSourceValue);
+                return;
+            }
             
-            // Prepare for potential drag
-            this.dragSourceCell = cell;
-            this.dragSourceValue = cell.textContent.trim();
-            this.draggedCells.clear();
-            this.draggedCells.add(cell);
-            
-            console.log('🖱️ Drag ready from cell (Shift+drag):', this.dragSourceValue);
-        });
-        
-        tbody.addEventListener('mousemove', (e) => {
-            // Only activate drag if we have a source cell and mouse is moving
-            if (!this.dragSourceCell) return;
-            
-            // Activate dragging mode on first move
-            if (!this.isDragging) {
+            // Activate dragging mode on first move to different cell
+            if (!this.isDragging && currentCell !== this.dragSourceCell) {
                 this.isDragging = true;
                 console.log('🖱️ Drag activated, started from cell:', this.dragSourceValue);
             }
             
-            const cell = e.target.closest('td');
-            if (!cell) return;
-            
             // Skip checkbox cells
-            if (cell.cellIndex === 0) return;
+            if (currentCell.cellIndex === 0) return;
             
             const sourceRow = this.dragSourceCell.parentElement;
-            const targetRow = cell.parentElement;
+            const targetRow = currentCell.parentElement;
             const sourceColIndex = this.dragSourceCell.cellIndex;
-            const targetColIndex = cell.cellIndex;
+            const targetColIndex = currentCell.cellIndex;
             
             // Check if dragging vertically (same column) or horizontally (same row)
             const isVertical = sourceColIndex === targetColIndex;
             const isHorizontal = sourceRow === targetRow;
             
             if (isVertical || isHorizontal) {
-                // Add to dragged cells
-                this.draggedCells.add(cell);
+                // Clear previous highlights except source cell
+                this.draggedCells.forEach(cell => {
+                    if (cell !== this.dragSourceCell) {
+                        cell.style.backgroundColor = '';
+                    }
+                });
+                this.draggedCells.clear();
+                this.draggedCells.add(this.dragSourceCell);
                 
-                // Visual feedback - highlight cell
-                cell.style.backgroundColor = '#ffffcc';
+                // Highlight all cells between source and current (inclusive)
+                const tbody = document.getElementById(this.tableBodyId);
+                const allRows = Array.from(tbody.rows);
                 
-                console.log(`🖱️ Dragging over cell (${isVertical ? 'vertical' : 'horizontal'})`);
+                if (isVertical) {
+                    // Vertical selection - fill all cells in column between source and current
+                    const minRowIndex = Math.min(allRows.indexOf(sourceRow), allRows.indexOf(targetRow));
+                    const maxRowIndex = Math.max(allRows.indexOf(sourceRow), allRows.indexOf(targetRow));
+                    
+                    for (let i = minRowIndex; i <= maxRowIndex; i++) {
+                        const cell = allRows[i].cells[sourceColIndex];
+                        if (cell && cell.cellIndex !== 0) {
+                            this.draggedCells.add(cell);
+                            cell.style.backgroundColor = '#b3d9ff';
+                        }
+                    }
+                } else if (isHorizontal) {
+                    // Horizontal selection - fill all cells in row between source and current
+                    const minColIndex = Math.min(sourceColIndex, targetColIndex);
+                    const maxColIndex = Math.max(sourceColIndex, targetColIndex);
+                    
+                    for (let i = minColIndex; i <= maxColIndex; i++) {
+                        const cell = sourceRow.cells[i];
+                        if (cell && cell.cellIndex !== 0) {
+                            this.draggedCells.add(cell);
+                            cell.style.backgroundColor = '#b3d9ff';
+                        }
+                    }
+                }
+                
+                console.log(`🖱️ Highlighting ${this.draggedCells.size} cells (${isVertical ? 'vertical' : 'horizontal'})`);
+            }
+        });
+    }
+
+    /**
+     * Setup mouse-based multi-cell selection (for copy/paste)
+     */
+    setupMouseSelectionListeners() {
+        const tbody = document.getElementById(this.tableBodyId);
+        
+        // Track Shift key for fill vs select mode
+        let shiftPressed = false;
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Shift') shiftPressed = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') shiftPressed = false;
+        });
+        
+        // Mouse down starts selection (only when Shift is NOT pressed)
+        tbody.addEventListener('mousedown', (e) => {
+            const cell = e.target.closest('td');
+            if (!cell || cell.cellIndex === 0 || e.target.type === 'checkbox') return;
+            
+            // Only start mouse selection if Shift is NOT pressed
+            if (shiftPressed) return;
+            
+            // Start mouse selection
+            this.isMouseSelecting = true;
+            this.mouseSelectStart = cell;
+            
+            // Clear previous selection
+            this.selectedCells.forEach(c => c.style.backgroundColor = '');
+            this.selectedCells.clear();
+            
+            // Add first cell
+            this.selectedCells.add(cell);
+            cell.style.backgroundColor = '#d4edff';
+            
+            console.log('🖱️ Mouse selection started');
+        });
+        
+        // Mouse move expands selection
+        tbody.addEventListener('mousemove', (e) => {
+            if (!this.isMouseSelecting) return;
+            
+            const currentCell = e.target.closest('td');
+            if (!currentCell || currentCell.cellIndex === 0) return;
+            
+            const startRow = this.mouseSelectStart.parentElement;
+            const currentRow = currentCell.parentElement;
+            const startCol = this.mouseSelectStart.cellIndex;
+            const currentCol = currentCell.cellIndex;
+            
+            // Check if vertical or horizontal
+            const isVertical = startCol === currentCol;
+            const isHorizontal = startRow === currentRow;
+            
+            if (isVertical || isHorizontal) {
+                // Clear previous highlights
+                this.selectedCells.forEach(c => c.style.backgroundColor = '');
+                this.selectedCells.clear();
+                
+                const allRows = Array.from(tbody.rows);
+                
+                if (isVertical) {
+                    const minRow = Math.min(allRows.indexOf(startRow), allRows.indexOf(currentRow));
+                    const maxRow = Math.max(allRows.indexOf(startRow), allRows.indexOf(currentRow));
+                    
+                    for (let i = minRow; i <= maxRow; i++) {
+                        const cell = allRows[i].cells[startCol];
+                        if (cell && cell.cellIndex !== 0) {
+                            this.selectedCells.add(cell);
+                            cell.style.backgroundColor = '#d4edff';
+                        }
+                    }
+                } else if (isHorizontal) {
+                    const minCol = Math.min(startCol, currentCol);
+                    const maxCol = Math.max(startCol, currentCol);
+                    
+                    for (let i = minCol; i <= maxCol; i++) {
+                        const cell = startRow.cells[i];
+                        if (cell && cell.cellIndex !== 0) {
+                            this.selectedCells.add(cell);
+                            cell.style.backgroundColor = '#d4edff';
+                        }
+                    }
+                }
             }
         });
         
-        // Store mouseup handler for cleanup
-        if (this.documentMouseUpHandler) {
-            document.removeEventListener('mouseup', this.documentMouseUpHandler);
-        }
-        this.documentMouseUpHandler = (e) => {
-            // Only process if we were dragging
-            if (!this.isDragging && !this.dragSourceCell) {
-                return;
+        // Mouse up ends selection
+        document.addEventListener('mouseup', () => {
+            if (this.isMouseSelecting) {
+                this.isMouseSelecting = false;
+                console.log(`🖱️ Mouse selection complete: ${this.selectedCells.size} cells selected`);
+            }
+        });
+        
+        // Click outside table to deselect
+        document.addEventListener('mousedown', (e) => {
+            const table = document.getElementById('modalUserTable');
+            const clickedInsideTable = table && table.contains(e.target);
+            
+            // If click is outside the table and we have selections, clear them
+            if (!clickedInsideTable && this.selectedCells.size > 0) {
+                this.selectedCells.forEach(c => c.style.backgroundColor = '');
+                this.selectedCells.clear();
+                console.log('🖱️ Selection cleared (clicked outside table)');
+            }
+        });
+    }
+
+    /**
+     * Setup copy/paste listeners (Ctrl+C / Ctrl+V)
+     */
+    setupCopyPasteListeners() {
+        document.addEventListener('keydown', (e) => {
+            // Check if Ctrl+C (Copy)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (this.selectedCells.size > 0) {
+                    e.preventDefault();
+                    this.copySelectedCells();
+                }
             }
             
-            // If we were dragging, fill the cells
-            if (this.isDragging && this.draggedCells.size > 1) {
-                console.log(`🖱️ Drag ended, filling ${this.draggedCells.size} cells`);
+            // Check if Ctrl+V (Paste)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (this.selectedCells.size > 0) {
+                    e.preventDefault();
+                    this.pasteToSelectedCells();
+                }
+            }
+            
+            // Check if Delete key
+            if (e.key === 'Delete' || e.key === 'Del') {
+                if (this.selectedCells.size > 0) {
+                    e.preventDefault();
+                    this.deleteSelectedCells();
+                }
+            }
+        });
+    }
+
+    /**
+     * Delete selected cells (clear content)
+     */
+    deleteSelectedCells() {
+        if (this.selectedCells.size === 0) return;
+        
+        const table = document.getElementById('modalUserTable');
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        
+        this.selectedCells.forEach(cell => {
+            const columnHeader = headers[cell.cellIndex]?.textContent.trim().toLowerCase();
+            
+            // Skip email column to avoid creating empty emails
+            if (columnHeader !== 'email') {
+                cell.textContent = '';
                 
-                // Fill all dragged cells with source value
-                this.draggedCells.forEach(cell => {
-                    if (cell !== this.dragSourceCell) {
-                        // Check if dragging to email column - validate format
-                        if (cell.cellIndex === 1) { // Email column (index 1 after checkbox)
-                            if (!this.emailRegex.test(this.dragSourceValue)) {
-                                console.log(`❌ Cannot drag non-email "${this.dragSourceValue}" to email column`);
-                                cell.style.backgroundColor = ''; // Clear highlight
-                                return; // Skip this cell
-                            }
-                        }
-                        
-                        // Remove highlight
-                        cell.style.backgroundColor = '';
-                        
-                        // Fill with source value
-                        const oldValue = cell.textContent.trim();
-                        cell.textContent = this.dragSourceValue;
-                        
-                        console.log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
-                        
-                        // If this is an access cell, apply administrator class if needed
-                        if (cell.classList.contains('modal-access-cell')) {
-                            cell.classList.toggle('administrator', this.dragSourceValue === 'administrator');
-                            
-                            // Trigger auto-upgrade if filled with administrator
-                            if (this.dragSourceValue === 'administrator') {
-                                this.upgradeAllAccessToAdministrator(cell);
-                            }
+                // Visual feedback
+                cell.style.backgroundColor = '#ffcccc';
+                setTimeout(() => {
+                    cell.style.backgroundColor = '#d4edff';
+                }, 200);
+            } else {
+                console.log('⚠️ Cannot delete email column content');
+            }
+        });
+        
+        console.log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
+        this.updateUserCount();
+    }
+
+    /**
+     * Copy selected cells to clipboard
+     */
+    copySelectedCells() {
+        if (this.selectedCells.size === 0) return;
+        
+        const cells = Array.from(this.selectedCells);
+        const tbody = document.getElementById(this.tableBodyId);
+        const allRows = Array.from(tbody.rows);
+        
+        // Determine if vertical or horizontal selection
+        const firstCell = cells[0];
+        const sourceRow = firstCell.parentElement;
+        const sourceColIndex = firstCell.cellIndex;
+        
+        // Check if all cells are in same column (vertical) or same row (horizontal)
+        const isVertical = cells.every(cell => cell.cellIndex === sourceColIndex);
+        const isHorizontal = cells.every(cell => cell.parentElement === sourceRow);
+        
+        if (!isVertical && !isHorizontal) {
+            console.log('⚠️ Cannot copy non-linear selection');
+            return;
+        }
+        
+        // Store the copied data
+        this.copiedData = cells.map(cell => ({
+            value: cell.textContent.trim(),
+            columnIndex: cell.cellIndex
+        }));
+        
+        this.copiedRange = {
+            isVertical,
+            isHorizontal,
+            columnIndex: sourceColIndex,
+            length: cells.length
+        };
+        
+        // Also copy to system clipboard for external paste
+        const textToCopy = cells.map(cell => cell.textContent.trim()).join('\n');
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            console.log(`📋 Copied ${cells.length} cells to clipboard (${isVertical ? 'vertical' : 'horizontal'})`);
+        }).catch(err => {
+            console.log('⚠️ Failed to copy to system clipboard:', err);
+        });
+    }
+
+    /**
+     * Delete selected cells (clear content)
+     */
+    deleteSelectedCells() {
+        if (this.selectedCells.size === 0) return;
+        
+        const table = document.getElementById('modalUserTable');
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        
+        this.selectedCells.forEach(cell => {
+            const columnHeader = headers[cell.cellIndex]?.textContent.trim().toLowerCase();
+            
+            // Allow deleting all cells including email
+            cell.textContent = '';
+            
+            // Visual feedback
+            cell.style.backgroundColor = '#ffcccc';
+            setTimeout(() => {
+                cell.style.backgroundColor = '#d4edff';
+            }, 200);
+        });
+        
+        console.log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
+        this.recheckDuplicates();
+        this.updateUserCount();
+    }
+
+    /**
+     * Paste copied cells to selected range
+     */
+    async pasteToSelectedCells() {
+        if (this.selectedCells.size === 0) return;
+        
+        // Try to get data from system clipboard (silently fail if permission denied)
+        let externalData = null;
+        try {
+            // Use clipboard API without triggering permission prompt
+            const clipboardText = await navigator.clipboard.readText();
+            if (clipboardText) {
+                externalData = clipboardText.split(/\r?\n/).filter(line => line.trim());
+                console.log(`📋 Got ${externalData.length} lines from system clipboard`);
+            }
+        } catch (err) {
+            // Silently ignore clipboard permission errors
+            // User can still paste using internal copy or grant permission
+            if (err.name !== 'NotAllowedError') {
+                console.log('⚠️ Could not read system clipboard:', err);
+            }
+        }
+        
+        // Use external data if available, otherwise use internal copiedData
+        const dataSource = externalData || (this.copiedData ? this.copiedData.map(d => d.value) : null);
+        
+        if (!dataSource) return;
+        
+        const targetCells = Array.from(this.selectedCells);
+        const tbody = document.getElementById(this.tableBodyId);
+        const allRows = Array.from(tbody.rows);
+        
+        // Get the first cell in the target selection
+        const firstTargetCell = targetCells[0];
+        const targetRow = firstTargetCell.parentElement;
+        const targetColIndex = firstTargetCell.cellIndex;
+        
+        // Determine target orientation
+        const targetIsVertical = targetCells.every(cell => cell.cellIndex === targetColIndex);
+        const targetIsHorizontal = targetCells.every(cell => cell.parentElement === targetRow);
+        
+        if (!targetIsVertical && !targetIsHorizontal) {
+            console.log('⚠️ Cannot paste to non-linear selection');
+            return;
+        }
+        
+        // Get column names to check for email column
+        const table = document.getElementById('modalUserTable');
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        
+        // Handle external data (from system clipboard)
+        if (externalData) {
+            if (targetIsVertical) {
+                const startRowIndex = allRows.indexOf(targetRow);
+                for (let i = 0; i < dataSource.length && (startRowIndex + i) < allRows.length; i++) {
+                    const cell = allRows[startRowIndex + i].cells[targetColIndex];
+                    if (cell && cell.cellIndex !== 0) {
+                        const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
+                        if (columnHeader !== 'email') {
+                            cell.textContent = dataSource[i];
+                            cell.style.backgroundColor = '#90EE90';
+                            setTimeout(() => { cell.style.backgroundColor = '#d4edff'; }, 300);
                         }
                     }
-                });
-                
-                // Re-check duplicates if email column was modified
-                this.recheckDuplicates();
-                this.updateUserCount();
+                }
+            } else if (targetIsHorizontal) {
+                const startColIndex = targetColIndex;
+                for (let i = 0; i < dataSource.length; i++) {
+                    const colIndex = startColIndex + i;
+                    const cell = targetRow.cells[colIndex];
+                    if (cell && cell.cellIndex !== 0 && colIndex < targetRow.cells.length) {
+                        const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
+                        if (columnHeader !== 'email') {
+                            cell.textContent = dataSource[i];
+                            cell.style.backgroundColor = '#90EE90';
+                            setTimeout(() => { cell.style.backgroundColor = '#d4edff'; }, 300);
+                        }
+                    }
+                }
             }
+            console.log('✅ Pasted from external clipboard');
+            this.updateUserCount();
+            return;
+        }
+        
+        // Handle internal data (from copiedData with orientation check)
+        if (!this.copiedData || !this.copiedRange) return;
+        
+        if (targetIsVertical && this.copiedRange.isVertical) {
+            // Vertical paste - paste down column
+            const startRowIndex = allRows.indexOf(targetRow);
             
-            // Clear any remaining yellow highlights on mouseup
-            this.draggedCells.forEach(cell => {
-                cell.style.backgroundColor = '';
-            });
+            for (let i = 0; i < this.copiedData.length && (startRowIndex + i) < allRows.length; i++) {
+                const cell = allRows[startRowIndex + i].cells[targetColIndex];
+                if (cell && cell.cellIndex !== 0) {
+                    const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
+                    
+                    // Skip email column to avoid duplication
+                    if (columnHeader !== 'email') {
+                        const oldValue = cell.textContent.trim();
+                        cell.textContent = this.copiedData[i].value;
+                        
+                        // Visual feedback
+                        cell.style.backgroundColor = '#90EE90';
+                        setTimeout(() => {
+                            cell.style.backgroundColor = '#d4edff';
+                        }, 300);
+                        
+                        console.log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
+                    } else {
+                        console.log('⚠️ Skipped email column to avoid duplication');
+                    }
+                }
+            }
+        } else if (targetIsHorizontal && this.copiedRange.isHorizontal) {
+            // Horizontal paste - paste across row
+            const startColIndex = targetColIndex;
             
-            // Reset drag state
-            this.isDragging = false;
-            this.dragSourceCell = null;
-            this.dragSourceValue = null;
-            this.draggedCells.clear();
-        };
-        document.addEventListener('mouseup', this.documentMouseUpHandler);
+            for (let i = 0; i < this.copiedData.length; i++) {
+                const colIndex = startColIndex + i;
+                const cell = targetRow.cells[colIndex];
+                
+                if (cell && cell.cellIndex !== 0 && colIndex < targetRow.cells.length) {
+                    const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
+                    
+                    // Skip email column to avoid duplication
+                    if (columnHeader !== 'email') {
+                        const oldValue = cell.textContent.trim();
+                        cell.textContent = this.copiedData[i].value;
+                        
+                        // Visual feedback
+                        cell.style.backgroundColor = '#90EE90';
+                        setTimeout(() => {
+                            cell.style.backgroundColor = '#d4edff';
+                        }, 300);
+                        
+                        console.log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
+                    } else {
+                        console.log('⚠️ Skipped email column to avoid duplication');
+                    }
+                }
+            }
+        } else {
+            console.log('⚠️ Copy/paste orientation mismatch (vertical vs horizontal)');
+        }
+        
+        this.updateUserCount();
     }
 
     /**
