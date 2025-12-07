@@ -48,8 +48,8 @@
     {
       "email": "andrzej.jan.samsonowicz@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "GoldenInvestment Inc",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -93,8 +93,8 @@
     {
       "email": "samson090281@gazeta.pl",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Structural Engineers Inc",
+        "role": "Architect"
       },
       "products": [
         {
@@ -111,35 +111,35 @@
         },
         {
           "key": "designCollaboration",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "modelCoordination",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "build",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "cost",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "forma",
-          "access": "none"
+          "access": "member"
         },
         {
           "key": "takeoff",
-          "access": "none"
+          "access": "member"
         }
       ]
     },
     {
       "email": "samson090281@yahoo.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "General Electric Inc",
+        "role": "Electrical Engineer"
       },
       "products": [
         {
@@ -183,8 +183,8 @@
     {
       "email": "samson090281@wp.pl",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "BIM Consulting",
+        "role": "Structural Engineer"
       },
       "products": [
         {
@@ -228,8 +228,8 @@
     {
       "email": "samson090281@op.pl",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Solid Structures Inc",
+        "role": "Investor"
       },
       "products": [
         {
@@ -273,8 +273,8 @@
     {
       "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau AG",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -318,8 +318,8 @@
     {
       "email": "mateja.kovacic@autodesk.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau AG",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -363,7 +363,7 @@
     {
       "email": "ben.bauherr@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
+        "company": "Bauherren AG",
         "role": "BIM Manager"
       },
       "products": [
@@ -409,7 +409,7 @@
       "email": "anja.architektin@gmail.com",
       "metadata": {
         "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "role": "Investor"
       },
       "products": [
         {
@@ -453,8 +453,8 @@
     {
       "email": "betti.bim360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Architekten AG",
+        "role": "Architect"
       },
       "products": [
         {
@@ -498,8 +498,8 @@
     {
       "email": "paul.planer360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Architekten AG",
+        "role": "Electrical Engineer"
       },
       "products": [
         {
@@ -543,8 +543,8 @@
     {
       "email": "maggie.manage@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Architekten AG",
+        "role": "Structural Engineer"
       },
       "products": [
         {
@@ -588,8 +588,8 @@
     {
       "email": "sven.statiker@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "T+S Ingenieure GesmbH",
+        "role": "Investor"
       },
       "products": [
         {
@@ -633,8 +633,8 @@
     {
       "email": "zarah.zeichner@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "T+S Ingenieure GesmbH",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -678,8 +678,8 @@
     {
       "email": "hans.haustechnik@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Haustechnik Planung & Co",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -723,7 +723,7 @@
     {
       "email": "bob.baumeister360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
+        "company": "Bau KG",
         "role": "BIM Manager"
       },
       "products": [
@@ -768,8 +768,8 @@
     {
       "email": "bert.bauleiter@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau KG",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -813,8 +813,8 @@
     {
       "email": "kay.kosten@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau KG",
+        "role": "Architect"
       },
       "products": [
         {
@@ -858,8 +858,8 @@
     {
       "email": "poldi.polierer@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Bau KG",
+        "role": "Electrical Engineer"
       },
       "products": [
         {
@@ -903,8 +903,8 @@
     {
       "email": "tom.trocken360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Trockenbau & Co KG",
+        "role": "Structural Engineer"
       },
       "products": [
         {
@@ -948,8 +948,8 @@
     {
       "email": "mike.metall360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Stahl- und Metallbau",
+        "role": "Investor"
       },
       "products": [
         {
@@ -993,8 +993,8 @@
     {
       "email": "elias.elektro360@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "Elektro Installation & Co",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -1038,8 +1038,8 @@
     {
       "email": "lotte.leitung@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "HLS Installateure",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -1083,8 +1083,8 @@
     {
       "email": "wolfi.wasser@gmail.com",
       "metadata": {
-        "company": "LeCorbusier & Associates",
-        "role": "BIM Manager"
+        "company": "HLS Installateure",
+        "role": "General Contractor"
       },
       "products": [
         {
@@ -1126,5 +1126,5 @@
       ]
     }
   ],
-  "exportDate": "2025-12-07T22:33:38.398Z"
+  "exportDate": "2025-12-07T23:29:36.193Z"
 }

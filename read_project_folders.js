@@ -365,6 +365,7 @@
         const rawUsers = allUsers.map(user => ({
             id: user.id,
             email: user.email,
+            name: user.name, // Store actual name (can be undefined if user has no name)
             companyId: user.companyId,
             companyName: user.companyName || user.company || user.company_name,
             roleIds: user.roleIds || [],
@@ -1127,6 +1128,9 @@
         if (displayMode === 'email') {
             // Show all users with their emails
             itemsToDisplay = users.map(user => user.email);
+        } else if (displayMode === 'name') {
+            // Show all users with their names
+            itemsToDisplay = users.map(user => user.name || user.email);
         } else if (displayMode === 'company') {
             // Show unique companies
             const companies = [...new Set(users.map(user => user.company_name))];
@@ -1155,6 +1159,10 @@
                     <label class="user-display-option">
                         <input type="radio" name="userDisplay" value="email" ${displayMode === 'email' ? 'checked' : ''}>
                         <span>Email</span>
+                    </label>
+                    <label class="user-display-option">
+                        <input type="radio" name="userDisplay" value="name" ${displayMode === 'name' ? 'checked' : ''}>
+                        <span>Name</span>
                     </label>
                     <label class="user-display-option">
                         <input type="radio" name="userDisplay" value="company" ${displayMode === 'company' ? 'checked' : ''}>
@@ -1412,13 +1420,38 @@
             console.log('✉️ Detected as EMAIL');
             const user = currentProjectUsersRaw.find(u => u.email === userName);
             if (user) {
-                console.log(`✅ Found USER - ID: ${user.id}`);
-                return {
+                console.log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
+                const result = {
                     subjectId: user.id,
                     subjectType: 'USER'
                 };
+                
+                // Only add name if it exists and is different from email
+                if (user.name && user.name !== user.email) {
+                    result.name = user.name;
+                }
+                
+                return result;
             }
             console.warn(`⚠️ Email not found: ${userName}`);
+        }
+
+        // Check if it's a name (USER by name)
+        const userByName = currentProjectUsersRaw.find(u => u.name === userName);
+        if (userByName) {
+            console.log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
+            const result = {
+                subjectId: userByName.id,
+                subjectType: 'USER',
+                email: userByName.email
+            };
+            
+            // Only add name if it exists and is different from email
+            if (userByName.name && userByName.name !== userByName.email) {
+                result.name = userByName.name;
+            }
+            
+            return result;
         }
 
         // Check if it's a company name (COMPANY)
@@ -1542,12 +1575,19 @@
                     
                     if (subjectInfo) {
                         console.log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
-                        permissions[`column${i - 1}`] = {
+                        const permissionData = {
                             subjectId: subjectInfo.subjectId,
                             subjectType: subjectInfo.subjectType,
                             user: userName,
                             level: permissionLevel
                         };
+                        
+                        // Add name field only for USER type
+                        if (subjectInfo.subjectType === 'USER' && subjectInfo.name) {
+                            permissionData.name = subjectInfo.name;
+                        }
+                        
+                        permissions[`column${i - 1}`] = permissionData;
                     } else {
                         // Fallback: save without subjectId if lookup fails
                         console.error(`❌ LOOKUP FAILED for: ${userName} - Saving without subjectId`);
@@ -1609,6 +1649,147 @@
     }
 
     /**
+     * Check for users in saved data that no longer exist in the project
+     */
+    async function checkForDeletedUsers(savedData) {
+        const deletedUsers = [];
+        
+        // Create a set of current user emails from the display users
+        const currentUserEmails = new Set(currentProjectUsers.map(u => u.email));
+        
+        console.log('🔍 Current project user emails:', Array.from(currentUserEmails));
+        
+        // Extract all unique users from saved permissions
+        const savedUsers = new Set();
+        savedData.folders.forEach(folder => {
+            if (folder.permissions) {
+                Object.values(folder.permissions).forEach(permission => {
+                    if (typeof permission === 'object' && permission.user) {
+                        savedUsers.add(permission.user);
+                    } else if (typeof permission === 'string') {
+                        savedUsers.add(permission);
+                    }
+                });
+            }
+        });
+
+        console.log('🔍 Saved users from JSON:', Array.from(savedUsers));
+
+        // Check which saved users don't exist in current project users
+        // Only include regular user emails (skip companies and roles)
+        savedUsers.forEach(user => {
+            // Skip if not an email (companies and roles don't have @)
+            if (!user.includes('@')) {
+                console.log(`  ⏭️ Skipping non-email: ${user}`);
+                return;
+            }
+            
+            // Only add if user email doesn't exist in current project
+            if (!currentUserEmails.has(user)) {
+                console.log(`  ❌ Deleted user found: ${user}`);
+                deletedUsers.push(user);
+            } else {
+                console.log(`  ✅ User still exists: ${user}`);
+            }
+        });
+
+        console.log('🔍 Deleted users (emails only) found:', deletedUsers);
+        return deletedUsers;
+    }
+
+    /**
+     * Show warning modal for deleted users
+     */
+    async function showDeletedUsersWarning(deletedUsers) {
+        return new Promise((resolve) => {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-modal-overlay';
+            overlay.style.zIndex = '10001'; // Above the folders modal
+            
+            // Create user list HTML
+            const userListHTML = deletedUsers.map(user => `<li style="margin: 5px 0;">${user}</li>`).join('');
+            
+            // Create modal content
+            const modal = document.createElement('div');
+            modal.className = 'confirm-modal';
+            modal.style.maxWidth = '600px';
+            modal.innerHTML = `
+                <div class="confirm-modal-header" style="background: #ff9800; color: white;">
+                    <span>⚠️ Users Deleted from Project</span>
+                    <span class="confirm-modal-close">&times;</span>
+                </div>
+                <div class="confirm-modal-body">
+                    <p style="margin-bottom: 15px;">These users have been deleted from the project but still exist in the saved folder permissions:</p>
+                    <ul style="max-height: 200px; overflow-y: auto; background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 10px 0;">
+                        ${userListHTML}
+                    </ul>
+                    <p style="margin-top: 15px; color: #666;">Would you like to remove them from the table?</p>
+                </div>
+                <div class="confirm-modal-footer">
+                    <button class="confirm-btn confirm-delete" style="background: #d32f2f; margin-right: 10px;">Delete Users</button>
+                    <button class="confirm-btn confirm-continue" style="background: #666;">Continue</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // Add event listeners
+            const closeBtn = modal.querySelector('.confirm-modal-close');
+            const deleteBtn = modal.querySelector('.confirm-delete');
+            const continueBtn = modal.querySelector('.confirm-continue');
+            
+            const cleanup = () => {
+                document.body.removeChild(overlay);
+            };
+            
+            closeBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+            
+            deleteBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+            
+            continueBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+            
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(false);
+                }
+            });
+        });
+    }
+
+    /**
+     * Remove deleted users from saved data
+     */
+    function removeDeletedUsersFromData(data, deletedUsers) {
+        const deletedSet = new Set(deletedUsers);
+        
+        data.folders.forEach(folder => {
+            if (folder.permissions) {
+                Object.keys(folder.permissions).forEach(columnKey => {
+                    const permission = folder.permissions[columnKey];
+                    const userName = typeof permission === 'object' ? permission.user : permission;
+                    
+                    if (deletedSet.has(userName)) {
+                        delete folder.permissions[columnKey];
+                        console.log(`🗑️ Removed ${userName} from folder ${folder.level1}`);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
      * Load folder permissions from JSON file
      */
     async function loadFolderPermissions(projectName) {
@@ -1623,6 +1804,17 @@
 
             const data = result.data;
             console.log(`📂 Loading saved folder permissions for: ${projectName}`);
+
+            // Check for users that no longer exist in the project
+            const deletedUsers = await checkForDeletedUsers(data);
+            if (deletedUsers.length > 0) {
+                const shouldDelete = await showDeletedUsersWarning(deletedUsers);
+                if (shouldDelete) {
+                    // Remove deleted users from data before loading
+                    removeDeletedUsersFromData(data, deletedUsers);
+                }
+                // If user chose "Continue", we proceed with the data as-is
+            }
 
             // Populate the table with saved data
             const table = document.querySelector('.folders-table');
