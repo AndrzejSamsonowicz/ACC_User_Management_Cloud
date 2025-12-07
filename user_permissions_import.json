@@ -3,7 +3,7 @@
     {
       "email": "samson090281@gmail.com",
       "metadata": {
-        "company": "Fabix",
+        "company": "LeCorbusier & Associates",
         "role": "BIM Manager"
       },
       "products": [
@@ -48,7 +48,7 @@
     {
       "email": "andrzej.jan.samsonowicz@gmail.com",
       "metadata": {
-        "company": "Fabix",
+        "company": "LeCorbusier & Associates",
         "role": "BIM Manager"
       },
       "products": [
@@ -93,7 +93,7 @@
     {
       "email": "samson090281@gazeta.pl",
       "metadata": {
-        "company": "Fabix",
+        "company": "LeCorbusier & Associates",
         "role": "BIM Manager"
       },
       "products": [
@@ -138,7 +138,7 @@
     {
       "email": "samson090281@yahoo.com",
       "metadata": {
-        "company": "Fabix",
+        "company": "LeCorbusier & Associates",
         "role": "BIM Manager"
       },
       "products": [
@@ -229,7 +229,7 @@
       "email": "samson090281@op.pl",
       "metadata": {
         "company": "LeCorbusier & Associates",
-        "role": "General Contractor"
+        "role": "BIM Manager"
       },
       "products": [
         {
@@ -274,7 +274,7 @@
       "email": "andrzej.samsonowicz@autodesk.com",
       "metadata": {
         "company": "LeCorbusier & Associates",
-        "role": "General Contractor"
+        "role": "BIM Manager"
       },
       "products": [
         {
@@ -319,7 +319,7 @@
       "email": "mateja.kovacic@autodesk.com",
       "metadata": {
         "company": "LeCorbusier & Associates",
-        "role": "General Contractor"
+        "role": "BIM Manager"
       },
       "products": [
         {
@@ -359,7 +359,772 @@
           "access": "administrator"
         }
       ]
+    },
+    {
+      "email": "ben.bauherr@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "anja.architektin@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "betti.bim360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "paul.planer360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "maggie.manage@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "sven.statiker@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "zarah.zeichner@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "hans.haustechnik@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "bob.baumeister360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "bert.bauleiter@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "kay.kosten@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "poldi.polierer@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "tom.trocken360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "mike.metall360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "elias.elektro360@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "lotte.leitung@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
+    },
+    {
+      "email": "wolfi.wasser@gmail.com",
+      "metadata": {
+        "company": "LeCorbusier & Associates",
+        "role": "BIM Manager"
+      },
+      "products": [
+        {
+          "key": "projectAdministration",
+          "access": "none"
+        },
+        {
+          "key": "insight",
+          "access": "member"
+        },
+        {
+          "key": "docs",
+          "access": "member"
+        },
+        {
+          "key": "designCollaboration",
+          "access": "none"
+        },
+        {
+          "key": "modelCoordination",
+          "access": "none"
+        },
+        {
+          "key": "build",
+          "access": "none"
+        },
+        {
+          "key": "cost",
+          "access": "none"
+        },
+        {
+          "key": "forma",
+          "access": "none"
+        },
+        {
+          "key": "takeoff",
+          "access": "none"
+        }
+      ]
     }
   ],
-  "exportDate": "2025-12-07T22:01:30.575Z"
+  "exportDate": "2025-12-07T22:33:38.398Z"
 }

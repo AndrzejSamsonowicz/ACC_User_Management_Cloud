@@ -2102,7 +2102,7 @@ class UserTableManager {
             if (email) {
                 console.log(`💾 Processing user: ${email}`);
                 const user = {
-                    email: email,
+                    email: email.toLowerCase(), // Always save email in lowercase for consistency
                     metadata: {
                         company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
                         role: (cells[3]?.textContent || cells[3]?.innerText || '').trim()

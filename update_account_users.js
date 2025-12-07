@@ -221,6 +221,7 @@ async function importUsers(accountId, token, usersArray) {
     if (!usersArray || usersArray.length === 0) return { success: 0, failure: 0, success_items: [], failure_items: [] };
     
     const BATCH_SIZE = 50; // API limit per documentation
+    const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches to avoid rate limits
     const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/import`;
     
     // Split users into batches of 50
@@ -239,7 +240,7 @@ async function importUsers(accountId, token, usersArray) {
         failure_items: []
     };
     
-    // Process each batch sequentially
+    // Process each batch sequentially with delays
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
         console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
@@ -275,6 +276,63 @@ async function importUsers(accountId, token, usersArray) {
             if (!res.ok) {
                 const txt = await res.text();
                 console.error(`❌ Batch ${batchIndex + 1} failed: ${res.status} ${res.statusText}`);
+                
+                // Check if it's a rate limit error
+                if (res.status === 429) {
+                    console.warn(`⚠️ Rate limit hit on batch ${batchIndex + 1}, waiting 3 seconds and retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Retry the same batch
+                    try {
+                        const retryRes = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!retryRes.ok) {
+                            const retryTxt = await retryRes.text();
+                            throw new Error(`Retry failed: ${retryRes.status} ${retryRes.statusText} - ${retryTxt}`);
+                        }
+                        
+                        const retryResult = await retryRes.json();
+                        console.log(`✅ Batch ${batchIndex + 1} completed after retry: ${retryResult.success} success, ${retryResult.failure} failures`);
+                        
+                        // Aggregate retry results
+                        aggregatedResults.success += retryResult.success || 0;
+                        aggregatedResults.failure += retryResult.failure || 0;
+                        if (retryResult.success_items) {
+                            aggregatedResults.success_items.push(...retryResult.success_items);
+                        }
+                        if (retryResult.failure_items) {
+                            aggregatedResults.failure_items.push(...retryResult.failure_items);
+                        }
+                        
+                        // Continue to next batch
+                        if (batchIndex + 1 < batches.length) {
+                            console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+                            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+                        }
+                        continue;
+                        
+                    } catch (retryError) {
+                        console.error(`❌ Batch ${batchIndex + 1} retry failed:`, retryError);
+                        // Mark all users in this batch as failed
+                        batch.forEach(user => {
+                            aggregatedResults.failure++;
+                            aggregatedResults.failure_items.push({
+                                email: user.email,
+                                error: `Batch import failed after retry: ${retryError.message}`,
+                                details: retryError.toString()
+                            });
+                        });
+                        continue;
+                    }
+                }
+                
                 // Mark all users in this batch as failed
                 batch.forEach(user => {
                     aggregatedResults.failure++;
@@ -311,6 +369,12 @@ async function importUsers(accountId, token, usersArray) {
                     details: error.toString()
                 });
             });
+        }
+        
+        // Add delay between batches (except for the last batch)
+        if (batchIndex + 1 < batches.length) {
+            console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
         }
     }
     
@@ -529,62 +593,116 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             console.log('🚀 Attempting real operations with 2-legged token + account:write scope');
         }
 
-        // PATCH existing users
-        for (const item of toPatch) {
-            try {
-                const body = {};
-                if (item.companyId) body.company_id = item.companyId;
-                if (item.default_role) body.default_role = item.default_role;
-                // Only include fields we have
-                if (Object.keys(body).length === 0) {
-                    console.log('Skipping patch for', item.email, 'no data to update');
-                    results.patched.push({ email: item.email, skipped: true });
-                    continue;
-                }
-                
-                if (simulationMode) {
-                    // Simulate success
-                    results.patched.push({ 
-                        email: item.email, 
-                        simulated: true, 
-                        changes: body,
-                        note: 'Would update: ' + Object.keys(body).join(', ')
-                    });
-                    console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
-                } else {
-                    // Try actual operation, but switch to simulation on 403
-                    try {
-                        await patchUser(accountId, item.userId, userToken, body);
-                        results.patched.push({ email: item.email });
-                        console.log(`✅ Updated ${item.email} with:`, body);
-                    } catch (authError) {
-                        if (authError.message.includes('403') || authError.message.includes('privilege') || authError.message.includes('AUTH-010')) {
-                            // Switch to simulation mode for this and future operations
-                            simulationMode = true;
-                            console.warn('⚠️ Switching to SIMULATION MODE due to authentication error:', authError.message);
-                            results.patched.push({ 
-                                email: item.email, 
-                                simulated: true, 
-                                changes: body,
-                                note: 'Would update: ' + Object.keys(body).join(', ') + ' (auth failed)'
-                            });
-                            console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
-                        } else if (authError.message.includes('404') && authError.message.includes("this default_role doesn't exist")) {
-                            // Invalid role - skip this user
-                            const role = item.default_role || 'unknown';
-                            console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
-                            if (!results.invalidRoles.has(role)) {
-                                results.invalidRoles.set(role, []);
+        // PATCH existing users with rate limiting
+        // Process in small batches with delays to avoid API rate limits
+        const PATCH_BATCH_SIZE = 3; // Reduced to 3 users at a time for better reliability
+        const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches
+        
+        console.log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE}`);
+        
+        for (let i = 0; i < toPatch.length; i += PATCH_BATCH_SIZE) {
+            const batch = toPatch.slice(i, i + PATCH_BATCH_SIZE);
+            console.log(`📝 Processing PATCH batch ${Math.floor(i / PATCH_BATCH_SIZE) + 1}/${Math.ceil(toPatch.length / PATCH_BATCH_SIZE)} (users ${i + 1}-${Math.min(i + PATCH_BATCH_SIZE, toPatch.length)} of ${toPatch.length})`);
+            
+            // Process batch sequentially to avoid Promise.all issues with error handling
+            for (const item of batch) {
+                try {
+                    const body = {};
+                    if (item.companyId) body.company_id = item.companyId;
+                    if (item.default_role) body.default_role = item.default_role;
+                    
+                    // Only include fields we have
+                    if (Object.keys(body).length === 0) {
+                        console.log(`⏭️ Skipping patch for ${item.email} - no data to update`);
+                        results.patched.push({ email: item.email, skipped: true });
+                        continue;
+                    }
+                    
+                    console.log(`📝 Attempting to update ${item.email} with:`, body);
+                    
+                    if (simulationMode) {
+                        // Simulate success
+                        results.patched.push({ 
+                            email: item.email, 
+                            simulated: true, 
+                            changes: body,
+                            note: 'Would update: ' + Object.keys(body).join(', ')
+                        });
+                        console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
+                    } else {
+                        // Try actual operation
+                        let retryCount = 0;
+                        let success = false;
+                        
+                        while (!success && retryCount < 3) {
+                            try {
+                                const result = await patchUser(accountId, item.userId, userToken, body);
+                                results.patched.push({ email: item.email, changes: body });
+                                console.log(`✅ Successfully updated ${item.email} with:`, body);
+                                success = true;
+                            } catch (patchError) {
+                                console.error(`❌ Patch attempt ${retryCount + 1} failed for ${item.email}:`, patchError.message);
+                                
+                                if (patchError.message.includes('403') || patchError.message.includes('privilege') || patchError.message.includes('AUTH-010')) {
+                                    // Switch to simulation mode for this and future operations
+                                    simulationMode = true;
+                                    console.warn('⚠️ Switching to SIMULATION MODE due to authentication error:', patchError.message);
+                                    results.patched.push({ 
+                                        email: item.email, 
+                                        simulated: true, 
+                                        changes: body,
+                                        note: 'Would update: ' + Object.keys(body).join(', ') + ' (auth failed)'
+                                    });
+                                    console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
+                                    success = true; // Don't retry, just switch to simulation
+                                    
+                                } else if (patchError.message.includes('404') && patchError.message.includes("this default_role doesn't exist")) {
+                                    // Invalid role - skip this user
+                                    const role = item.default_role || 'unknown';
+                                    console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
+                                    if (!results.invalidRoles.has(role)) {
+                                        results.invalidRoles.set(role, []);
+                                    }
+                                    results.invalidRoles.get(role).push(item.email);
+                                    success = true; // Don't retry for invalid roles
+                                    
+                                } else if (patchError.message.includes('429') || patchError.message.includes('Too Many Requests') || patchError.message.includes('rate limit')) {
+                                    // Rate limit hit - wait and retry
+                                    retryCount++;
+                                    if (retryCount < 3) {
+                                        const waitTime = 2000 * retryCount; // Exponential backoff: 2s, 4s
+                                        console.warn(`⚠️ Rate limit hit for ${item.email}, waiting ${waitTime}ms before retry ${retryCount}/2...`);
+                                        await new Promise(resolve => setTimeout(resolve, waitTime));
+                                    } else {
+                                        // Max retries reached
+                                        console.error(`❌ Max retries reached for ${item.email}, adding to errors`);
+                                        results.errors.push({ email: item.email, operation: 'PATCH', error: 'Rate limit - max retries exceeded' });
+                                        success = true; // Stop retrying
+                                    }
+                                    
+                                } else {
+                                    // Other error - add to errors and stop retrying
+                                    console.error(`❌ Unhandled error for ${item.email}:`, patchError.message);
+                                    results.errors.push({ email: item.email, operation: 'PATCH', error: patchError.message });
+                                    success = true; // Stop retrying
+                                }
                             }
-                            results.invalidRoles.get(role).push(item.email);
-                        } else {
-                            throw authError;
                         }
                     }
+                    
+                    // Small delay between individual requests within the same batch
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                } catch (err) {
+                    console.error(`❌ Outer catch - Patch error for ${item.email}:`, err.message);
+                    results.errors.push({ email: item.email, operation: 'PATCH', error: err.message });
                 }
-            } catch (err) {
-                console.error('Patch error for', item.email, err.message);
-                results.errors.push({ email: item.email, operation: 'PATCH', error: err.message });
+            }
+            
+            // Add delay between batches (except for the last batch)
+            if (i + PATCH_BATCH_SIZE < toPatch.length) {
+                console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+                await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
             }
         }
 
