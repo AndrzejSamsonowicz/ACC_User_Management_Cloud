@@ -421,6 +421,28 @@
         let currentUser = null;
         let authToken = null;
         
+        // Security: HTML escape function to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Security: Token manager (reduces exposure on window object)
+        window.getAuthToken = function() {
+            return authToken;
+        };
+        // Keep window.authToken for backward compatibility, but log warning
+        Object.defineProperty(window, 'authToken', {
+            get: function() {
+                console.warn('⚠️ Accessing window.authToken directly - use getAuthToken() instead');
+                return authToken;
+            },
+            set: function(value) {
+                authToken = value;
+            }
+        });
+        
         // Check authentication status on page load
         if (!isDemoMode) {
             auth.onAuthStateChanged(async (user) => {
@@ -991,7 +1013,7 @@
                 
             } catch (error) {
                 console.error('Error loading projects:', error);
-                projectsList.innerHTML = `<div style="color: red; text-align: center; padding: 40px;">Error loading projects: ${error.message}</div>`;
+                projectsList.innerHTML = `<div style="color: red; text-align: center; padding: 40px;">Error loading projects: ${escapeHtml(error.message)}</div>`;
             }
         }
 

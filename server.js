@@ -57,7 +57,15 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-const ENCRYPTION_KEY = envVars.ENCRYPTION_KEY || 'e73d22f1d6e49d6980725ace625a443590e2c55e8cc59aff0b214744badfe7d0';
+
+// Validate encryption key exists (fail fast if missing)
+const ENCRYPTION_KEY = envVars.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+    console.error('❌ FATAL: ENCRYPTION_KEY not set or too short in .env file');
+    console.error('Generate a key with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    process.exit(1);
+}
+console.log('✅ Encryption key loaded successfully');
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -83,11 +91,50 @@ app.use((req, res, next) => {
     next();
 });
 
-// Add CORS headers to allow requests from http-server (port 8080)
+// CORS configuration - restrict to allowed origins only
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const allowedOrigins = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://34.45.169.78:3000',  // Google Cloud VM (HTTP)
+        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS)
+        // Add your production domain here when deployed:
+        // 'https://yourdomain.com',
+        // 'https://www.yourdomain.com'
+    ];
+    
+    const origin = req.headers.origin;
+    
+    // Allow requests with no origin (e.g., mobile apps, Postman, same-origin)
+    if (!origin || allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+    }
+    
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    // Security Headers (Helmet equivalent)
+    res.header('X-Content-Type-Options', 'nosniff');
+    res.header('X-Frame-Options', 'DENY');
+    res.header('X-XSS-Protection', '1; mode=block');
+    res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Only enable HSTS when using HTTPS
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+        res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    
+    // Content Security Policy - allows Firebase and Autodesk APIs
+    res.header('Content-Security-Policy', 
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; " +
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+        "font-src 'self' https://fonts.gstatic.com; " +
+        "img-src 'self' data: https:; " +
+        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com; " +
+        "frame-ancestors 'none'"
+    );
     
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -99,6 +146,58 @@ app.use((req, res, next) => {
 
 // Serve static files from current directory
 app.use(express.static(__dirname));
+
+// Simple rate limiting implementation
+const rateLimitStore = new Map();
+
+function rateLimit(options = {}) {
+    const windowMs = options.windowMs || 15 * 60 * 1000; // 15 minutes default
+    const maxRequests = options.max || 100; // 100 requests default
+    const message = options.message || 'Too many requests, please try again later.';
+    
+    return (req, res, next) => {
+        const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
+        const key = `${ip}-${options.prefix || 'global'}`;
+        
+        const now = Date.now();
+        const record = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs };
+        
+        // Reset if window expired
+        if (now > record.resetTime) {
+            record.count = 0;
+            record.resetTime = now + windowMs;
+        }
+        
+        record.count++;
+        rateLimitStore.set(key, record);
+        
+        // Clean up old entries periodically
+        if (Math.random() < 0.01) { // 1% chance
+            for (const [k, v] of rateLimitStore.entries()) {
+                if (now > v.resetTime + windowMs) {
+                    rateLimitStore.delete(k);
+                }
+            }
+        }
+        
+        if (record.count > maxRequests) {
+            console.log(`⚠️ Rate limit exceeded for ${ip} on ${options.prefix || 'global'}`);
+            return res.status(429).json({ error: message });
+        }
+        
+        next();
+    };
+}
+
+// Global API rate limiter (100 requests per 15 minutes)
+app.use('/api/', rateLimit({ max: 100, prefix: 'api' }));
+
+// Stricter rate limit for auth endpoints (5 attempts per 15 minutes)
+const authLimiter = rateLimit({ 
+    max: 5, 
+    prefix: 'auth',
+    message: 'Too many login attempts, please try again in 15 minutes.'
+});
 
 // Function to read .env file
 function readEnvFile() {
@@ -766,8 +865,8 @@ function generateLicenseKey() {
     return key;
 }
 
-// Validate user login and get user info (requires authentication)
-app.post('/api/validate-login', authenticateUser, async (req, res) => {
+// Validate user login and get user info (requires authentication + rate limiting)
+app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) => {
     try {
         const userId = req.user.uid;
         

@@ -4,6 +4,13 @@
 
 console.log('🔁 update_account_users.js loaded');
 
+// Security: HTML escape function to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 async function fetchJSON(url, options = {}) {
     const res = await fetch(url, options);
     if (!res.ok) {
@@ -1094,7 +1101,7 @@ function showErrorInModal(errorMessage) {
     const detailsEl = document.getElementById('progressDetails');
     if (!detailsEl) return;
     
-    detailsEl.innerHTML = `<strong>Error:</strong><br>${errorMessage}`;
+    detailsEl.innerHTML = `<strong>Error:</strong><br>${escapeHtml(errorMessage)}`;
     detailsEl.style.display = 'block';
     detailsEl.style.background = '#ffebee';
     

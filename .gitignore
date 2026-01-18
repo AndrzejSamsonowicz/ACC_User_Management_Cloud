@@ -52,6 +52,7 @@ logs
 # Firebase service account keys
 *serviceAccountKey*.json
 firebase-service-account.json
+firebase-config.js
 
 # User data and permissions
 user_permissions_import.json
