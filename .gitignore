@@ -49,4 +49,20 @@ logs
 # Optional eslint cache
 .eslintcache
 
+# Firebase service account keys
+*serviceAccountKey*.json
+firebase-service-account.json
+
+# User data and permissions
+user_permissions_import.json
+users_main_list.json
+Atlantic_folder_permissions.json
+
+# Test files
+*.txt
+SampleUsers.csv
+
+# PM2 logs
+.pm2/
+
 

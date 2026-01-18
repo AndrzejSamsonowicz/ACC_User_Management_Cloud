@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase ACC User Management License</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Artifact Elements', Arial, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0696D7 0%, #0057A0 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
+        .pricing-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .price-header {
+            text-align: center;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .price {
+            font-size: 48px;
+            color: #0696D7;
+            font-weight: 700;
+        }
+        
+        .price-period {
+            font-size: 18px;
+            color: #6c757d;
+        }
+        
+        .features-list {
+            list-style: none;
+            margin-bottom: 30px;
+        }
+        
+        .features-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .features-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .features-list li::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            font-size: 20px;
+            margin-right: 15px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        input[type="email"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #0696D7;
+            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.1);
+        }
+        
+        .paypal-button-container {
+            margin-top: 30px;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .alert-info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #0696D7;
+            padding: 20px;
+            margin-top: 30px;
+            border-radius: 4px;
+        }
+        
+        .info-box h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .info-box p {
+            color: #6c757d;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .back-link a {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .license-display {
+            background: #f8f9fa;
+            border: 2px dashed #0696D7;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .license-key {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0696D7;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            margin: 15px 0;
+        }
+        
+        .copy-button {
+            background-color: #0696D7;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .copy-button:hover {
+            background-color: #0057A0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ACC User Management</h1>
+        </div>
+        
+        <div class="pricing-card" id="purchaseSection">
+            <div class="price-header">
+                <div class="price">€900</div>
+                <div class="price-period">per year</div>
+            </div>
+            
+            <ul class="features-list">
+                <li>Manage unlimited projects and users</li>
+                <li>Bulk user operations and permissions</li>
+                <li>Secure credential storage</li>
+                <li>Regular updates and improvements</li>
+                <li>12 months of access</li>
+                <li>Automatic renewal reminders</li>
+            </ul>
+            
+            <div id="alertMessage" class="alert"></div>
+            
+            <div class="form-group">
+                <label for="customerEmail">Your Email Address</label>
+                <input type="email" id="customerEmail" placeholder="you@example.com" required>
+                <small style="color: #6c757d; font-size: 12px;">Your license key will be sent to this email</small>
+            </div>
+            
+            <!-- PayPal Button Container -->
+            <div id="paypal-button-container" class="paypal-button-container"></div>
+            
+            <div class="info-box">
+                <h3>🔒 Secure Payment</h3>
+                <p>All transactions are processed securely through PayPal. We never store your payment information.</p>
+                <p><strong>After purchase:</strong> You'll receive your license key via email within minutes. Use this key to register your account.</p>
+            </div>
+        </div>
+        
+        <!-- Success Section (Hidden Initially) -->
+        <div class="pricing-card hidden" id="successSection">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div style="font-size: 64px; color: #28a745;">✓</div>
+                <h2 style="color: #28a745; margin-top: 20px;">Payment Successful!</h2>
+                <p style="color: #6c757d; margin-top: 10px;">Thank you for your purchase</p>
+            </div>
+            
+            <div class="license-display">
+                <p style="color: #6c757d; margin-bottom: 10px;">Your License Key:</p>
+                <div class="license-key" id="displayLicenseKey">XXXX-XXXX-XXXX-XXXX</div>
+                <button class="copy-button" onclick="copyLicenseKey()">Copy to Clipboard</button>
+            </div>
+            
+            <div class="info-box">
+                <h3>📧 Check Your Email</h3>
+                <p>We've sent your license key to <strong id="customerEmailDisplay"></strong></p>
+                <p>Next steps:</p>
+                <ol style="margin-left: 20px; margin-top: 10px;">
+                    <li>Go to the registration page</li>
+                    <li>Enter your email and license key</li>
+                    <li>Create your password</li>
+                    <li>Verify your email</li>
+                    <li>Start using the tool!</li>
+                </ol>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="register.html" style="background-color: #0696D7; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; display: inline-block;">
+                    Register Now →
+                </a>
+            </div>
+        </div>
+        
+        <div class="back-link">
+            <a href="login.html">← Back to Login</a>
+        </div>
+    </div>
+    
+    <!-- PayPal SDK -->
+    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"></script>
+    
+    <script>
+        const serverURL = window.location.origin;
+        let generatedLicenseKey = '';
+        
+        // PayPal Button Configuration
+        paypal.Buttons({
+            createOrder: async function(data, actions) {
+                const email = document.getElementById('customerEmail').value.trim();
+                
+                if (!email || !validateEmail(email)) {
+                    showAlert('Please enter a valid email address', 'error');
+                    throw new Error('Invalid email');
+                }
+                
+                try {
+                    // Create order on server and get license key
+                    const response = await fetch(`${serverURL}/api/create-license-order`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to create order');
+                    }
+                    
+                    generatedLicenseKey = data.licenseKey;
+                    
+                    // Return PayPal order ID
+                    return data.orderId;
+                    
+                } catch (error) {
+                    console.error('Order creation error:', error);
+                    showAlert(error.message, 'error');
+                    throw error;
+                }
+            },
+            
+            onApprove: async function(data, actions) {
+                try {
+                    showAlert('Processing payment...', 'info');
+                    
+                    // Capture the payment on server
+                    const response = await fetch(`${serverURL}/api/capture-license-payment`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            orderId: data.orderID,
+                            licenseKey: generatedLicenseKey,
+                            email: document.getElementById('customerEmail').value.trim()
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Payment capture failed');
+                    }
+                    
+                    // Show success
+                    document.getElementById('purchaseSection').classList.add('hidden');
+                    document.getElementById('successSection').classList.remove('hidden');
+                    document.getElementById('displayLicenseKey').textContent = result.licenseKey;
+                    document.getElementById('customerEmailDisplay').textContent = result.email;
+                    
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    
+                } catch (error) {
+                    console.error('Payment capture error:', error);
+                    showAlert('Payment processing failed: ' + error.message, 'error');
+                }
+            },
+            
+            onError: function(err) {
+                console.error('PayPal error:', err);
+                showAlert('Payment failed. Please try again or contact support.', 'error');
+            },
+            
+            onCancel: function(data) {
+                showAlert('Payment cancelled. No charges were made.', 'info');
+            }
+            
+        }).render('#paypal-button-container');
+        
+        // Helper Functions
+        function validateEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+        
+        function showAlert(message, type) {
+            const alert = document.getElementById('alertMessage');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 5000);
+            }
+        }
+        
+        function copyLicenseKey() {
+            const licenseKey = document.getElementById('displayLicenseKey').textContent;
+            navigator.clipboard.writeText(licenseKey).then(() => {
+                alert('License key copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>

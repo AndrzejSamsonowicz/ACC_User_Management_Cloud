@@ -372,21 +372,264 @@
                 </div>
                 <div id="projectsList"></div>
             </div>
-        </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
+
     <script>
+        // ========================================================================
+        // GLOBAL VARIABLES
+        // ========================================================================
+        
+        // Credentials Modal Management
+        let credentialsModal = null;
+        
+        // APS Credentials (loaded from encrypted storage)
+        let CLIENT_ID = '';
+        let CLIENT_SECRET = '';
+        
+        // Firebase variables (initialized below)
+        let auth = null;
+        let db = null;
+        
+        // ========================================================================
+        // AUTHENTICATION AND SESSION MANAGEMENT
+        // ========================================================================
+        
+        // DEMO MODE: Check if running in demo mode (for UI testing without Firebase)
+        const isDemoMode = window.location.search.includes('demo=true') || 
+                          localStorage.getItem('DEMO_MODE') === 'true';
+        
+        if (isDemoMode) {
+            console.log('🎨 DEMO MODE: Authentication bypassed for UI testing');
+            localStorage.setItem('DEMO_MODE', 'true');
+            // Skip Firebase initialization in demo mode
+            displayDemoInfo();
+        } else {
+            // Initialize Firebase
+            firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+        }
+        
+        let currentUser = null;
+        let authToken = null;
+        
+        // Check authentication status on page load
+        if (!isDemoMode) {
+            auth.onAuthStateChanged(async (user) => {
+                if (!user) {
+                    // User not logged in - redirect to login
+                    window.location.href = 'login.html';
+                    return;
+                }
+            
+            // Check if email is verified
+            if (!user.emailVerified) {
+                alert('Please verify your email before using this tool.');
+                await auth.signOut();
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            try {
+                // Check if user is admin first
+                const adminDoc = await db.collection('admins').doc(user.uid).get();
+                const isAdmin = adminDoc.exists;
+                
+                if (isAdmin) {
+                    // Admin users don't need license validation
+                    authToken = await user.getIdToken();
+                    window.authToken = authToken; // Expose globally for user-table.js
+                    currentUser = user;
+                    
+                    // Load encrypted credentials from database
+                    await loadEncryptedCredentials();
+                    
+                    // Show admin info in UI
+                    displayLicenseInfo(null, user.email, true);
+                    
+                    // Add logout button
+                    addLogoutButton();
+                    
+                    console.log('✓ Admin authenticated successfully');
+                } else {
+                    // Regular user - check license
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    
+                    if (!userDoc.exists) {
+                        alert('User data not found. Please contact support.');
+                        await auth.signOut();
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    
+                    const userData = userDoc.data();
+                    
+                    // Check license expiry
+                    const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
+                    if (!licenseExpiry || licenseExpiry < new Date()) {
+                        alert('Your license has expired. Please renew to continue.');
+                        await auth.signOut();
+                        window.location.href = 'purchase.html';
+                        return;
+                    }
+                    
+                    // Get Firebase authentication token for API calls
+                    authToken = await user.getIdToken();
+                    window.authToken = authToken; // Expose globally for user-table.js
+                    currentUser = user;
+                    
+                    // Load encrypted credentials from database
+                    await loadEncryptedCredentials();
+                    
+                    // Show license info in UI
+                    displayLicenseInfo(licenseExpiry, user.email);
+                    
+                    // Add logout button
+                    addLogoutButton();
+                    
+                    console.log('✓ User authenticated successfully');
+                    console.log('✓ License valid until:', licenseExpiry.toLocaleDateString());
+                }
+                
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                alert('Error loading user data. Please try logging in again.');
+                await auth.signOut();
+                window.location.href = 'login.html';
+            }
+        });
+        }
+        
+        // Demo mode info display
+        function displayDemoInfo() {
+            const demoInfoHTML = `
+                <div id="demoInfo" style="position: fixed; top: 10px; right: 10px; background: #fff3cd; padding: 10px 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; z-index: 10000; border: 2px solid #ffc107;">
+                    <div style="font-weight: 600; color: #856404; margin-bottom: 5px;">🎨 DEMO MODE</div>
+                    <div style="color: #856404; font-size: 11px;">Authentication bypassed for UI preview</div>
+                    <div style="color: #856404; font-size: 11px; margin-top: 5px;">
+                        <a href="?demo=false" onclick="localStorage.removeItem('DEMO_MODE')" style="color: #0696D7;">Exit Demo</a>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', demoInfoHTML);
+        }
+        
+        // Load encrypted credentials from server
+        async function loadEncryptedCredentials() {
+            try {
+                // Load from encrypted Firebase storage (authoritative source)
+                const response = await fetch(`${window.location.origin}/load-credentials`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.clientId && data.clientSecret) {
+                        CLIENT_ID = data.clientId;
+                        CLIENT_SECRET = data.clientSecret;
+                        console.log('✓ Credentials loaded from secure encrypted storage');
+                    } else {
+                        // No credentials in Firebase - clear any old localStorage data
+                        CLIENT_ID = '';
+                        CLIENT_SECRET = '';
+                        localStorage.removeItem('APS_CLIENT_ID');
+                        localStorage.removeItem('APS_CLIENT_SECRET');
+                        console.log('ℹ No credentials saved yet - please enter them');
+                    }
+                } else {
+                    // Clear localStorage on error
+                    CLIENT_ID = '';
+                    CLIENT_SECRET = '';
+                    localStorage.removeItem('APS_CLIENT_ID');
+                    localStorage.removeItem('APS_CLIENT_SECRET');
+                }
+            } catch (error) {
+                console.error('Error loading encrypted credentials:', error);
+                // Clear localStorage on error
+                CLIENT_ID = '';
+                CLIENT_SECRET = '';
+                localStorage.removeItem('APS_CLIENT_ID');
+                localStorage.removeItem('APS_CLIENT_SECRET');
+            }
+        }
+        
+        // Save encrypted credentials to server
+        async function saveEncryptedCredentials(clientId, clientSecret) {
+            try {
+                const response = await fetch(`${window.location.origin}/save-credentials`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ clientId, clientSecret })
+                });
+                
+                if (response.ok) {
+                    console.log('✓ Credentials saved to secure storage');
+                    return true;
+                } else {
+                    const error = await response.json();
+                    console.error('Error saving credentials:', error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error saving encrypted credentials:', error);
+                return false;
+            }
+        }
+        
+        // Display license info in UI
+        function displayLicenseInfo(expiryDate, email, isAdmin = false) {
+            // License info display disabled - keeping function for backward compatibility
+            console.log('ℹ️ License info display disabled');
+        }
+        
+        // Add logout button
+        function addLogoutButton() {
+            // Logout button display disabled - keeping function for backward compatibility
+            console.log('ℹ️ Logout button display disabled');
+        }
+        
+        // Handle logout
+        async function handleLogout() {
+            if (confirm('Are you sure you want to logout?')) {
+                try {
+                    await auth.signOut();
+                    localStorage.clear(); // Clear all stored data
+                    window.location.href = 'login.html';
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    alert('Error logging out. Please try again.');
+                }
+            }
+        }
+        
+        // ========================================================================
+        // ORIGINAL APPLICATION CODE
+        // ========================================================================
+        
         // Store the original hubs data globally and current access token
         var currentAccessToken = null; // Make it global
         let originalHubsData = null;
-        // Credentials will be loaded from localStorage (browser storage)
-        let CLIENT_ID = '';
-        let CLIENT_SECRET = '';
         // Use dynamic redirect URI based on current location (works on localhost and cloud)
         const REDIRECT_URI = `${window.location.origin}/index.html`;
 
-        // Load credentials from localStorage on startup
+        // Legacy function - now loads from encrypted storage instead of localStorage
         function loadCredentials() {
+            // This will be called by loadEncryptedCredentials() automatically
+            // Keep for backwards compatibility but functionality moved to Firebase
+            return;
             try {
                 const storedClientId = localStorage.getItem('APS_CLIENT_ID');
                 const storedClientSecret = localStorage.getItem('APS_CLIENT_SECRET');
@@ -408,9 +651,6 @@
         // Authentication URLs
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
         const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
-
-        // Credentials Modal Management
-        let credentialsModal = null;
 
         function createCredentialsModal() {
             if (credentialsModal) return;
@@ -545,14 +785,22 @@
         }
 
         function showCredentialsModal() {
-            createCredentialsModal();
-            
-            // Pre-fill with current values
-            document.getElementById('clientIdInput').value = CLIENT_ID;
-            document.getElementById('clientSecretInput').value = CLIENT_SECRET;
-            
-            credentialsModal.style.display = 'block';
-            document.getElementById('clientIdInput').focus();
+            console.log('showCredentialsModal called');
+            try {
+                createCredentialsModal();
+                console.log('credentialsModal:', credentialsModal);
+                
+                // Pre-fill with current values
+                document.getElementById('clientIdInput').value = CLIENT_ID || '';
+                document.getElementById('clientSecretInput').value = CLIENT_SECRET || '';
+                
+                credentialsModal.style.display = 'block';
+                document.getElementById('clientIdInput').focus();
+                console.log('Modal displayed');
+            } catch (error) {
+                console.error('Error showing credentials modal:', error);
+                alert('Error opening credentials modal. Check console for details.');
+            }
         }
 
         function closeCredentialsModal() {
@@ -562,7 +810,7 @@
             }
         }
 
-        function saveCredentials() {
+        async function saveCredentials() {
             const clientId = document.getElementById('clientIdInput').value.trim();
             const clientSecret = document.getElementById('clientSecretInput').value.trim();
             const messageDiv = document.getElementById('credentialsMessage');
@@ -577,27 +825,37 @@
             }
 
             try {
-                // Save to browser localStorage
-                localStorage.setItem('APS_CLIENT_ID', clientId);
-                localStorage.setItem('APS_CLIENT_SECRET', clientSecret);
-                
-                // Update global variables
-                CLIENT_ID = clientId;
-                CLIENT_SECRET = clientSecret;
-
-                // Show success message
-                messageDiv.textContent = 'Credentials saved to your browser successfully! You can now login with Autodesk.';
-                messageDiv.style.backgroundColor = '#d4edda';
-                messageDiv.style.color = '#155724';
-                messageDiv.style.border = '1px solid #c3e6cb';
+                // Show saving message
+                messageDiv.textContent = 'Saving credentials securely...';
+                messageDiv.style.backgroundColor = '#d1ecf1';
+                messageDiv.style.color = '#0c5460';
+                messageDiv.style.border = '1px solid #bee5eb';
                 messageDiv.style.display = 'block';
+                
+                // Save to encrypted server storage (primary)
+                const saved = await saveEncryptedCredentials(clientId, clientSecret);
+                
+                if (saved) {
+                    // Update global variables
+                    CLIENT_ID = clientId;
+                    CLIENT_SECRET = clientSecret;
 
-                console.log('Credentials saved to browser storage');
+                    // Show success message
+                    messageDiv.textContent = '✓ Credentials saved securely! You can now login with Autodesk.';
+                    messageDiv.style.backgroundColor = '#d4edda';
+                    messageDiv.style.color = '#155724';
+                    messageDiv.style.border = '1px solid #c3e6cb';
+                    messageDiv.style.display = 'block';
 
-                // Auto-close after 2 seconds
-                setTimeout(() => {
-                    closeCredentialsModal();
-                }, 2000);
+                    console.log('Credentials saved to encrypted storage');
+
+                    // Auto-close after 2 seconds
+                    setTimeout(() => {
+                        closeCredentialsModal();
+                    }, 2000);
+                } else {
+                    throw new Error('Failed to save credentials to server');
+                }
             } catch (error) {
                 console.error('Error saving credentials:', error);
                 messageDiv.textContent = `Error saving credentials: ${error.message}`;
@@ -1037,8 +1295,9 @@
 
         // Check for authorization code in URL
         window.onload = async function() {
-            // Load credentials from localStorage first
-            loadCredentials();
+            // Wait a bit for Firebase auth and credentials to load
+            // The auth.onAuthStateChanged will load credentials
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -1051,10 +1310,18 @@
             }
             
             if (code) {
+                // Wait for credentials to be loaded (max 5 seconds)
+                let attempts = 0;
+                while ((!CLIENT_ID || !CLIENT_SECRET) && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
                 if (!CLIENT_ID || !CLIENT_SECRET) {
                     showError('Client credentials not configured. Please enter your APS credentials first.');
                     return;
                 }
+                
                 const accessToken = await getAccessToken(code);
                 if (accessToken) {
                     await getHubs(accessToken);
@@ -1239,13 +1506,29 @@
             if (progressText) progressText.textContent = 'Loading data...';
             
             try {
-                // Load user permissions from import file
+                // Load user permissions from Firestore
                 if (progressText) progressText.textContent = 'Loading Users Main List...';
-                // Add timestamp to prevent caching
-                const importResponse = await fetch(`user_permissions_import.json?t=${Date.now()}`);
+                
+                // Fetch from server API with authentication
+                const importResponse = await fetch(`${window.location.origin}/load`, {
+                    headers: isDemoMode ? {} : {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!importResponse.ok) {
+                    if (importResponse.status === 401) {
+                        alert('Session expired. Please login again.');
+                        if (!isDemoMode) await auth.signOut();
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    throw new Error('Failed to load user permissions');
+                }
+                
                 const importData = await importResponse.json();
                 const importUsers = importData.users || [];
-                console.log(`Loaded ${importUsers.length} users from import file`);
+                console.log(`Loaded ${importUsers.length} users from Firestore`);
                 
                 // Fetch project users
                 if (progressText) progressText.textContent = 'Fetching project users...';
@@ -1456,13 +1739,35 @@
             
             try {
                 // Get 2-legged token
-                syncButton.textContent = 'Authenticating...';
+                syncButton.textContent = 'Processing...';
                 const twoLeggedToken = await get2LeggedToken();
                 
-                // Fetch all required data
-                syncButton.textContent = 'Loading data...';
-                const [importData, accountUsers, projectUsers] = await Promise.all([
-                    fetch(`user_permissions_import.json?t=${Date.now()}`).then(r => r.json()),
+                // STEP 1: Update account users first (company and role from Users Main List)
+                console.log('🚀 STEP 1: Updating account users with company and role from Users Main List');
+                try {
+                    const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true});
+                    console.log('✅ Account users updated:', accountUpdateResult);
+                } catch (accountError) {
+                    console.error('⚠️ Account update failed (continuing anyway):', accountError);
+                    // Continue even if account update fails - user might not have permissions
+                }
+                
+                // STEP 2: Fetch all required data
+                
+                // Load user permissions from Firestore
+                const importResponse = await fetch(`${window.location.origin}/load`, {
+                    headers: isDemoMode ? {} : {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!importResponse.ok) {
+                    throw new Error('Failed to load user permissions');
+                }
+                
+                const importData = await importResponse.json();
+                
+                const [accountUsers, projectUsers] = await Promise.all([
                     accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId),
                     fetchAllProjectUsers(projectId, twoLeggedToken)
                 ]);
@@ -1489,14 +1794,13 @@
                 
                 // Execute PATCH operations
                 if (enableUpdate && listToPatch.length > 0) {
-                    syncButton.textContent = `Updating users (0/${listToPatch.length})...`;
                     
                     for (let i = 0; i < listToPatch.length; i++) {
                         const userToPatch = listToPatch[i];
                         const email = userToPatch.email.toLowerCase();
                         
                         try {
-                            syncButton.textContent = `Updating users (${i + 1}/${listToPatch.length})...`;
+                            syncButton.textContent = `Processing ${i + 1}/${listToPatch.length} users`;
                             
                             // Get data from all sources
                             const importUser = importEmailMap.get(email);
@@ -1567,7 +1871,6 @@
                 
                 // === POST Operation - Add users ===
                 if (enableAdd && listToPost.length > 0) {
-                    syncButton.textContent = `Adding users...`;
                     console.log('\n=== POST Operation - Adding Users ===');
                     
                     // Batch users in groups of 200 (API limit)
@@ -1579,9 +1882,11 @@
                     
                     console.log(`Processing ${listToPost.length} users in ${batches.length} batch(es)`);
                     
+                    const totalToAdd = listToPost.length;
+                    let processedCount = 0;
+                    
                     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
                         const batch = batches[batchIndex];
-                        syncButton.textContent = `Adding users... (Batch ${batchIndex + 1}/${batches.length})`;
                         
                         try {
                             // Build users array for POST
@@ -1621,6 +1926,8 @@
                                 continue;
                             }
                             
+                            syncButton.textContent = `Processing ${processedCount + 1}-${processedCount + usersToAdd.length}/${totalToAdd} users`;
+                            
                             console.log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
                             
                             // Execute POST request
@@ -1642,6 +1949,7 @@
                             const result = await response.json();
                             console.log(`✓ Batch ${batchIndex + 1} completed:`, result);
                             results.added += usersToAdd.length;
+                            processedCount += usersToAdd.length;
                             
                         } catch (error) {
                             console.error(`✗ Batch ${batchIndex + 1} failed:`, error);
@@ -1657,12 +1965,11 @@
                 
                 // === DELETE Operation - Remove users ===
                 if (enableDelete && listToDelete.length > 0) {
-                    syncButton.textContent = `Removing users...`;
                     console.log('\n=== DELETE Operation - Removing Users ===');
                     
                     for (let i = 0; i < listToDelete.length; i++) {
                         const userToDelete = listToDelete[i];
-                        syncButton.textContent = `Removing users... (${i + 1}/${listToDelete.length})`;
+                        syncButton.textContent = `Processing ${i + 1}/${listToDelete.length} users`;
                         
                         try {
                             // Get userId from project users

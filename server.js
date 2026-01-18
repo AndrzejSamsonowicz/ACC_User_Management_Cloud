@@ -1,8 +1,63 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const admin = require('firebase-admin');
+const crypto = require('crypto');
+
 const app = express();
 const port = 3000;
+
+// Initialize Firebase Admin SDK
+function readEnvFile() {
+    const envPath = path.join(__dirname, '.env');
+    if (!fs.existsSync(envPath)) {
+        return {};
+    }
+    
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const envObj = {};
+    
+    envContent.split('\n').forEach(line => {
+        const trimmedLine = line.trim();
+        if (trimmedLine && !trimmedLine.startsWith('#')) {
+            const [key, ...valueParts] = trimmedLine.split('=');
+            if (key && valueParts.length > 0) {
+                envObj[key.trim()] = valueParts.join('=').trim();
+            }
+        }
+    });
+    
+    return envObj;
+}
+
+const envVars = readEnvFile();
+
+// Process private key - remove quotes and unescape newlines
+let privateKey = envVars.FIREBASE_PRIVATE_KEY || '';
+if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    privateKey = privateKey.slice(1, -1);
+}
+privateKey = privateKey.replace(/\\n/g, '\n');
+
+const serviceAccount = {
+    type: "service_account",
+    project_id: envVars.FIREBASE_PROJECT_ID,
+    private_key_id: envVars.FIREBASE_PRIVATE_KEY_ID,
+    private_key: privateKey,
+    client_email: envVars.FIREBASE_CLIENT_EMAIL,
+    client_id: envVars.FIREBASE_CLIENT_ID,
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+    client_x509_cert_url: envVars.FIREBASE_CLIENT_CERT_URL
+};
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+const db = admin.firestore();
+const ENCRYPTION_KEY = envVars.ENCRYPTION_KEY || 'e73d22f1d6e49d6980725ace625a443590e2c55e8cc59aff0b214744badfe7d0';
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -79,9 +134,11 @@ function writeEnvFile(envObj) {
 }
 
 // Endpoint to save credentials to .env file
-app.post('/save-credentials', (req, res) => {
+// Endpoint to save credentials (now uses Firebase and user authentication)
+app.post('/save-credentials', authenticateUser, async (req, res) => {
     try {
         const { clientId, clientSecret } = req.body;
+        const userId = req.user.uid;
         
         if (!clientId || !clientSecret) {
             return res.status(400).json({ 
@@ -90,18 +147,31 @@ app.post('/save-credentials', (req, res) => {
             });
         }
 
-        // Read existing .env file
-        const envObj = readEnvFile();
+        // Encrypt credentials (simple encryption - you may want to use a stronger method)
+        const crypto = require('crypto');
+        const algorithm = 'aes-256-cbc';
+        const key = crypto.scryptSync(userId, 'salt', 32);
+        const iv = crypto.randomBytes(16);
         
-        // Update credentials
-        envObj.APS_CLIENT_ID = clientId;
-        envObj.APS_CLIENT_SECRET = clientSecret;
+        const cipherClientId = crypto.createCipheriv(algorithm, key, iv);
+        let encryptedClientId = cipherClientId.update(clientId, 'utf8', 'hex');
+        encryptedClientId += cipherClientId.final('hex');
         
-        // Write back to .env file
-        writeEnvFile(envObj);
+        const cipherSecret = crypto.createCipheriv(algorithm, key, iv);
+        let encryptedSecret = cipherSecret.update(clientSecret, 'utf8', 'hex');
+        encryptedSecret += cipherSecret.final('hex');
         
-        res.json({ success: true, message: 'Credentials saved to .env file successfully' });
+        // Save to Firestore user document
+        await db.collection('users').doc(userId).update({
+            clientId: encryptedClientId,
+            clientSecret: encryptedSecret,
+            encryptionIV: iv.toString('hex'),
+            credentialsUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        res.json({ success: true, message: 'Credentials saved successfully' });
     } catch (error) {
+        console.error('Error saving credentials:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Error saving credentials', 
@@ -110,17 +180,53 @@ app.post('/save-credentials', (req, res) => {
     }
 });
 
-// Endpoint to load credentials from .env file
-app.get('/load-credentials', (req, res) => {
+// Endpoint to load credentials from Firestore
+app.get('/load-credentials', authenticateUser, async (req, res) => {
     try {
-        const envObj = readEnvFile();
+        const userId = req.user.uid;
+        
+        // Get user document from Firestore
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.json({
+                success: true,
+                clientId: '',
+                clientSecret: ''
+            });
+        }
+        
+        const userData = userDoc.data();
+        
+        if (!userData.clientId || !userData.clientSecret || !userData.encryptionIV) {
+            return res.json({
+                success: true,
+                clientId: '',
+                clientSecret: ''
+            });
+        }
+        
+        // Decrypt credentials
+        const crypto = require('crypto');
+        const algorithm = 'aes-256-cbc';
+        const key = crypto.scryptSync(userId, 'salt', 32);
+        const iv = Buffer.from(userData.encryptionIV, 'hex');
+        
+        const decipherClientId = crypto.createDecipheriv(algorithm, key, iv);
+        let clientId = decipherClientId.update(userData.clientId, 'hex', 'utf8');
+        clientId += decipherClientId.final('utf8');
+        
+        const decipherSecret = crypto.createDecipheriv(algorithm, key, iv);
+        let clientSecret = decipherSecret.update(userData.clientSecret, 'hex', 'utf8');
+        clientSecret += decipherSecret.final('utf8');
         
         res.json({
             success: true,
-            clientId: envObj.APS_CLIENT_ID || '',
-            clientSecret: envObj.APS_CLIENT_SECRET || ''
+            clientId: clientId,
+            clientSecret: clientSecret
         });
     } catch (error) {
+        console.error('Error loading credentials:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Error loading credentials', 
@@ -129,55 +235,157 @@ app.get('/load-credentials', (req, res) => {
     }
 });
 
-// Endpoint to save JSON file
-app.post('/save', (req, res) => {
-    const filePath = path.join(__dirname, 'user_permissions_import.json');
+// Endpoint to save users main list to Firestore (encrypted)
+app.post('/save', authenticateUser, async (req, res) => {
     try {
-        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
-        res.json({ success: true, message: 'File saved successfully' });
+        const userId = req.user.uid;
+        const usersData = req.body;
+        
+        // Encrypt the users data
+        const crypto = require('crypto');
+        const algorithm = 'aes-256-cbc';
+        const key = crypto.scryptSync(userId, 'salt', 32);
+        
+        // Check if user already has an IV for users_main_list, if not create one
+        const userDoc = await db.collection('users').doc(userId).get();
+        let iv;
+        
+        if (userDoc.exists && userDoc.data().usersMainListIV) {
+            // Use existing IV
+            iv = Buffer.from(userDoc.data().usersMainListIV, 'hex');
+        } else {
+            // Create new IV
+            iv = crypto.randomBytes(16);
+        }
+        
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
+        encryptedData += cipher.final('hex');
+        
+        // Save encrypted data to Firestore
+        await db.collection('users').doc(userId).set({
+            users_main_list_encrypted: encryptedData,
+            usersMainListIV: iv.toString('hex')
+        }, { merge: true });
+        
+        res.json({ success: true, message: 'Users main list saved successfully (encrypted)' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error saving file', error: error.message });
+        console.error('Error saving users main list:', error);
+        res.status(500).json({ success: false, message: 'Error saving users main list', error: error.message });
     }
 });
 
-// Endpoint to load JSON file
-app.get('/load', (req, res) => {
-    const filePath = path.join(__dirname, 'user_permissions_import.json');
+// Endpoint to load users main list from Firestore (decrypted)
+app.get('/load', authenticateUser, async (req, res) => {
     try {
-        if (fs.existsSync(filePath)) {
-            const data = fs.readFileSync(filePath, 'utf8');
-            res.json(JSON.parse(data));
+        const userId = req.user.uid;
+        
+        // Load from Firestore user's document
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.json({ users: [] });
+        }
+        
+        const userData = userDoc.data();
+        
+        // Check for encrypted data first
+        if (userData.users_main_list_encrypted && userData.usersMainListIV) {
+            // Decrypt the data
+            const crypto = require('crypto');
+            const algorithm = 'aes-256-cbc';
+            const key = crypto.scryptSync(userId, 'salt', 32);
+            const iv = Buffer.from(userData.usersMainListIV, 'hex');
+            
+            const decipher = crypto.createDecipheriv(algorithm, key, iv);
+            let decryptedData = decipher.update(userData.users_main_list_encrypted, 'hex', 'utf8');
+            decryptedData += decipher.final('utf8');
+            
+            res.json(JSON.parse(decryptedData));
+        } else if (userData.users_main_list) {
+            // Legacy: unencrypted data (auto-migrate to encrypted)
+            console.log('Migrating unencrypted users_main_list to encrypted format for user:', userId);
+            
+            // Encrypt and save
+            const crypto = require('crypto');
+            const algorithm = 'aes-256-cbc';
+            const key = crypto.scryptSync(userId, 'salt', 32);
+            const iv = crypto.randomBytes(16);
+            
+            const cipher = crypto.createCipheriv(algorithm, key, iv);
+            let encryptedData = cipher.update(JSON.stringify(userData.users_main_list), 'utf8', 'hex');
+            encryptedData += cipher.final('hex');
+            
+            await db.collection('users').doc(userId).set({
+                users_main_list_encrypted: encryptedData,
+                usersMainListIV: iv.toString('hex'),
+                users_main_list: admin.firestore.FieldValue.delete() // Remove old unencrypted data
+            }, { merge: true });
+            
+            res.json(userData.users_main_list);
         } else {
             res.json({ users: [] });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error loading file', error: error.message });
+        console.error('Error loading users main list:', error);
+        res.status(500).json({ success: false, message: 'Error loading users main list', error: error.message });
     }
 });
 
 // Endpoint to save folder permissions
-app.post('/save-folder-permissions', (req, res) => {
-    const { projectName, data } = req.body;
-    
-    if (!projectName) {
-        return res.status(400).json({ success: false, message: 'Project name is required' });
-    }
-    
-    const fileName = `${projectName}_folder_permissions.json`;
-    const filePath = path.join(__dirname, fileName);
-    
+// Endpoint to save folder permissions (per user, per project in Firestore)
+app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
     try {
-        // Check if file exists
-        const fileExists = fs.existsSync(filePath);
+        const userId = req.user.uid;
+        const { projectName, hubId, projectId, data } = req.body;
         
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        if (!hubId || !projectId) {
+            return res.status(400).json({ success: false, message: 'Hub ID and Project ID are required' });
+        }
+        
+        // Create unique key using hubId_projectId
+        const permissionKey = `${hubId}_${projectId}`;
+        
+        // Encrypt the folder permissions data
+        const crypto = require('crypto');
+        const algorithm = 'aes-256-cbc';
+        const key = crypto.scryptSync(userId, 'salt', 32);
+        
+        // Check if user already has an IV for this project's permissions
+        const userDoc = await db.collection('users').doc(userId).get();
+        let iv;
+        const existingIVs = (userDoc.exists && userDoc.data().folderPermissionsIVs) || {};
+        
+        if (existingIVs[permissionKey]) {
+            // Use existing IV for this project
+            iv = Buffer.from(existingIVs[permissionKey], 'hex');
+        } else {
+            // Create new IV for this project
+            iv = crypto.randomBytes(16);
+            existingIVs[permissionKey] = iv.toString('hex');
+        }
+        
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        let encryptedData = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+        encryptedData += cipher.final('hex');
+        
+        // Save to Firestore under user's document
+        const folderPermissions = userDoc.exists ? (userDoc.data().folderPermissions || {}) : {};
+        folderPermissions[permissionKey] = encryptedData;
+        
+        await db.collection('users').doc(userId).set({
+            folderPermissions: folderPermissions,
+            folderPermissionsIVs: existingIVs
+        }, { merge: true });
+        
+        console.log(`💾 Saved encrypted folder permissions for user ${userId}, project ${permissionKey}`);
         res.json({ 
             success: true, 
-            message: 'Folder permissions saved successfully',
-            fileName: fileName,
-            existed: fileExists
+            message: 'Folder permissions saved successfully (encrypted)',
+            permissionKey: permissionKey
         });
     } catch (error) {
+        console.error('Error saving folder permissions:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Error saving folder permissions', 
@@ -186,23 +394,43 @@ app.post('/save-folder-permissions', (req, res) => {
     }
 });
 
-// Endpoint to load folder permissions
-app.get('/load-folder-permissions/:projectName', (req, res) => {
-    const { projectName } = req.params;
-    
-    if (!projectName) {
-        return res.status(400).json({ success: false, message: 'Project name is required' });
-    }
-    
-    const fileName = `${projectName}_folder_permissions.json`;
-    const filePath = path.join(__dirname, fileName);
-    
+// Endpoint to load folder permissions (per user, per project from Firestore)
+app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (req, res) => {
     try {
-        if (fs.existsSync(filePath)) {
-            const data = fs.readFileSync(filePath, 'utf8');
+        const userId = req.user.uid;
+        const { hubId, projectId } = req.params;
+        
+        if (!hubId || !projectId) {
+            return res.status(400).json({ success: false, message: 'Hub ID and Project ID are required' });
+        }
+        
+        const permissionKey = `${hubId}_${projectId}`;
+        
+        // Load from Firestore
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.json({ success: true, data: null, exists: false });
+        }
+        
+        const userData = userDoc.data();
+        const folderPermissions = userData.folderPermissions || {};
+        const folderPermissionsIVs = userData.folderPermissionsIVs || {};
+        
+        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey]) {
+            // Decrypt the data
+            const crypto = require('crypto');
+            const algorithm = 'aes-256-cbc';
+            const key = crypto.scryptSync(userId, 'salt', 32);
+            const iv = Buffer.from(folderPermissionsIVs[permissionKey], 'hex');
+            
+            const decipher = crypto.createDecipheriv(algorithm, key, iv);
+            let decryptedData = decipher.update(folderPermissions[permissionKey], 'hex', 'utf8');
+            decryptedData += decipher.final('utf8');
+            
             res.json({ 
                 success: true, 
-                data: JSON.parse(data),
+                data: JSON.parse(decryptedData),
                 exists: true
             });
         } else {
@@ -213,6 +441,7 @@ app.get('/load-folder-permissions/:projectName', (req, res) => {
             });
         }
     } catch (error) {
+        console.error('Error loading folder permissions:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Error loading folder permissions', 
@@ -221,16 +450,377 @@ app.get('/load-folder-permissions/:projectName', (req, res) => {
     }
 });
 
-// Endpoint to check if folder permissions file exists
-app.get('/check-folder-permissions/:projectName', (req, res) => {
-    const { projectName } = req.params;
-    const fileName = `${projectName}_folder_permissions.json`;
-    const filePath = path.join(__dirname, fileName);
-    
-    res.json({ 
-        exists: fs.existsSync(filePath),
-        fileName: fileName
-    });
+// Endpoint to check if folder permissions exist (per user, per project)
+app.get('/check-folder-permissions/:hubId/:projectId', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { hubId, projectId } = req.params;
+        const permissionKey = `${hubId}_${projectId}`;
+        
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.json({ exists: false, permissionKey: permissionKey });
+        }
+        
+        const folderPermissions = userDoc.data().folderPermissions || {};
+        
+        res.json({ 
+            exists: !!folderPermissions[permissionKey],
+            permissionKey: permissionKey
+        });
+    } catch (error) {
+        console.error('Error checking folder permissions:', error);
+        res.json({ exists: false, error: error.message });
+    }
+});
+
+// ============================================
+// Firebase Authentication Middleware
+// ============================================
+
+// Middleware to authenticate user via Firebase token
+async function authenticateUser(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Unauthorized: No token provided' });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Authentication error:', error);
+        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+}
+
+// Middleware to authenticate admin user
+async function authenticateAdmin(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Unauthorized: No token provided' });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        
+        // Check if user is admin
+        const adminDoc = await db.collection('admins').doc(decodedToken.uid).get();
+        if (!adminDoc.exists) {
+            return res.status(403).json({ error: 'Forbidden: Admin access required' });
+        }
+        
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Admin authentication error:', error);
+        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+}
+
+// ============================================
+// Admin API Endpoints
+// ============================================
+
+// Get all users (admin only)
+app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+    try {
+        const usersSnapshot = await db.collection('users').get();
+        const users = [];
+        
+        usersSnapshot.forEach(doc => {
+            const data = doc.data();
+            users.push({
+                userId: doc.id,
+                email: data.email,
+                emailVerified: data.emailVerified || false,
+                licenseKey: data.licenseKey,
+                licenseExpiry: data.licenseExpiry?.toDate().toISOString(),
+                lastLogin: data.lastLogin?.toDate().toISOString(),
+                createdAt: data.createdAt?.toDate().toISOString()
+            });
+        });
+        
+        res.json({ success: true, users });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+// Get all licenses (admin only)
+app.get('/api/admin/licenses', authenticateAdmin, async (req, res) => {
+    try {
+        const licensesSnapshot = await db.collection('licenses').get();
+        const licenses = [];
+        
+        licensesSnapshot.forEach(doc => {
+            const data = doc.data();
+            licenses.push({
+                licenseKey: doc.id,
+                email: data.email,
+                userId: data.userId,
+                status: data.status,
+                purchaseDate: data.purchaseDate?.toDate().toISOString(),
+                expiryDate: data.expiryDate?.toDate().toISOString(),
+                price: data.price,
+                paypalOrderId: data.paypalOrderId
+            });
+        });
+        
+        res.json({ success: true, licenses });
+    } catch (error) {
+        console.error('Error fetching licenses:', error);
+        res.status(500).json({ error: 'Failed to fetch licenses' });
+    }
+});
+
+// Get analytics (admin only)
+app.get('/api/admin/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        
+        const analyticsSnapshot = await db.collection('analytics')
+            .where('timestamp', '>=', admin.firestore.Timestamp.fromDate(cutoffDate))
+            .orderBy('timestamp', 'desc')
+            .limit(1000)
+            .get();
+        
+        const analytics = [];
+        analyticsSnapshot.forEach(doc => {
+            const data = doc.data();
+            analytics.push({
+                id: doc.id,
+                userId: data.userId,
+                action: data.action,
+                timestamp: data.timestamp?.toDate().toISOString(),
+                metadata: data.metadata
+            });
+        });
+        
+        res.json({ success: true, analytics });
+    } catch (error) {
+        console.error('Error fetching analytics:', error);
+        res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+});
+
+// Revoke license (admin only)
+app.post('/api/admin/revoke-license', authenticateAdmin, async (req, res) => {
+    try {
+        const { licenseKey } = req.body;
+        
+        if (!licenseKey) {
+            return res.status(400).json({ error: 'License key is required' });
+        }
+        
+        // Update license status
+        await db.collection('licenses').doc(licenseKey).update({
+            status: 'revoked',
+            revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+            revokedBy: req.user.uid
+        });
+        
+        // Find and update user
+        const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+        if (licenseDoc.exists && licenseDoc.data().userId) {
+            await db.collection('users').doc(licenseDoc.data().userId).update({
+                licenseExpiry: null
+            });
+        }
+        
+        res.json({ success: true, message: 'License revoked successfully' });
+    } catch (error) {
+        console.error('Error revoking license:', error);
+        res.status(500).json({ error: 'Failed to revoke license' });
+    }
+});
+
+// Activate license manually (admin only)
+app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
+    try {
+        const { userId, days } = req.body;
+        
+        if (!userId || !days) {
+            return res.status(400).json({ error: 'User ID and duration are required' });
+        }
+        
+        // Get user data
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const userData = userDoc.data();
+        const email = userData.email;
+        
+        // Generate unique license key
+        const licenseKey = generateLicenseKey();
+        
+        // Calculate price and expiry
+        const prices = { 365: 900 };
+        const price = prices[days] || 900;
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + days);
+        
+        // Create license document
+        await db.collection('licenses').doc(licenseKey).set({
+            licenseKey: licenseKey,
+            email: email,
+            userId: userId,
+            status: 'active',
+            purchaseDate: admin.firestore.FieldValue.serverTimestamp(),
+            expiryDate: admin.firestore.Timestamp.fromDate(expiryDate),
+            price: price,
+            paymentMethod: 'manual_activation'
+        });
+        
+        // Update user document
+        await db.collection('users').doc(userId).update({
+            licenseKey: licenseKey,
+            licenseExpiry: admin.firestore.Timestamp.fromDate(expiryDate)
+        });
+        
+        // Log analytics
+        await db.collection('analytics').add({
+            userId: userId,
+            action: 'manual_license_activation',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            metadata: {
+                email: email,
+                licenseKey: licenseKey,
+                duration: days,
+                price: price,
+                activatedBy: req.user.uid
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            licenseKey: licenseKey,
+            expiryDate: expiryDate.toISOString()
+        });
+    } catch (error) {
+        console.error('Error activating license:', error);
+        res.status(500).json({ error: 'Failed to activate license: ' + error.message });
+    }
+});
+
+// Deactivate license manually (admin only)
+app.post('/api/admin/deactivate-license', authenticateAdmin, async (req, res) => {
+    try {
+        const { userId, licenseKey } = req.body;
+        
+        if (!userId || !licenseKey) {
+            return res.status(400).json({ error: 'User ID and license key are required' });
+        }
+        
+        // Update license status to deactivated
+        await db.collection('licenses').doc(licenseKey).update({
+            status: 'deactivated',
+            deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            deactivatedBy: req.user.uid
+        });
+        
+        // Remove license from user document
+        await db.collection('users').doc(userId).update({
+            licenseKey: null,
+            licenseExpiry: null
+        });
+        
+        // Log analytics
+        await db.collection('analytics').add({
+            userId: userId,
+            action: 'manual_license_deactivation',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            metadata: {
+                licenseKey: licenseKey,
+                deactivatedBy: req.user.uid
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'License deactivated successfully'
+        });
+    } catch (error) {
+        console.error('Error deactivating license:', error);
+        res.status(500).json({ error: 'Failed to deactivate license: ' + error.message });
+    }
+});
+
+// Helper function to generate license key
+function generateLicenseKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let key = '';
+    for (let i = 0; i < 16; i++) {
+        if (i > 0 && i % 4 === 0) key += '-';
+        key += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return key;
+}
+
+// Validate user login and get user info (requires authentication)
+app.post('/api/validate-login', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        
+        // Check if user is admin
+        const adminDoc = await db.collection('admins').doc(userId).get();
+        const isAdmin = adminDoc.exists;
+        
+        // Get user data
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User data not found' });
+        }
+        
+        const userData = userDoc.data();
+        const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
+        
+        // Check license expiry for non-admin users
+        if (!isAdmin && (!licenseExpiry || licenseExpiry < new Date())) {
+            return res.json({ 
+                success: false, 
+                error: 'License expired',
+                redirectTo: 'purchase.html'
+            });
+        }
+        
+        // Update last login
+        await db.collection('users').doc(userId).update({
+            lastLogin: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Log analytics
+        await db.collection('analytics').add({
+            userId: userId,
+            action: 'login',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            metadata: {
+                email: userData.email,
+                userAgent: req.headers['user-agent']
+            }
+        });
+        
+        res.json({ 
+            success: true,
+            isAdmin: isAdmin,
+            email: userData.email,
+            licenseExpiry: licenseExpiry ? licenseExpiry.toISOString() : null,
+            redirectTo: isAdmin ? 'admin.html' : 'index.html'
+        });
+        
+    } catch (error) {
+        console.error('Error validating login:', error);
+        res.status(500).json({ error: 'Failed to validate login' });
+    }
 });
 
 app.listen(port, () => {
@@ -243,4 +833,12 @@ app.listen(port, () => {
     console.log('  POST /save-folder-permissions');
     console.log('  GET  /load-folder-permissions/:projectName');
     console.log('  GET  /check-folder-permissions/:projectName');
+    console.log('');
+    console.log('Admin API endpoints:');
+    console.log('  GET  /api/admin/users');
+    console.log('  GET  /api/admin/licenses');
+    console.log('  GET  /api/admin/analytics?days=30');
+    console.log('  POST /api/admin/revoke-license');
+    console.log('  POST /api/admin/activate-license');
+    console.log('  POST /api/admin/deactivate-license');
 });

@@ -1489,6 +1489,38 @@
     /**
      * Convert permission level (1-6) to ACC actions array
      */
+    
+    /**
+     * Show tooltip message near a button
+     */
+    let activeTooltip = null;
+    
+    function showTooltip(element, message) {
+        removeTooltip();
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'modal-tooltip';
+        tooltip.textContent = message;
+        document.body.appendChild(tooltip);
+
+        const rect = element.getBoundingClientRect();
+        tooltip.style.top = rect.bottom + window.scrollY + 5 + 'px';
+        tooltip.style.left = rect.left + window.scrollX + 'px';
+
+        activeTooltip = tooltip;
+        setTimeout(() => removeTooltip(), 3000);
+    }
+
+    /**
+     * Remove active tooltip
+     */
+    function removeTooltip() {
+        if (activeTooltip) {
+            activeTooltip.remove();
+            activeTooltip = null;
+        }
+    }
+    
     /**
      * Sync permissions to ACC - delegated to update_folder_permission.js
      */
@@ -1520,7 +1552,11 @@
 
         // Check if file already exists
         try {
-            const checkResponse = await fetch(`${window.location.origin}/check-folder-permissions/${encodeURIComponent(currentProjectData.projectName)}`);
+            const checkResponse = await fetch(`${window.location.origin}/check-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
+                headers: window.authToken ? {
+                    'Authorization': `Bearer ${window.authToken}`
+                } : {}
+            });
             const checkData = await checkResponse.json();
             
             if (checkData.exists) {
@@ -1621,15 +1657,25 @@
             folders: folders
         };
 
-        // Save to server
+        // Save to server with Firebase authentication
         try {
+            // Prepare headers with auth token
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add authentication token if available (not in demo mode)
+            if (window.authToken) {
+                headers['Authorization'] = `Bearer ${window.authToken}`;
+            }
+            
             const response = await fetch(`${window.location.origin}/save-folder-permissions`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({
                     projectName: currentProjectData.projectName,
+                    hubId: currentProjectData.hubId,
+                    projectId: currentProjectData.projectId,
                     data: jsonData
                 })
             });
@@ -1637,14 +1683,17 @@
             const result = await response.json();
             
             if (result.success) {
-                // Success - no alert needed, user can see the data is saved
-                console.log(`💾 Saved folder permissions for project: ${currentProjectData.projectName}`);
+                console.log(`💾 Saved folder permissions to Firebase for project: ${currentProjectData.projectName}`);
+                const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+                showTooltip(saveBtn, '✓ Saved successfully');
             } else {
-                alert(`❌ Error saving folder permissions: ${result.message}`);
+                const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+                showTooltip(saveBtn, `✗ Error: ${result.message}`);
             }
         } catch (error) {
             console.error('Error saving folder permissions:', error);
-            alert(`❌ Error saving folder permissions: ${error.message}`);
+            const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+            showTooltip(saveBtn, `✗ Error: ${error.message}`);
         }
     }
 
@@ -1794,7 +1843,20 @@
      */
     async function loadFolderPermissions(projectName) {
         try {
-            const response = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(projectName)}`);
+            if (!currentProjectData || !currentProjectData.hubId || !currentProjectData.projectId) {
+                console.error('Missing hubId or projectId in currentProjectData');
+                return;
+            }
+            
+            // Prepare headers with auth token
+            const headers = {};
+            if (window.authToken) {
+                headers['Authorization'] = `Bearer ${window.authToken}`;
+            }
+            
+            const response = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
+                headers: headers
+            });
             const result = await response.json();
             
             if (!result.success || !result.exists || !result.data) {

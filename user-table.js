@@ -2145,13 +2145,21 @@ class UserTableManager {
             this.showSaveProgress('Saving to JSON file...', 30);
         }
         
-        // Save to server (user_permissions_import.json)
+        // Save to server (users_main_list in Firestore)
         try {
+            // Get auth token from global scope (set by Firebase auth in index.html)
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add authentication token if available (not in demo mode)
+            if (window.authToken) {
+                headers['Authorization'] = `Bearer ${window.authToken}`;
+            }
+            
             const response = await fetch(`${window.location.origin}/save`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: headers,
                 body: JSON.stringify(jsonData)
             });
             
@@ -2160,82 +2168,17 @@ class UserTableManager {
             if (data.success) {
                 console.log('✅ Data saved to JSON successfully');
                 
-                // Now update account users AFTER JSON is saved
-                if (!skipAccountUpdate) {
-                    const currentHubId = window.currentHubId;
-                    const currentHubName = window.currentHubName || 'Unknown Hub';
-                    
-                    // Check for hub mismatch
-                    if (this.modalHubId && currentHubId && this.modalHubId !== currentHubId) {
-                        console.warn('⚠️ Hub mismatch detected!');
-                        console.warn('  Modal opened with:', this.modalHubName, '(', this.modalHubId, ')');
-                        console.warn('  Current hub is:', currentHubName, '(', currentHubId, ')');
-                        
-                        this.hideSaveProgress();
-                        
-                        // Show warning dialog
-                        const continueUpdate = confirm(
-                            `⚠️ HUB MISMATCH WARNING\n\n` +
-                            `This Users Main List was opened for:\n` +
-                            `  "${this.modalHubName}" (${this.modalHubId})\n\n` +
-                            `But the currently selected hub is:\n` +
-                            `  "${currentHubName}" (${currentHubId})\n\n` +
-                            `Do you want to update account users in "${currentHubName}"?\n\n` +
-                            `Click OK to update "${currentHubName}"\n` +
-                            `Click Cancel to skip account update (JSON will still be saved)`
-                        );
-                        
-                        if (!continueUpdate) {
-                            console.log('⚠️ User cancelled account update due to hub mismatch');
-                            this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                                '✓ Saved to JSON (account update skipped)');
-                            return;
-                        }
-                    }
-                    
-                    if (currentHubId) {
-                        console.log('🔄 Now updating account users from saved JSON...');
-                        console.log('🔄 Target hub:', currentHubName, '(', currentHubId, ')');
-                        try {
-                            const updateResults = await this.updateAccountUsersBeforeSave(currentHubId);
-                            console.log('✅ Account users updated successfully!');
-                            
-                            // Check if any changes were made to account (role/company)
-                            const patchedCount = updateResults.patched?.length || 0;
-                            const addedCount = updateResults.added?.length || 0;
-                            const accountChanges = patchedCount + addedCount;
-                            
-                            // Check if JSON data changed (includes product access changes)
-                            const jsonChanged = this.hasJsonDataChanged(jsonData);
-                            
-                            // Show completion message based on changes
-                            if (accountChanges > 0 || jsonChanged) {
-                                this.showSaveProgress('All users updated!', 100);
-                            } else {
-                                this.showSaveProgress('No change found', 100);
-                            }
-                            setTimeout(() => this.hideSaveProgress(), 1500);
-                            
-                            this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                                '✓ Saved and account updated');
-                        } catch (error) {
-                            console.error('❌ Account update failed:', error);
-                            this.hideSaveProgress();
-                            this.showSaveError(`JSON saved but account update failed: ${error.message}`);
-                            return;
-                        }
-                    } else {
-                        console.warn('⚠️ No accountId available, skipping account update');
-                        this.showSaveProgress('Save completed!', 100);
-                        setTimeout(() => this.hideSaveProgress(), 1000);
-                        this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                            '✓ Saved to JSON (no account update)');
-                    }
-                } else {
-                    // No account update requested
-                    this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                        '✓ Saved to user_permissions_import.json');
-                }
+                // DISABLED: Account update feature (Autodesk API sync)
+                // To re-enable, change skipAccountUpdate to false when calling saveTableToJson
+                console.log('ℹ️ Account update disabled - data saved to Firebase only');
+                
+                this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
+                    '✓ Saved successfully');
+                
+                // Show brief success message
+                setTimeout(() => {
+                    this.hideSaveProgress();
+                }, 1000);
             } else {
                 console.error('❌ Error saving to server:', data.message);
                 this.hideSaveProgress();
@@ -2524,7 +2467,13 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         const loadUrl = `${window.location.origin}/load`;
         console.log('📊 Fetching from:', loadUrl);
         
-        fetch(loadUrl)
+        // Prepare headers with auth token
+        const headers = {};
+        if (window.authToken) {
+            headers['Authorization'] = `Bearer ${window.authToken}`;
+        }
+        
+        fetch(loadUrl, { headers })
             .then(response => {
                 console.log('📊 Response status:', response.status);
                 console.log('📊 Response OK:', response.ok);

@@ -104,13 +104,28 @@ class ProjectUsersManager {
         }
     }
 
-    // Load user permissions from import file
+    // Load user permissions from Firebase
     async loadImportUsers() {
         try {
-            const response = await fetch('user_permissions_import.json');
+            // Prepare headers with auth token
+            const headers = {};
+            if (window.authToken) {
+                headers['Authorization'] = `Bearer ${window.authToken}`;
+            }
+            
+            const response = await fetch(`${window.location.origin}/load`, {
+                headers: headers
+            });
+            
+            if (!response.ok) {
+                console.warn('Could not load import users, starting with empty list');
+                this.importUsers = [];
+                return;
+            }
+            
             const data = await response.json();
             this.importUsers = data.users || [];
-            console.log('Loaded import users:', this.importUsers);
+            console.log('Loaded import users from Firebase:', this.importUsers.length);
         } catch (error) {
             console.error('Error loading import users:', error);
             this.importUsers = [];

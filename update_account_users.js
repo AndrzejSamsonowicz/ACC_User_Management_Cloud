@@ -1,5 +1,5 @@
 // update_account_users.js
-// Handles comparison between account users and user_permissions_import.json
+// Handles comparison between account users and users_main_list
 // and prepares lists for PATCH (update) and POST (add) operations.
 
 console.log('🔁 update_account_users.js loaded');
@@ -260,6 +260,7 @@ async function importUsers(accountId, token, usersArray) {
             if (user.nickname) formattedUser.nickname = user.nickname;
             if (user.company) formattedUser.company = user.company;
             
+            console.log(`📤 API Payload for ${user.email}:`, JSON.stringify(formattedUser, null, 2));
             return formattedUser;
         });
         
@@ -449,9 +450,14 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         console.log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
         // Load import JSON from local server endpoint
-        const importData = await fetchJSON(`${window.location.origin}/load`);
+        const importData = await fetchJSON(`${window.location.origin}/load`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
         const importUsersList = importData.users || []; // Renamed to avoid conflict with function
         console.log(`Loaded ${importUsersList.length} users from import file`);
+        console.log('📋 Sample user data from load:', JSON.stringify(importUsersList[0], null, 2));
 
         // Fetch account users (may need 2-legged token for reading)
         let accountUsers;
@@ -497,6 +503,8 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             if (!email) return;
             const companyName = (user.metadata && user.metadata.company) ? user.metadata.company.trim() : '';
             const role = (user.metadata && user.metadata.role) ? user.metadata.role.trim() : '';
+            
+            console.log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
 
             const accountUser = accountByEmail.get(email);
             if (accountUser) {
@@ -544,6 +552,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     nickname: user.nickname || user.first_name || user.email.split('@')[0],
                     company: companyName || ''
                 });
+                console.log(`➕ Added to ADD list: ${email} with company_id="${companyId}", default_role="${role || 'Team Member'}"`);
             }
         });
 
@@ -636,12 +645,16 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                         
                         while (!success && retryCount < 3) {
                             try {
+                                console.log(`🔍 PATCH URL: https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${item.userId}`);
+                                console.log(`🔍 PATCH Body:`, JSON.stringify(body, null, 2));
                                 const result = await patchUser(accountId, item.userId, userToken, body);
                                 results.patched.push({ email: item.email, changes: body });
                                 console.log(`✅ Successfully updated ${item.email} with:`, body);
+                                console.log(`✅ API Response:`, JSON.stringify(result, null, 2));
                                 success = true;
                             } catch (patchError) {
                                 console.error(`❌ Patch attempt ${retryCount + 1} failed for ${item.email}:`, patchError.message);
+                                console.error(`❌ Full error:`, patchError);
                                 
                                 if (patchError.message.includes('403') || patchError.message.includes('privilege') || patchError.message.includes('AUTH-010')) {
                                     // Switch to simulation mode for this and future operations

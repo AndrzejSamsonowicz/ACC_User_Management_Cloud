@@ -2,7 +2,7 @@
   "projectName": "Atlantic",
   "projectId": "ed68b149-ea5c-44dc-8b32-ec4f0b1d1ade",
   "hubId": "b.f2700436-3376-4206-bac4-a364bb7066fb",
-  "exportDate": "2025-12-07T23:30:37.965Z",
+  "exportDate": "2026-01-18T09:59:09.348Z",
   "folders": [
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.XN5bcyuMQdSnBq4MJYjSpg",
@@ -23,7 +23,15 @@
       "level1": "Project Files",
       "level2": "Folder 1",
       "level3": "sub folder 1.1",
-      "permissions": {}
+      "permissions": {
+        "column1": {
+          "subjectId": "b59a6163-aadc-41d0-aab0-516ee815d1c7",
+          "subjectType": "USER",
+          "user": "andrzej.jan.samsonowicz@gmail.com",
+          "level": "1",
+          "name": "Bob Contractor"
+        }
+      }
     },
     {
       "folderId": "urn:adsk.wipemea:fs.folder:co.67-qaJR-SEaUmvHL5Z3O0A",

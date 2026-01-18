@@ -392,14 +392,29 @@
         isSyncing = true;
         console.log('🔒 Sync started - button locked');
 
-        updateFolderSyncProgress('Loading permissions data...', 0);
+        updateFolderSyncProgress('Loading permissions data from Firebase...', 0);
 
         // Start sync immediately
         (async () => {
 
-            // Load JSON file first to get source of truth
+            // Load permissions data from Firebase
             try {
-                const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.projectName)}`);
+                if (!currentProjectData.hubId || !currentProjectData.projectId) {
+                    updateFolderSyncProgress('Error: Missing hub or project ID', 0);
+                    isSyncing = false;
+                    console.log('🔓 Sync failed (no IDs) - button unlocked');
+                    alert('Missing hub or project ID. Please reopen the folder permissions modal.');
+                    return;
+                }
+                
+                const headers = {};
+                if (window.authToken) {
+                    headers['Authorization'] = `Bearer ${window.authToken}`;
+                }
+                
+                const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
+                    headers: headers
+                });
                 const loadResult = await loadResponse.json();
             
                 
