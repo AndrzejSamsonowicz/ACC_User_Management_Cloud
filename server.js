@@ -1,13 +1,15 @@
+const { admin, db } = require('./firebase-init');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
 const crypto = require('crypto');
 
 const app = express();
 const port = 3000;
 
-// Initialize Firebase Admin SDK
+// Firebase Admin SDK initialized in firebase-init.js
+
+// Read .env file for ENCRYPTION_KEY
 function readEnvFile() {
     const envPath = path.join(__dirname, '.env');
     if (!fs.existsSync(envPath)) {
@@ -32,32 +34,6 @@ function readEnvFile() {
 
 const envVars = readEnvFile();
 
-// Process private key - remove quotes and unescape newlines
-let privateKey = envVars.FIREBASE_PRIVATE_KEY || '';
-if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-    privateKey = privateKey.slice(1, -1);
-}
-privateKey = privateKey.replace(/\\n/g, '\n');
-
-const serviceAccount = {
-    type: "service_account",
-    project_id: envVars.FIREBASE_PROJECT_ID,
-    private_key_id: envVars.FIREBASE_PRIVATE_KEY_ID,
-    private_key: privateKey,
-    client_email: envVars.FIREBASE_CLIENT_EMAIL,
-    client_id: envVars.FIREBASE_CLIENT_ID,
-    auth_uri: "https://accounts.google.com/o/oauth2/auth",
-    token_uri: "https://oauth2.googleapis.com/token",
-    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-    client_x509_cert_url: envVars.FIREBASE_CLIENT_CERT_URL
-};
-
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
-
-const db = admin.firestore();
-
 // Validate encryption key exists (fail fast if missing)
 const ENCRYPTION_KEY = envVars.ENCRYPTION_KEY;
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
@@ -69,6 +45,18 @@ console.log('✅ Encryption key loaded successfully');
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+
+// Force HTTPS redirect (except for localhost)
+app.use((req, res, next) => {
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    
+    // Redirect HTTP to HTTPS in production
+    if (!isLocalhost && !isHttps) {
+        return res.redirect(301, `https://${req.hostname}${req.url}`);
+    }
+    next();
+});
 
 // Request logging middleware with geolocation
 app.use((req, res, next) => {
@@ -93,14 +81,25 @@ app.use((req, res, next) => {
 
 // CORS configuration - restrict to allowed origins only
 app.use((req, res, next) => {
-    const allowedOrigins = [
+    // Determine if we're in production (HTTPS) or development
+    // Force production mode if not running on localhost
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+    const isProduction = !isLocalhost || req.secure || req.headers['x-forwarded-proto'] === 'https';
+    
+    const allowedOrigins = isProduction ? [
+        // Production: HTTPS preferred, HTTP allowed for transition
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'http://34.45.169.78:3000',  // Google Cloud VM (HTTP)
-        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS)
-        // Add your production domain here when deployed:
-        // 'https://yourdomain.com',
-        // 'https://www.yourdomain.com'
+        'http://34.45.169.78:3000',  // Google Cloud VM (HTTP) - Old
+        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS) - Old
+        'http://34.65.160.116:3000',  // Google Cloud VM (HTTP) - Current
+        'https://34.65.160.116:3000', // Google Cloud VM (HTTPS) - Current
+        'http://usermgt.digibuild.ch',   // Production domain (HTTP)
+        'https://usermgt.digibuild.ch'   // Production domain (HTTPS)
+    ] : [
+        // Development: Local only
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
     ];
     
     const origin = req.headers.origin;
@@ -119,22 +118,33 @@ app.use((req, res, next) => {
     res.header('X-Frame-Options', 'DENY');
     res.header('X-XSS-Protection', '1; mode=block');
     res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     
-    // Only enable HSTS when using HTTPS
-    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
-        res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    // Strict Transport Security - Force HTTPS
+    // Apply in production mode (non-localhost)
+    if (isProduction) {
+        res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
     
-    // Content Security Policy - allows Firebase and Autodesk APIs
-    res.header('Content-Security-Policy', 
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; " +
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
-        "font-src 'self' https://fonts.gstatic.com; " +
-        "img-src 'self' data: https:; " +
-        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com; " +
-        "frame-ancestors 'none'"
-    );
+    // Content Security Policy - Enhanced for XSS protection
+    // Note: Firebase requires 'unsafe-eval' and 'unsafe-inline' for scripts
+    // We've added upgrade-insecure-requests and form-action to improve security
+    const cspDirectives = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: https: blob:",
+        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com",
+        "frame-ancestors 'none'",
+        "form-action 'self'", // Prevent forms from posting to external sites
+        "base-uri 'self'",
+        "object-src 'none'",
+        "media-src 'self'",
+        "upgrade-insecure-requests" // Always upgrade HTTP to HTTPS
+    ];
+    
+    res.header('Content-Security-Policy', cspDirectives.join('; '));
     
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -922,8 +932,8 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
     }
 });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(port, '127.0.0.1', () => {
+    console.log(`Server running at http://localhost:${port} (localhost only)`);
     console.log('Available endpoints:');
     console.log('  GET  /load-credentials');
     console.log('  POST /save-credentials');

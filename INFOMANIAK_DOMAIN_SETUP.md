@@ -2,17 +2,17 @@
 
 ## Overview
 
-This guide explains how to configure your Infomaniak subdomain `usermgt.digibuild.ch` to point to your Google Cloud VM (34.45.169.78) and enable HTTPS.
+This guide explains how to configure your Infomaniak subdomain `usermgt.digibuild.ch` to point to your Google Cloud VM (34.65.160.116) and enable HTTPS.
 
 **Current Setup:**
-- App running on: Google VM at http://34.45.169.78:3000
+- App running on: Google VM at http://34.65.160.116:3000
 - Domain: usermgt.digibuild.ch (managed by Infomaniak)
 - Goal: Access app via https://usermgt.digibuild.ch
 
 ## Architecture
 
 ```
-Internet → Infomaniak DNS → Google VM (34.45.169.78)
+Internet → Infomaniak DNS → Google VM (34.65.160.116)
                               ↓
                             Nginx (reverse proxy, port 80/443)
                               ↓
@@ -34,15 +34,15 @@ Internet → Infomaniak DNS → Google VM (34.45.169.78)
 
 Add an A record for the subdomain:
 
-| Type | Name    | Value         | TTL  |
-|------|---------|---------------|------|
-| A    | usermgt | 34.45.169.78  | 3600 |
+| Type | Name    | Value          | TTL  |
+|------|---------|----------------|------|
+| A    | usermgt | 34.65.160.116  | 3600 |
 
 **Steps:**
 1. Click "Add Record" or "New Entry"
 2. Select Type: **A**
 3. Name/Host: **usermgt**
-4. IPv4 Address: **34.45.169.78**
+4. IPv4 Address: **34.65.160.116**
 5. TTL: **3600** (1 hour) or use default
 6. Save the record
 
