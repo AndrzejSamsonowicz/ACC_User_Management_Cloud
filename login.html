@@ -235,7 +235,6 @@
     <div class="login-container">
         <div class="logo-section">
             <h1>ACC User Management</h1>
-            <p>Autodesk Construction Cloud</p>
         </div>
         
         <!-- Alert Messages -->
@@ -303,11 +302,11 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
         
-        // Rate limiting
-        let loginAttempts = 0;
-        const MAX_LOGIN_ATTEMPTS = 5;
-        const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes
-        let lockoutUntil = null;
+        // Rate limiting (more user-friendly settings)
+        let loginAttempts = parseInt(localStorage.getItem('loginAttempts') || '0');
+        const MAX_LOGIN_ATTEMPTS = 10; // Increased from 5 to 10
+        const LOCKOUT_TIME = 5 * 60 * 1000; // Reduced from 15 to 5 minutes
+        let lockoutUntil = parseInt(localStorage.getItem('lockoutUntil') || '0') || null;
         
         // Check if user is already logged in
         auth.onAuthStateChanged(async (user) => {
@@ -391,6 +390,8 @@
                 // Reset login attempts on success
                 loginAttempts = 0;
                 lockoutUntil = null;
+                localStorage.removeItem('loginAttempts');
+                localStorage.removeItem('lockoutUntil');
                 
                 showAlert('Login successful! Redirecting...', 'success');
                 // Redirect handled by onAuthStateChanged
@@ -398,10 +399,12 @@
             } catch (error) {
                 console.error('Login error:', error);
                 loginAttempts++;
+                localStorage.setItem('loginAttempts', loginAttempts.toString());
                 
                 if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
                     lockoutUntil = Date.now() + LOCKOUT_TIME;
-                    showAlert(`Too many failed attempts. Account locked for 15 minutes.`, 'error');
+                    localStorage.setItem('lockoutUntil', lockoutUntil.toString());
+                    showAlert(`Too many failed attempts. Please try again in 5 minutes.`, 'error');
                 } else {
                     let errorMessage = 'Login failed. Please check your credentials.';
                     

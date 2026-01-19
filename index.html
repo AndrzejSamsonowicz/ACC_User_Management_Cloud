@@ -295,6 +295,7 @@
 <body style="font-family: 'Artifact Elements', Arial, sans-serif;">
     <h1 style="font-family: 'Artifact Elements', Arial, sans-serif; margin-left: 20px;">ACC User Management</h1>
     <div id="login" style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 20px;">
+        <button onclick="logout()">Logout</button>
         <button onclick="showCredentialsModal()">Enter Client Credentials</button>
         <button onclick="login()">Login with Autodesk</button>
     </div>
@@ -625,15 +626,13 @@
         
         // Handle logout
         async function handleLogout() {
-            if (confirm('Are you sure you want to logout?')) {
-                try {
-                    await auth.signOut();
-                    localStorage.clear(); // Clear all stored data
-                    window.location.href = 'login.html';
-                } catch (error) {
-                    console.error('Logout error:', error);
-                    alert('Error logging out. Please try again.');
-                }
+            try {
+                await auth.signOut();
+                localStorage.clear(); // Clear all stored data
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Error logging out. Please try again.');
             }
         }
         
@@ -899,31 +898,23 @@
         }
 
         // Function to handle logout
-        function logout() {
+        async function logout() {
             // Clear current session data
             currentAccessToken = null;
             originalHubsData = null;
             
-            // Clear the hubs and projects display
-            document.getElementById('hubsList').innerHTML = '';
-            document.getElementById('projectsList').innerHTML = '';
-            document.getElementById('projectsHeader').style.display = 'none';
-            document.getElementById('projectFilterContainer').style.display = 'none';
-            document.getElementById('buttonExplanations').style.display = 'none';
+            // Sign out from Firebase if authenticated
+            if (auth && auth.currentUser) {
+                await auth.signOut();
+            }
             
-            // Hide the content area and show the login section
-            document.getElementById('content').style.display = 'none';
-            document.getElementById('authSection').style.display = 'block';
-            
-            // Clear any error messages
-            document.getElementById('error').style.display = 'none';
-            
-            // Clear URL parameters
-            const url = new URL(window.location);
-            url.search = '';
-            window.history.replaceState({}, document.title, url);
+            // Clear local storage
+            localStorage.clear();
             
             console.log('User logged out successfully');
+            
+            // Redirect to login page immediately (this clears OAuth codes from URL)
+            window.location.replace('login.html');
         }
 
         // Function to handle login
