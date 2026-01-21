@@ -348,6 +348,29 @@
             100% { transform: rotate(360deg); }
         }
         
+        .deleting-progress {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .deleting-progress.active {
+            display: block;
+        }
+        
+        .deleting-progress .spinner {
+            margin: 0 auto 15px;
+        }
+        
+        .deleting-progress p {
+            color: #0696D7;
+            font-weight: 500;
+            margin: 0;
+        }
+        
         .modal {
             display: none;
             position: fixed;
@@ -471,7 +494,10 @@
             <div id="usersTab" class="tab-content">
                 <div class="section-header">
                     <h2>User Management</h2>
-                    <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-danger" onclick="deleteSelectedUsers()" id="deleteUsersBtn" style="display: none;">🗑️ Delete Selected</button>
+                        <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="filters">
@@ -501,13 +527,6 @@
                 <div class="section-body">
                     <div class="filters">
                         <input type="text" id="licenseSearch" placeholder="Search by email or key..." onkeyup="filterLicenses()">
-                        <select id="statusFilter" onchange="filterLicenses()">
-                            <option value="">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="expired">Expired</option>
-                            <option value="pending">Pending</option>
-                            <option value="revoked">Revoked</option>
-                        </select>
                     </div>
                     
                     <div id="licensesTableContainer">
@@ -674,6 +693,38 @@
             </div>
         </div>
     </div>
+
+    <!-- Delete Users Modal -->
+    <div id="deleteUsersModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Delete Users</h3>
+            </div>
+            <div class="modal-body">
+                <div id="deleteWarning">
+                    <p><strong style="color: #dc3545;">WARNING: This action cannot be undone!</strong></p>
+                    <p>You are about to permanently delete <strong id="deleteUserCount">0</strong> user(s):</p>
+                    <ul id="deleteUsersList" style="margin: 15px 0; padding-left: 20px; max-height: 200px; overflow-y: auto;"></ul>
+                    <p style="color: #dc3545; margin-top: 15px;">This will:</p>
+                    <ul style="color: #dc3545; margin-left: 20px;">
+                        <li>Delete the user account from Firebase Authentication</li>
+                        <li>Delete all user data from Firestore</li>
+                        <li>Revoke any associated licenses</li>
+                        <li>Remove all analytics records</li>
+                    </ul>
+                </div>
+                <div id="deletingProgress" class="deleting-progress">
+                    <div class="spinner"></div>
+                    <p>🗑️ Deleting users... Please wait</p>
+                    <p style="font-size: 12px; color: #6c757d; margin-top: 10px;">This may take a few seconds</p>
+                </div>
+            </div>
+            <div class="modal-footer" id="deleteModalFooter">
+                <button class="btn btn-primary" onclick="closeModal('deleteUsersModal')" id="deleteCancelBtn">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteUsers()" id="deleteConfirmBtn">Delete Users Permanently</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -822,6 +873,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th style="width: 40px;"><input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)"></th>
                             <th>Email</th>
                             <th>License Key</th>
                             <th>Status</th>
@@ -842,6 +894,7 @@
                 
                 html += `
                     <tr>
+                        <td><input type="checkbox" class="user-checkbox" data-user-id="${user.userId}" data-user-email="${user.email}" onchange="updateDeleteButton()"></td>
                         <td>${user.email}</td>
                         <td><code>${user.licenseKey || 'N/A'}</code></td>
                         <td><span class="badge ${statusClass}">${statusText}</span></td>
@@ -866,10 +919,15 @@
             const licenses = filtered || allLicenses;
             const container = document.getElementById('licensesTableContainer');
             
-            if (licenses.length === 0) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎫</div><p>No licenses found</p></div>';
+            // Only show active licenses (current/present licenses)
+            const activeLicensesOnly = licenses.filter(l => l.status === 'active');
+            
+            if (activeLicensesOnly.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎫</div><p>No active licenses found</p></div>';
                 return;
             }
+            
+            const LICENSE_PRICE = 900;
             
             let html = `
                 <table>
@@ -887,8 +945,7 @@
                     <tbody>
             `;
             
-            licenses.forEach(license => {
-                const statusClass = `badge-${license.status}`;
+            activeLicensesOnly.forEach(license => {
                 const expiryDate = license.expiryDate ? new Date(license.expiryDate) : null;
                 const daysLeft = expiryDate ? Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
                 
@@ -896,19 +953,17 @@
                     <tr>
                         <td><code>${license.licenseKey}</code></td>
                         <td>${license.email}</td>
-                        <td><span class="badge ${statusClass}">${license.status}</span></td>
+                        <td><span class="badge badge-active">Active</span></td>
                         <td>${license.purchaseDate ? formatDate(new Date(license.purchaseDate)) : 'N/A'}</td>
                         <td>
                             ${expiryDate ? formatDate(expiryDate) : 'N/A'}
                             ${daysLeft !== null && daysLeft > 0 && daysLeft < 30 ? 
                                 `<br><small style="color: #ffc107;">(${daysLeft} days left)</small>` : ''}
                         </td>
-                        <td>€${license.price || 0}</td>
+                        <td>€${LICENSE_PRICE}</td>
                         <td>
-                            ${license.status === 'active' ? 
-                                `<button class="btn btn-danger btn-sm" onclick="revokeLicense('${license.licenseKey}', '${license.email}')">Revoke</button>
-                                 <button class="btn btn-warning btn-sm" onclick="extendLicense('${license.licenseKey}', '${expiryDate}')">Extend</button>` : 
-                                '-'}
+                            <button class="btn btn-danger btn-sm" onclick="revokeLicense('${license.licenseKey}', '${license.email}')">Revoke</button>
+                            <button class="btn btn-warning btn-sm" onclick="extendLicense('${license.licenseKey}', '${expiryDate}')">Extend</button>
                         </td>
                     </tr>
                 `;
@@ -1008,10 +1063,11 @@
             const activeLicenses = allLicenses.filter(l => l.status === 'active').length;
             document.getElementById('activeLicenses').textContent = activeLicenses;
             
-            const totalRevenue = allLicenses
-                .filter(l => l.status !== 'pending')
-                .reduce((sum, l) => sum + (l.price || 0), 0);
-            document.getElementById('totalRevenue').textContent = `€${totalRevenue.toFixed(2)}`;
+            // Calculate revenue: €900 per active license (excluding admin licenses)
+            const LICENSE_PRICE = 900;
+            const paidLicenses = allLicenses.filter(l => l.status === 'active').length;
+            const totalRevenue = paidLicenses * LICENSE_PRICE;
+            document.getElementById('totalRevenue').textContent = `€${totalRevenue.toLocaleString()}`;
             
             const now = new Date();
             const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -1117,15 +1173,14 @@
             
             let filtered = allLicenses;
             
+            // Always show only active licenses
+            filtered = filtered.filter(l => l.status === 'active');
+            
             if (search) {
                 filtered = filtered.filter(l => 
                     l.email.toLowerCase().includes(search) || 
                     l.licenseKey.toLowerCase().includes(search)
                 );
-            }
-            
-            if (statusFilter) {
-                filtered = filtered.filter(l => l.status === statusFilter);
             }
             
             renderLicenses(filtered);
@@ -1295,6 +1350,127 @@
         // Format date helper
         function formatDate(date) {
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        // Toggle all user checkboxes
+        function toggleAllUsers(checked) {
+            document.querySelectorAll('.user-checkbox').forEach(cb => {
+                cb.checked = checked;
+            });
+            updateDeleteButton();
+        }
+        
+        // Update delete button visibility
+        function updateDeleteButton() {
+            const selectedCount = document.querySelectorAll('.user-checkbox:checked').length;
+            const deleteBtn = document.getElementById('deleteUsersBtn');
+            
+            if (selectedCount > 0) {
+                deleteBtn.style.display = 'block';
+                deleteBtn.textContent = `🗑️ Delete Selected (${selectedCount})`;
+            } else {
+                deleteBtn.style.display = 'none';
+            }
+        }
+        
+        // Delete selected users
+        function deleteSelectedUsers() {
+            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+            
+            if (selectedCheckboxes.length === 0) {
+                alert('Please select at least one user to delete');
+                return;
+            }
+            
+            // Reset modal state
+            document.getElementById('deleteWarning').style.display = 'block';
+            document.getElementById('deletingProgress').classList.remove('active');
+            document.getElementById('deleteCancelBtn').disabled = false;
+            document.getElementById('deleteConfirmBtn').disabled = false;
+            
+            // Populate modal with selected users
+            const usersList = document.getElementById('deleteUsersList');
+            usersList.innerHTML = '';
+            
+            selectedCheckboxes.forEach(cb => {
+                const email = cb.getAttribute('data-user-email');
+                const li = document.createElement('li');
+                li.textContent = email;
+                usersList.appendChild(li);
+            });
+            
+            document.getElementById('deleteUserCount').textContent = selectedCheckboxes.length;
+            document.getElementById('deleteUsersModal').classList.add('active');
+        }
+        
+        // Confirm delete users
+        async function confirmDeleteUsers() {
+            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+            const userIds = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-user-id'));
+            
+            if (userIds.length === 0) {
+                alert('No users selected');
+                return;
+            }
+            
+            // Ensure we have a fresh token
+            if (!currentUser) {
+                alert('Session expired. Please refresh the page.');
+                return;
+            }
+            
+            // Show progress indicator
+            document.getElementById('deleteWarning').style.display = 'none';
+            document.getElementById('deletingProgress').classList.add('active');
+            document.getElementById('deleteCancelBtn').disabled = true;
+            document.getElementById('deleteConfirmBtn').disabled = true;
+            
+            try {
+                // Get fresh token before making the request
+                const token = await currentUser.getIdToken(true);
+                
+                const response = await fetch(`${serverURL}/api/admin/delete-users`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userIds })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`✅ Successfully deleted ${result.deletedCount} user(s)`);
+                    closeModal('deleteUsersModal');
+                    await refreshData();
+                } else {
+                    const errorText = await response.text();
+                    let errorMessage;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMessage = errorJson.error;
+                    } catch (e) {
+                        errorMessage = 'Server returned an error: ' + response.status;
+                        console.error('Server response:', errorText);
+                    }
+                    alert('❌ Error deleting users: ' + errorMessage);
+                    
+                    // Reset modal state on error
+                    document.getElementById('deleteWarning').style.display = 'block';
+                    document.getElementById('deletingProgress').classList.remove('active');
+                    document.getElementById('deleteCancelBtn').disabled = false;
+                    document.getElementById('deleteConfirmBtn').disabled = false;
+                }
+            } catch (error) {
+                console.error('Delete users error:', error);
+                alert('❌ Failed to delete users: ' + error.message);
+                
+                // Reset modal state on error
+                document.getElementById('deleteWarning').style.display = 'block';
+                document.getElementById('deletingProgress').classList.remove('active');
+                document.getElementById('deleteCancelBtn').disabled = false;
+                document.getElementById('deleteConfirmBtn').disabled = false;
+            }
         }
         
         // Logout

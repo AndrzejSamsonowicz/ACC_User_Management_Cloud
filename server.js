@@ -864,6 +864,103 @@ app.post('/api/admin/deactivate-license', authenticateAdmin, async (req, res) =>
     }
 });
 
+// Delete users (admin only)
+app.post('/api/admin/delete-users', authenticateUser, async (req, res) => {
+    try {
+        const { userIds } = req.body;
+        
+        // Verify admin
+        const adminDoc = await db.collection('admins').doc(req.user.uid).get();
+        if (!adminDoc.exists) {
+            return res.status(403).json({ error: 'Unauthorized: Admin access required' });
+        }
+        
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            return res.status(400).json({ error: 'Invalid user IDs provided' });
+        }
+        
+        let deletedCount = 0;
+        const errors = [];
+        
+        for (const userId of userIds) {
+            try {
+                // Get user data before deletion
+                const userDoc = await db.collection('users').doc(userId).get();
+                const userData = userDoc.data();
+                
+                // 1. Delete from Firebase Authentication
+                try {
+                    await admin.auth().deleteUser(userId);
+                } catch (authError) {
+                    console.error(`Failed to delete user from Auth: ${userId}`, authError);
+                    // Continue with Firestore deletion even if Auth deletion fails
+                }
+                
+                // 2. Delete user document from Firestore
+                await db.collection('users').doc(userId).delete();
+                
+                // 3. Revoke and delete associated licenses
+                if (userData && userData.licenseKey) {
+                    await db.collection('licenses').doc(userData.licenseKey).update({
+                        status: 'revoked',
+                        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        revokedBy: req.user.uid,
+                        userId: null,
+                        email: null
+                    });
+                }
+                
+                // 4. Delete analytics records (optional - you may want to keep these)
+                const analyticsSnapshot = await db.collection('analytics')
+                    .where('userId', '==', userId)
+                    .get();
+                
+                const analyticsDeletePromises = [];
+                analyticsSnapshot.forEach(doc => {
+                    analyticsDeletePromises.push(doc.ref.delete());
+                });
+                await Promise.all(analyticsDeletePromises);
+                
+                // 5. Log deletion action
+                await db.collection('analytics').add({
+                    userId: req.user.uid,
+                    action: 'user_deleted',
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    metadata: {
+                        deletedUserId: userId,
+                        deletedUserEmail: userData?.email || 'unknown',
+                        deletedBy: req.user.email
+                    }
+                });
+                
+                deletedCount++;
+                
+            } catch (userError) {
+                console.error(`Error deleting user ${userId}:`, userError);
+                errors.push({ userId, error: userError.message });
+            }
+        }
+        
+        if (errors.length > 0) {
+            return res.status(207).json({ 
+                deletedCount, 
+                errors,
+                message: `Deleted ${deletedCount} users with ${errors.length} errors`
+            });
+        }
+        
+        res.json({ 
+            success: true, 
+            deletedCount,
+            message: `Successfully deleted ${deletedCount} user(s)`
+        });
+        
+    } catch (error) {
+        console.error('Error deleting users:', error);
+        res.status(500).json({ error: 'Failed to delete users: ' + error.message });
+    }
+});
+
 // Helper function to generate license key
 function generateLicenseKey() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -950,4 +1047,5 @@ app.listen(port, '127.0.0.1', () => {
     console.log('  POST /api/admin/revoke-license');
     console.log('  POST /api/admin/activate-license');
     console.log('  POST /api/admin/deactivate-license');
+    console.log('  POST /api/admin/delete-users');
 });

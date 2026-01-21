@@ -49,9 +49,12 @@ logs
 # Optional eslint cache
 .eslintcache
 
-# Firebase service account keys
+# Firebase service account keys (CRITICAL - NEVER COMMIT!)
 *serviceAccountKey*.json
 firebase-service-account.json
+service-account.json
+service-account-backup.json
+*-firebase-adminsdk-*.json
 firebase-config.js
 
 # User data and permissions

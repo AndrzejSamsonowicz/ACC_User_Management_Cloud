@@ -410,20 +410,25 @@
                 }
                 */
                 
-                // Step 6: Log analytics
-                await db.collection('analytics').add({
-                    userId: user.uid,
-                    action: 'registration',
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    metadata: {
-                        email: email,
-                        licenseKey: licenseKey
-                    }
-                });
+                // Step 6: Log analytics (non-blocking - don't fail registration if this fails)
+                try {
+                    await db.collection('analytics').add({
+                        userId: user.uid,
+                        action: 'registration',
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        metadata: {
+                            email: email,
+                            licenseKey: licenseKey
+                        }
+                    });
+                } catch (analyticsError) {
+                    // Analytics logging failed, but registration succeeded - don't show error
+                    console.log('Analytics logging failed (non-critical):', analyticsError);
+                }
                 
                 const successMessage = licenseKey 
-                    ? 'Account created successfully! Please check your email to verify your account.' 
-                    : 'Account created successfully! Please check your email to verify. You can add a license key from the purchase page.';
+                    ? '✅ Account created successfully! Please check your email to verify your account.' 
+                    : '✅ Account created successfully! Please check your email to verify. You can add a license key from the purchase page.';
                 showAlert(successMessage, 'success');
                 
                 // Redirect to login after 3 seconds
