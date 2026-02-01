@@ -727,30 +727,42 @@
                             <span class="credentials-modal-close">&times;</span>
                         </div>
                         <div class="credentials-modal-body">
-                            <div style="margin-bottom: 15px;">
-                                <label for="clientIdInput" style="display: block; margin-bottom: 5px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client ID:</label>
-                                <input type="text" id="clientIdInput" placeholder="Enter your APS Client ID" 
-                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif;" />
+                            <div class="credentials-two-column">
+                                <div class="credentials-left-column">
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <button onclick="openApsGuide()" style="width: 100%; box-sizing: border-box;">
+                                            How to create an APS app
+                                        </button>
+                                    </div>
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <div style="padding: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px;">
+                                            In your app General Settings add the Callback URL: <strong>https://usermgt.digibuild.ch/index.html</strong>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: center; max-width: 450px; width: 450px;">
+                                        <img src="APS General Settings.png" alt="APS General Settings" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    </div>
+                                </div>
+                                <div class="credentials-right-column">
+                                    <div style="margin-bottom: 15px; max-width: 450px;">
+                                        <label for="clientIdInput" style="display: block; margin: 0 0 5px 0; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client ID:</label>
+                                        <input type="text" id="clientIdInput" placeholder="Enter your APS Client ID" 
+                                               style="width: 450px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; margin: 0;" />
+                                    </div>
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <label for="clientSecretInput" style="display: block; margin: 0 0 5px 0; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client Secret:</label>
+                                        <input type="password" id="clientSecretInput" placeholder="Enter your APS Client Secret" 
+                                               style="width: 450px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; margin: 0;" />
+                                        <small style="color: #666; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">Secret will be hidden for security</small>
+                                    </div>
+                                    <div style="margin-bottom: 15px; max-width: 450px;">
+                                        <button onclick="saveCredentials()" style="width: 100%; box-sizing: border-box; margin: 0;">
+                                            Save Credentials
+                                        </button>
+                                    </div>
+                                    <div id="credentialsMessage" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+                                </div>
                             </div>
-                            <div style="margin-bottom: 20px;">
-                                <label for="clientSecretInput" style="display: block; margin-bottom: 5px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client Secret:</label>
-                                <input type="password" id="clientSecretInput" placeholder="Enter your APS Client Secret" 
-                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif;" />
-                                <small style="color: #666; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">Secret will be hidden for security</small>
-                            </div>
-                            <div style="margin-bottom: 20px; padding: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif;">
-                                <strong>Callback URL Configuration:</strong><br>
-                                In your app General Settings add the Callback URL: <strong>https://usermgt.digibuild.ch/index.html</strong>
-                            </div>
-                            <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
-                                <button onclick="saveCredentials()">
-                                    Save Credentials
-                                </button>
-                                <button onclick="openApsGuide()">
-                                    How to create an APS app
-                                </button>
-                            </div>
-                            <div id="credentialsMessage" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
                         </div>
                     </div>
                 </div>
@@ -770,14 +782,66 @@
 
                     .credentials-modal-content {
                         background-color: #fefefe;
-                        margin: 10% auto;
+                        margin: 2% auto;
                         padding: 0;
                         border: 1px solid #888;
-                        width: 90%;
-                        max-width: 500px;
+                        width: 95%;
+                        max-width: 1000px;
+                        max-height: 95vh;
                         border-radius: 8px;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
                         font-family: 'Artifact Elements', Arial, sans-serif;
+                        overflow-y: auto;
+                        display: flex;
+                        flex-direction: column;
+                    }
+
+                    .credentials-two-column {
+                        display: flex;
+                        gap: 30px;
+                        flex-wrap: wrap;
+                    }
+
+                    .credentials-left-column {
+                        flex: 1;
+                        min-width: 280px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    .credentials-right-column {
+                        flex: 1;
+                        min-width: 280px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    @media (max-width: 768px) {
+                        .credentials-modal-content {
+                            width: 98%;
+                            margin: 1% auto;
+                        }
+                        
+                        .credentials-two-column {
+                            flex-direction: column;
+                        }
+                        
+                        .credentials-left-column,
+                        .credentials-right-column {
+                            width: 100%;
+                            min-width: unset;
+                        }
+                    }
+                    
+                    @media (max-height: 600px) {
+                        .credentials-modal-content {
+                            max-height: 98vh;
+                            margin: 1% auto;
+                        }
                     }
 
                     .credentials-modal-header {
