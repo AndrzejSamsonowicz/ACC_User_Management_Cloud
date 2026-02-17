@@ -34,7 +34,7 @@ Write-Host "✓ Project set to: $PROJECT_ID" -ForegroundColor Green
 
 # Step 3: Check VM status
 Write-Host "`nStep 3: Checking VM status..." -ForegroundColor Green
-$vmStatus = gcloud compute instances describe $VM_NAME --zone=$ZONE --format="value(status)" 2>&1
+$vmStatus = gcloud compute instances describe $VM_NAME --zone=$ZONE --format=`"value(status)`" 2>&1
 if ($vmStatus -eq "RUNNING") {
     Write-Host "✓ VM is running" -ForegroundColor Green
 } elseif ($vmStatus -eq "TERMINATED") {
@@ -107,9 +107,9 @@ Write-Host ""
 Write-Host "Application URL: http://$VM_IP:3000" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor Cyan
-Write-Host "  View logs:    gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 logs'" -ForegroundColor White
-Write-Host "  Check status: gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 status'" -ForegroundColor White
-Write-Host "  Restart app:  gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 restart all'" -ForegroundColor White
+Write-Host "  View logs:    gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 logs`'" -ForegroundColor White
+Write-Host "  Check status: gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 status`'" -ForegroundColor White
+Write-Host "  Restart app:  gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 restart all`'" -ForegroundColor White
 Write-Host "  SSH to VM:    gcloud compute ssh $VM_NAME --zone=$ZONE" -ForegroundColor White
 Write-Host ""
 Write-Host "=========================================" -ForegroundColor Cyan
