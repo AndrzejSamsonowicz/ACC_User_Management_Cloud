@@ -27,10 +27,77 @@ This guide will help you set up Firebase Authentication and Firestore for the AC
 4. Enable **"Email/Password"**
    - Toggle **"Enable"** switch
    - Click **"Save"**
-5. (Optional) Configure email templates:
+5. Configure email templates and sender:
    - Click **"Templates"** tab
-   - Customize "Email verification" and "Password reset" templates
-   - Add your company branding
+   - **Customize "Email verification" template:**
+     - Click the pencil icon next to "Email address verification"
+     - Change sender name: `DigiB Build` (instead of accusermanagement)
+     - Scroll to bottom of email template
+     - Change `Your accusermanagement team` to `Your DigiB Build team`
+     - Click **"Save"**
+   - **Customize "Password reset" template:**
+     - Click the pencil icon next to "Password reset"
+     - Change sender name: `DigiB Build`
+     - Change `Your accusermanagement team` to `Your DigiB Build team`
+     - Click **"Save"**
+   - **See Step 2a below for custom email domain setup (requires paid plan)**
+
+---
+
+## Step 2a: Custom Email Domain (Optional but Recommended)
+
+To send emails from `noreply@digibuild.ch` instead of `noreply@accusermanagement.firebaseapp.com`:
+
+### Option 1: SMTP Relay (Easiest - Requires Blaze Plan)
+
+1. Firebase Console > **Authentication** > **Templates** tab
+2. Click **"Customize email templates"** (requires Firebase Blaze plan upgrade)
+3. Click **"SMTP Settings"**
+4. Configure your email provider:
+
+**For Gmail/Google Workspace:**
+```
+SMTP Host: smtp.gmail.com
+Port: 587
+Username: noreply@digibuild.ch
+Password: [App Password - see below]
+From Address: noreply@digibuild.ch
+From Name: DigiB Build ACC User Management
+```
+
+**To create Gmail App Password:**
+- Go to Google Account > Security > 2-Step Verification
+- Scroll to "App passwords"
+- Generate password for "Mail"
+- Copy the 16-character password
+
+**For Other Providers (Mailgun, SendGrid, AWS SES):**
+- Get SMTP credentials from your email provider
+- Use their SMTP host and port
+- Enter credentials in Firebase
+
+### Option 2: Custom Domain Email (Free but Limited)
+
+Firebase doesn't support custom domains on the free Spark plan, but you can:
+
+1. **Customize the sender name only:**
+   - Firebase Console > **Authentication** > **Templates**
+   - Edit "Email verification" template
+   - Change sender name to: `DigiB Build <noreply@accusermanagement.firebaseapp.com>`
+   - Users will see "DigiB Build" as sender
+
+2. **Use a professional email provider:**
+   - Set up forwarding: `noreply@accusermanagement.firebaseapp.com` → `noreply@digibuild.ch`
+   - Requires Firebase Blaze plan for custom SMTP
+
+### Option 3: Use Cloud Functions (Advanced)
+
+Create custom email sending with your own SMTP in Cloud Functions:
+- Requires Firebase Blaze plan
+- Use Nodemailer with your SMTP
+- More control but more complex
+
+**Note:** For production use, Option 1 (SMTP Relay) is recommended for deliverability and professional branding
 
 ---
 

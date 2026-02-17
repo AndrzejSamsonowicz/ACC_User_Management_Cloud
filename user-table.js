@@ -46,6 +46,9 @@ class UserTableManager {
         // Hub tracking for modal
         this.modalHubId = null;
         this.modalHubName = null;
+        // Project tracking for modal
+        this.modalProjectId = null;
+        this.modalProjectName = null;
         // Copy/paste state
         this.copiedData = null;
         this.copiedRange = null;
@@ -772,10 +775,21 @@ class UserTableManager {
     /**
      * Open the user management modal
      */
-    openModal() {
-        console.log('🎯 openModal() called in UserTableManager');
+    openModal(projectId, projectName) {
+        console.log('🎯 openModal() called with projectId:', projectId, 'projectName:', projectName);
         const modal = document.getElementById(this.modalId);
         console.log('🎯 Modal element:', modal);
+        
+        // Store the project info when modal opens
+        if (projectId && projectName) {
+            this.modalProjectId = projectId;
+            this.modalProjectName = projectName;
+            console.log('🎯 Stored project info:', this.modalProjectId, this.modalProjectName);
+        } else {
+            console.error('❌ No project info provided when opening modal');
+            alert('Error: No project selected. Please select a project first.');
+            return;
+        }
         
         // Store the current hub info when modal opens
         if (window.currentHubId) {
@@ -808,13 +822,28 @@ class UserTableManager {
     updateHubInfoDisplay() {
         const hubNameEl = document.getElementById('modalHubName');
         const hubIdEl = document.getElementById('modalHubId');
+        const projectNameEl = document.getElementById('modalProjectName');
+        const projectIdEl = document.getElementById('modalProjectId');
+        const modalTitleEl = document.getElementById('modalTitle');
         
+        // Update hub info
         if (this.modalHubId) {
             if (hubNameEl) hubNameEl.textContent = this.modalHubName;
-            if (hubIdEl) hubIdEl.textContent = `(${this.modalHubId})`;
+            if (hubIdEl) hubIdEl.textContent = '';
         } else {
             if (hubNameEl) hubNameEl.textContent = 'Not selected';
             if (hubIdEl) hubIdEl.textContent = '';
+        }
+        
+        // Update project info
+        if (this.modalProjectId) {
+            if (projectNameEl) projectNameEl.textContent = this.modalProjectName;
+            if (projectIdEl) projectIdEl.textContent = '';
+            if (modalTitleEl) modalTitleEl.textContent = 'Project users list';
+        } else {
+            if (projectNameEl) projectNameEl.textContent = 'Not selected';
+            if (projectIdEl) projectIdEl.textContent = '';
+            if (modalTitleEl) modalTitleEl.textContent = 'User Management';
         }
     }
 
@@ -1692,7 +1721,12 @@ class UserTableManager {
      * Update account users before saving to JSON (silent mode with progress bar)
      */
     async updateAccountUsersBeforeSave(accountId) {
-        console.log('🔄 updateAccountUsersBeforeSave called with accountId:', accountId);
+        console.log('🔄 updateAccountUsersBeforeSave called with accountId:', accountId, 'projectId:', this.modalProjectId);
+        
+        // Validate we have a project ID
+        if (!this.modalProjectId) {
+            throw new Error('Project ID is required for updating account users');
+        }
         
         // Show progress bar
         this.showSaveProgress('Updating account users...', 10);
@@ -1703,9 +1737,9 @@ class UserTableManager {
                 throw new Error('updateAccountUsersForAccount function not available');
             }
             
-            // Run the update silently (no preview, no confirmation)
+            // Run the update silently (no preview, no confirmation) with projectId
             this.showSaveProgress('Analyzing users...', 20);
-            const results = await updateAccountUsersForAccount(accountId, { performOps: true });
+            const results = await updateAccountUsersForAccount(accountId, { performOps: true }, this.modalProjectId);
             
             console.log('✅ Account update results:', results);
             
@@ -2142,10 +2176,18 @@ class UserTableManager {
         
         // Update progress if account update will run
         if (!skipAccountUpdate) {
-            this.showSaveProgress('Saving to JSON file...', 30);
+            this.showSaveProgress('Saving...', 30);
         }
         
-        // Save to server (users_main_list in Firestore)
+        // Check if we have a project ID
+        if (!this.modalProjectId) {
+            console.error('❌ No project ID available for saving data');
+            alert('Error: No project selected');
+            this.hideSaveProgress();
+            return;
+        }
+        
+        // Save to server (project-specific users list in Firestore)
         try {
             // Get auth token from global scope (set by Firebase auth in index.html)
             const headers = {
@@ -2157,7 +2199,7 @@ class UserTableManager {
                 headers['Authorization'] = `Bearer ${window.authToken}`;
             }
             
-            const response = await fetch(`${window.location.origin}/save`, {
+            const response = await fetch(`${window.location.origin}/save-project-users/${this.modalProjectId}`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(jsonData)
@@ -2166,7 +2208,7 @@ class UserTableManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log('✅ Data saved to JSON successfully');
+                console.log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
                 
                 // DISABLED: Account update feature (Autodesk API sync)
                 // To re-enable, change skipAccountUpdate to false when calling saveTableToJson
@@ -2464,7 +2506,15 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
      */
     loadTableData() {
         console.log('📊 loadTableData() called');
-        const loadUrl = `${window.location.origin}/load`;
+        
+        // Check if we have a project ID
+        if (!this.modalProjectId) {
+            console.error('❌ No project ID available for loading data');
+            alert('Error: No project selected');
+            return;
+        }
+        
+        const loadUrl = `${window.location.origin}/load-project-users/${this.modalProjectId}`;
         console.log('📊 Fetching from:', loadUrl);
         
         // Prepare headers with auth token
@@ -2650,11 +2700,11 @@ function testUserTableModule() {
 /**
  * Global functions to maintain compatibility with existing HTML
  */
-function openUserManagementModal() {
-    console.log('🚀 openUserManagementModal called');
+function openUserManagementModal(projectId, projectName) {
+    console.log('🚀 openUserManagementModal called with projectId:', projectId, 'projectName:', projectName);
     if (userTableManager) {
         console.log('✅ userTableManager exists, calling openModal()');
-        userTableManager.openModal();
+        userTableManager.openModal(projectId, projectName);
     } else {
         console.error('❌ userTableManager not initialized!');
     }

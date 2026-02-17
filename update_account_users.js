@@ -391,13 +391,19 @@ async function importUsers(accountId, token, usersArray) {
 }
 
 // Main function - compute lists and (optionally) perform operations
-async function updateAccountUsersForAccount(accountId, options = {performOps: false}) {
-    console.log('⚙️ updateAccountUsersForAccount called for account:', accountId, options);
+async function updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null) {
+    console.log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, options);
 
     try {
         // Validate inputs first
         if (!accountId) {
             throw new Error('Account ID is required');
+        }
+        
+        // Validate projectId is provided
+        if (!projectId) {
+            console.error('❌ ERROR: projectId is required for loading project-specific user list');
+            throw new Error('Project ID is required');
         }
         
         // Get tokens - prioritize 3-legged for user operations
@@ -456,14 +462,15 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         userToken = hqApiToken;
         console.log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
-        // Load import JSON from local server endpoint
-        const importData = await fetchJSON(`${window.location.origin}/load`, {
+        // Load import JSON from local server endpoint (project-specific)
+        console.log(`📥 Loading project-specific user list for project: ${projectId}`);
+        const importData = await fetchJSON(`${window.location.origin}/load-project-users/${projectId}`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`
             }
         });
         const importUsersList = importData.users || []; // Renamed to avoid conflict with function
-        console.log(`Loaded ${importUsersList.length} users from import file`);
+        console.log(`Loaded ${importUsersList.length} users from project-specific import file (project: ${projectId})`);
         console.log('📋 Sample user data from load:', JSON.stringify(importUsersList[0], null, 2));
 
         // Fetch account users (may need 2-legged token for reading)

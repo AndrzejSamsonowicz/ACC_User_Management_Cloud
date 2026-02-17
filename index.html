@@ -371,9 +371,6 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 id="selectedHubTitle" style="font-family: 'Artifact Elements', Arial, sans-serif;">Select a hub to view projects</h3>
                         <div style="display: flex; gap: 10px;">
-                            <button onclick="openUserManagementModal()">
-                                Users Main List
-                            </button>
                             <button id="viewAccountUsersBtn" onclick="" style="display: none;">
                                 View Account Users
                             </button>
@@ -1236,8 +1233,8 @@
                         </div>
                         <div style="display: flex; gap: 10px; flex-direction: column;">
                             <div style="display:flex; gap:10px;">
-                                <button class="project-btn project-btn-update" onclick="updateProjectUsersFromMainList('${project.id}', window.currentHubId, currentAccessToken, 'projectProgress-${project.id}')">
-                                    Update from the Users Main List
+                                <button class="project-btn project-btn-update" onclick="openUserManagementModal('${project.id}', '${project.name.replace(/'/g, "\\'")}')">
+                                    New users
                                 </button>
                                 <button class="project-btn project-btn-update" onclick="showProjectUsers('${project.id}', '${project.name.replace(/'/g, "\\'")}', currentAccessToken)">
                                     View Project Users
@@ -1430,10 +1427,23 @@
             
             if (error) {
                 showError(`Authentication error: ${errorDescription || error}`);
+                // Clean up URL to prevent showing the error again
+                window.history.replaceState({}, document.title, window.location.pathname);
                 return;
             }
             
             if (code) {
+                // Check if this code was already processed (to prevent reusing expired codes on refresh)
+                const processedCode = sessionStorage.getItem('processedAuthCode');
+                if (processedCode === code) {
+                    // This code was already used, just clean up the URL silently
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return;
+                }
+                
+                // Clean up URL immediately to prevent reuse on hard refresh
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
                 // Wait for credentials to be loaded (max 5 seconds)
                 let attempts = 0;
                 while ((!CLIENT_ID || !CLIENT_SECRET) && attempts < 50) {
@@ -1448,6 +1458,8 @@
                 
                 const accessToken = await getAccessToken(code);
                 if (accessToken) {
+                    // Mark this code as processed
+                    sessionStorage.setItem('processedAuthCode', code);
                     await getHubs(accessToken);
                 }
             }
@@ -1630,11 +1642,11 @@
             if (progressText) progressText.textContent = 'Loading data...';
             
             try {
-                // Load user permissions from Firestore
+                // Load user permissions from Firestore (project-specific)
                 if (progressText) progressText.textContent = 'Loading Users Main List...';
                 
-                // Fetch from server API with authentication
-                const importResponse = await fetch(`${window.location.origin}/load`, {
+                // Fetch from server API with authentication (project-specific endpoint)
+                const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
                     headers: isDemoMode ? {} : {
                         'Authorization': `Bearer ${authToken}`
                     }
@@ -1652,7 +1664,7 @@
                 
                 const importData = await importResponse.json();
                 const importUsers = importData.users || [];
-                console.log(`Loaded ${importUsers.length} users from Firestore`);
+                console.log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
                 
                 // Fetch project users
                 if (progressText) progressText.textContent = 'Fetching project users...';
@@ -1737,6 +1749,31 @@
                 if (progressText) progressText.textContent = `Error: ${error.message}`;
                 alert(`Failed to analyze users: ${error.message}`);
             }
+        }
+        
+        // Function to trigger update from modal context
+        async function updateProjectUsersFromModalContext() {
+            console.log('🚀 updateProjectUsersFromModalContext called');
+            
+            // Get project context from userTableManager
+            if (!userTableManager || !userTableManager.modalProjectId) {
+                alert('Error: No project context available. Please close and reopen the modal.');
+                return;
+            }
+            
+            const projectId = userTableManager.modalProjectId;
+            const accountId = window.currentHubId;
+            const accessToken = window.currentAccessToken;
+            
+            if (!accountId || !accessToken) {
+                alert('Error: Missing hub or access token. Please refresh the page.');
+                return;
+            }
+            
+            console.log('Context:', { projectId, accountId, accessToken: accessToken ? 'exists' : 'missing' });
+            
+            // Call the existing function with modal progress indicator
+            await updateProjectUsersFromMainList(projectId, accountId, accessToken, 'modalProgressIndicator');
         }
         
         // Function to show the 3 lists in a dialog
@@ -1869,7 +1906,7 @@
                 // STEP 1: Update account users first (company and role from Users Main List)
                 console.log('🚀 STEP 1: Updating account users with company and role from Users Main List');
                 try {
-                    const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true});
+                    const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId);
                     console.log('✅ Account users updated:', accountUpdateResult);
                 } catch (accountError) {
                     console.error('⚠️ Account update failed (continuing anyway):', accountError);
@@ -1878,8 +1915,8 @@
                 
                 // STEP 2: Fetch all required data
                 
-                // Load user permissions from Firestore
-                const importResponse = await fetch(`${window.location.origin}/load`, {
+                // Load user permissions from Firestore (project-specific)
+                const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
                     headers: isDemoMode ? {} : {
                         'Authorization': `Bearer ${authToken}`
                     }
@@ -2858,12 +2895,15 @@
     <div id="userManagementModal" class="user-modal">
         <div class="user-modal-content">
             <div class="user-modal-header">
-                <h3>User Management</h3>
+                <h3 id="modalTitle">User Management</h3>
                 <span class="user-modal-close">&times;</span>
             </div>
-            <div id="modalHubInfo" style="padding: 10px 20px; background: #f0f7ff; border-bottom: 1px solid #d0e4f7; font-size: 13px; color: #333;">
+            <div id="modalHubInfo" style="padding: 10px 20px; background: #f0f7ff; border-bottom: 1px solid #d0e4f7; font-size: 20px; color: #333;">
                 <strong>Current Hub:</strong> <span id="modalHubName">Not selected</span>
-                <span id="modalHubId" style="color: #666; font-size: 12px; margin-left: 10px;"></span>
+                <span id="modalHubId" style="display: none;"></span>
+                <br>
+                <strong>Project:</strong> <span id="modalProjectName">Not selected</span>
+                <span id="modalProjectId" style="display: none;"></span>
             </div>
             <div class="user-modal-body">
                 <div class="modal-table-actions">
@@ -2873,9 +2913,18 @@
                         <button onclick="clearModalTable()">Clear Table</button>
                     </div>
                     <div>
-                        <button onclick="saveModalTableToJson()">Save Users Setting</button>
                         <button onclick="importCSV()">Import CSV</button>
+                        <button onclick="saveModalTableToJson()">Save</button>
+                        <button id="updateFromMainListBtn" onclick="updateProjectUsersFromModalContext()">Synchronize</button>
                     </div>
+                </div>
+                
+                <!-- Progress indicator for modal operations -->
+                <div class="project-progress" id="modalProgressIndicator" style="display:none; margin:15px 0;">
+                    <div style="width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;">
+                        <div id="projectProgressBar-modalProgressIndicator" style="width:0%;height:10px;background:#0696D7;border-radius:6px;"></div>
+                    </div>
+                    <div id="projectProgressText-modalProgressIndicator" style="font-size:12px;color:#666;margin-top:6px;"></div>
                 </div>
                 
                 <!-- Hidden file input for CSV import -->

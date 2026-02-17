@@ -441,6 +441,95 @@ app.get('/load', authenticateUser, async (req, res) => {
     }
 });
 
+// Endpoint to save project-specific users list to Firestore (encrypted, per project)
+app.post('/save-project-users/:projectId', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const projectId = req.params.projectId;
+        const usersData = req.body;
+        
+        console.log(`Saving project users list for project: ${projectId}, user: ${userId}`);
+        
+        // Encrypt the users data
+        const crypto = require('crypto');
+        const algorithm = 'aes-256-cbc';
+        const key = crypto.scryptSync(userId + projectId, 'salt', 32);
+        
+        // Check if project doc already has an IV, if not create one
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        let iv;
+        
+        if (projectDoc.exists && projectDoc.data().usersListIV) {
+            // Use existing IV
+            iv = Buffer.from(projectDoc.data().usersListIV, 'hex');
+        } else {
+            // Create new IV
+            iv = crypto.randomBytes(16);
+        }
+        
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
+        encryptedData += cipher.final('hex');
+        
+        // Save encrypted data to Firestore subcollection
+        await projectRef.set({
+            usersList_encrypted: encryptedData,
+            usersListIV: iv.toString('hex'),
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        console.log(`✅ Project users list saved successfully for project: ${projectId}`);
+        res.json({ success: true, message: 'Project users list saved successfully (encrypted)' });
+    } catch (error) {
+        console.error('Error saving project users list:', error);
+        res.status(500).json({ success: false, message: 'Error saving project users list', error: error.message });
+    }
+});
+
+// Endpoint to load project-specific users list from Firestore (decrypted)
+app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const projectId = req.params.projectId;
+        
+        console.log(`Loading project users list for project: ${projectId}, user: ${userId}`);
+        
+        // Load from Firestore user's projects subcollection
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        
+        if (!projectDoc.exists) {
+            console.log(`No users list found for project: ${projectId}, returning empty list`);
+            return res.json({ users: [] });
+        }
+        
+        const projectData = projectDoc.data();
+        
+        // Check for encrypted data
+        if (projectData.usersList_encrypted && projectData.usersListIV) {
+            // Decrypt the data
+            const crypto = require('crypto');
+            const algorithm = 'aes-256-cbc';
+            const key = crypto.scryptSync(userId + projectId, 'salt', 32);
+            const iv = Buffer.from(projectData.usersListIV, 'hex');
+            
+            const decipher = crypto.createDecipheriv(algorithm, key, iv);
+            let decryptedData = decipher.update(projectData.usersList_encrypted, 'hex', 'utf8');
+            decryptedData += decipher.final('utf8');
+            
+            console.log(`✅ Project users list loaded successfully for project: ${projectId}`);
+            res.json(JSON.parse(decryptedData));
+        } else {
+            console.log(`No encrypted data found for project: ${projectId}, returning empty list`);
+            res.json({ users: [] });
+        }
+    } catch (error) {
+        console.error('Error loading project users list:', error);
+        res.status(500).json({ success: false, message: 'Error loading project users list', error: error.message });
+    }
+});
+
 // Endpoint to save folder permissions
 // Endpoint to save folder permissions (per user, per project in Firestore)
 app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
@@ -1036,6 +1125,8 @@ app.listen(port, '127.0.0.1', () => {
     console.log('  POST /save-credentials');
     console.log('  GET  /load');
     console.log('  POST /save');
+    console.log('  GET  /load-project-users/:projectId');
+    console.log('  POST /save-project-users/:projectId');
     console.log('  POST /save-folder-permissions');
     console.log('  GET  /load-folder-permissions/:projectName');
     console.log('  GET  /check-folder-permissions/:projectName');
