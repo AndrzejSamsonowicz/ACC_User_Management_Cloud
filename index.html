@@ -1895,6 +1895,20 @@
                 return;
             }
             
+            // Calculate total operations
+            let totalOperations = 0;
+            if (enableUpdate) totalOperations += listToPatch.length;
+            if (enableAdd) totalOperations += listToPost.length;
+            if (enableDelete) totalOperations += listToDelete.length;
+            
+            // Check if there are any operations to perform
+            if (totalOperations === 0) {
+                alert('No operations selected. Please enable at least one checkbox (Update/Add/Delete).');
+                return;
+            }
+            
+            let completedOperations = 0;
+            
             // Disable sync button and show progress
             const syncButton = document.getElementById('syncButton');
             const originalButtonText = syncButton.textContent;
@@ -1902,9 +1916,16 @@
             syncButton.style.opacity = '0.6';
             syncButton.style.cursor = 'not-allowed';
             
+            // Function to update progress
+            const updateProgress = () => {
+                if (totalOperations === 0) return;
+                const percentage = Math.round((completedOperations / totalOperations) * 100);
+                syncButton.textContent = `Processing... ${percentage}%`;
+            };
+            
             try {
                 // Get 2-legged token
-                syncButton.textContent = 'Processing...';
+                updateProgress();
                 const twoLeggedToken = await get2LeggedToken();
                 
                 // STEP 1: Update account users first (company and role from Users Main List)
@@ -1971,8 +1992,6 @@
                         const email = userToPatch.email.toLowerCase();
                         
                         try {
-                            syncButton.textContent = `Processing ${i + 1}/${listToPatch.length} users`;
-                            
                             // Get data from all sources
                             const importUser = importEmailMap.get(email);
                             const accountUser = accountEmailMap.get(email);
@@ -2029,10 +2048,14 @@
                             const result = await response.json();
                             console.log(`✓ Updated ${userToPatch.email}:`, result);
                             results.updated++;
+                            completedOperations++;
+                            updateProgress();
                             
                         } catch (error) {
                             console.error(`✗ Failed to update ${userToPatch.email}:`, error);
                             results.errors.push(`Update failed for ${userToPatch.email}: ${error.message}`);
+                            completedOperations++;
+                            updateProgress();
                         }
                         
                         // Small delay to avoid rate limiting
@@ -2104,8 +2127,6 @@
                                 continue;
                             }
                             
-                            syncButton.textContent = `Processing ${processedCount + 1}-${processedCount + usersToAdd.length}/${totalToAdd} users`;
-                            
                             console.log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
                             
                             // Execute POST request
@@ -2128,10 +2149,14 @@
                             console.log(`✓ Batch ${batchIndex + 1} completed:`, result);
                             results.added += usersToAdd.length;
                             processedCount += usersToAdd.length;
+                            completedOperations += usersToAdd.length;
+                            updateProgress();
                             
                         } catch (error) {
                             console.error(`✗ Batch ${batchIndex + 1} failed:`, error);
                             results.errors.push(`Batch ${batchIndex + 1} add failed: ${error.message}`);
+                            completedOperations += batch.length;
+                            updateProgress();
                         }
                         
                         // Delay between batches to avoid rate limiting
@@ -2147,7 +2172,6 @@
                     
                     for (let i = 0; i < listToDelete.length; i++) {
                         const userToDelete = listToDelete[i];
-                        syncButton.textContent = `Processing ${i + 1}/${listToDelete.length} users`;
                         
                         if (!userToDelete.email) {
                             console.warn('Skipping user with no email in DELETE operation');
@@ -2182,10 +2206,14 @@
                             
                             console.log(`✓ Deleted ${userToDelete.email}`);
                             results.deleted++;
+                            completedOperations++;
+                            updateProgress();
                             
                         } catch (error) {
                             console.error(`✗ Failed to delete ${userToDelete.email}:`, error);
                             results.errors.push(`Delete failed for ${userToDelete.email}: ${error.message}`);
+                            completedOperations++;
+                            updateProgress();
                         }
                         
                         // Small delay to avoid rate limiting
@@ -2195,6 +2223,9 @@
                 
                 // Show results in modal
                 syncButton.textContent = 'Sync Complete!';
+                syncButton.disabled = false;
+                syncButton.style.opacity = '1';
+                syncButton.style.cursor = 'pointer';
                 
                 // Build summary HTML
                 let summaryHTML = '';
@@ -2224,8 +2255,7 @@
             } catch (error) {
                 console.error('Sync error:', error);
                 alert(`Sync failed: ${error.message}`);
-            } finally {
-                // Re-enable button
+                // Re-enable button on error
                 syncButton.disabled = false;
                 syncButton.style.opacity = '1';
                 syncButton.style.cursor = 'pointer';
