@@ -1239,7 +1239,7 @@
                         <div style="display: flex; gap: 10px; flex-direction: column;">
                             <div style="display:flex; gap:10px;">
                                 <button class="project-btn project-btn-update" onclick="openUserManagementModal('${project.id}', '${project.name.replace(/'/g, "\\'")}')">
-                                    New users
+                                    New Users
                                 </button>
                                 <button class="project-btn project-btn-update" onclick="showProjectUsers('${project.id}', '${project.name.replace(/'/g, "\\'")}', currentAccessToken)">
                                     View Project Users
@@ -1643,12 +1643,12 @@
             const progressBar = document.getElementById(`${progressId.replace('projectProgress-','projectProgressBar-')}`) || null;
             const progressText = document.getElementById(`${progressId.replace('projectProgress-','projectProgressText-')}`) || null;
             if (progressEl) progressEl.style.display = 'block';
-            if (progressBar) progressBar.style.width = '0%';
-            if (progressText) progressText.textContent = 'Loading data...';
+            if (progressBar) progressBar.style.width = '20%';
+            if (progressText) progressText.textContent = 'Analyzing users...';
             
             try {
                 // Load user permissions from Firestore (project-specific)
-                if (progressText) progressText.textContent = 'Loading Users Main List...';
+                if (progressBar) progressBar.style.width = '40%';
                 
                 // Fetch from server API with authentication (project-specific endpoint)
                 const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
@@ -1672,7 +1672,7 @@
                 console.log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
                 
                 // Fetch project users
-                if (progressText) progressText.textContent = 'Fetching project users...';
+                if (progressBar) progressBar.style.width = '60%';
                 const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
                 console.log(`Fetched ${projectUsers.length} project users`);
                 
@@ -1742,12 +1742,11 @@
                 console.log(`- To POST (add): ${listToPost.length}`, listToPost);
                 console.log(`- To DELETE (remove): ${listToDelete.length}`, listToDelete);
                 
+                // Hide progress immediately before showing dialog
+                if (progressEl) progressEl.style.display = 'none';
+                
                 // Show results in a dialog
                 showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken);
-                
-                if (progressBar) progressBar.style.width = '100%';
-                if (progressText) progressText.textContent = 'Analysis complete.';
-                setTimeout(() => { if (progressEl) progressEl.style.display = 'none'; }, 2500);
                 
             } catch (error) {
                 console.error('Error analyzing users:', error);
