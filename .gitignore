@@ -55,7 +55,9 @@ firebase-service-account.json
 service-account.json
 service-account-backup.json
 *-firebase-adminsdk-*.json
-firebase-config.js
+
+# Note: firebase-config.js contains client-side API keys which are designed to be public
+# and protected by Firebase Security Rules, so it's not in .gitignore
 
 # User data and permissions
 user_permissions_import.json

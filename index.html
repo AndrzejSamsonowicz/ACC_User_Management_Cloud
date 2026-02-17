@@ -448,9 +448,14 @@
             displayDemoInfo();
         } else {
             // Initialize Firebase
-            firebase.initializeApp(firebaseConfig);
-            auth = firebase.auth();
-            db = firebase.firestore();
+            if (typeof firebaseConfig === 'undefined') {
+                console.error('❌ Firebase configuration not loaded. Make sure firebase-config.js exists and is properly configured.');
+                showError('Firebase configuration not found. Please check your setup.');
+            } else {
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+            }
         }
         
         let currentUser = null;
