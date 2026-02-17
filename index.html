@@ -1898,10 +1898,10 @@
                 
                 const importUsers = importData.users || [];
                 
-                // Create lookup maps
-                const importEmailMap = new Map(importUsers.map(u => [u.email.toLowerCase(), u]));
-                const accountEmailMap = new Map(accountUsers.map(u => [u.email.toLowerCase(), u]));
-                const projectEmailMap = new Map(projectUsers.map(u => [u.email.toLowerCase(), u]));
+                // Create lookup maps (filter out users without emails)
+                const importEmailMap = new Map(importUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
+                const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
+                const projectEmailMap = new Map(projectUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 
                 console.log('Data loaded:', {
                     importUsers: importUsers.length,
@@ -1921,6 +1921,12 @@
                     
                     for (let i = 0; i < listToPatch.length; i++) {
                         const userToPatch = listToPatch[i];
+                        
+                        if (!userToPatch.email) {
+                            console.warn('Skipping user with no email in PATCH operation');
+                            continue;
+                        }
+                        
                         const email = userToPatch.email.toLowerCase();
                         
                         try {
@@ -2017,6 +2023,13 @@
                             const usersToAdd = [];
                             
                             for (const userToAdd of batch) {
+                                // Check if email exists
+                                if (!userToAdd.email) {
+                                    console.warn('Skipping user with no email in POST operation');
+                                    results.errors.push('Add failed: User has no email');
+                                    continue;
+                                }
+                                
                                 // Get user data from import JSON (email and products are required)
                                 const importUser = importEmailMap.get(userToAdd.email.toLowerCase());
                                 if (!importUser || !importUser.products) {
@@ -2094,6 +2107,11 @@
                     for (let i = 0; i < listToDelete.length; i++) {
                         const userToDelete = listToDelete[i];
                         syncButton.textContent = `Processing ${i + 1}/${listToDelete.length} users`;
+                        
+                        if (!userToDelete.email) {
+                            console.warn('Skipping user with no email in DELETE operation');
+                            continue;
+                        }
                         
                         try {
                             // Get userId from project users
