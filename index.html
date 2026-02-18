@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Autodesk APS Authentication and Hubs</title>
-    <!-- Version: 2025-02-18-05 - TOGGLE PROPAGATION FIX v2 -->
+    <!-- Version: 2025-02-18-07 - PROJECT ADMIN AS MASTER CONTROL -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
         
@@ -1937,7 +1937,7 @@
         
         // Function to execute sync operations based on checkbox selections
         async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
-            console.log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-03 COMPLETE NORMALIZATION FIX 🔥🔥🔥');
+            console.log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-07 PROJECT ADMIN AS MASTER CONTROL 🔥🔥🔥');
             const enableUpdate = document.getElementById('enableUpdate').checked;
             const enableAdd = document.getElementById('enableAdd').checked;
             const enableDelete = document.getElementById('enableDelete').checked;
@@ -2057,24 +2057,31 @@
                             
                             // Build products array from import JSON (REQUIRED)
                             // API constraint: cannot mix 'member' and 'administrator' access levels
-                            // NORMALIZE: If any product is 'administrator', ALL non-'none' products must be 'administrator'
-                            const hasAdministrator = importUser.products.some(p => p.access === 'administrator');
+                            // MASTER RULE: Only Project Admin toggle can grant 'administrator' access
+                            // If Project Admin = 'administrator', ALL non-none products become 'administrator'
+                            // If Project Admin != 'administrator', ALL products are 'member' or 'none' (no administrator)
+                            const projectAdmin = importUser.products.find(p => p.key === 'projectAdministration');
+                            const isProjectAdmin = projectAdmin?.access === 'administrator';
                             
                             const products = importUser.products.map(p => {
                                 const currentAccess = p.access;
                                 
-                                // Keep 'none' as is
+                                // Keep projectAdministration exactly as set by user
+                                if (p.key === 'projectAdministration') {
+                                    return { key: p.key, access: currentAccess };
+                                }
+                                
+                                // Keep 'none' as is for all other products
                                 if (currentAccess === 'none') {
                                     return { key: p.key, access: 'none' };
                                 }
                                 
-                                // If ANY product is 'administrator', upgrade ALL non-none to 'administrator'
-                                // Otherwise keep as 'member'
-                                if (hasAdministrator) {
+                                // If Project Admin is ON, ALL non-none products become 'administrator'
+                                // If Project Admin is OFF, ALL non-none products become 'member'
+                                if (isProjectAdmin) {
                                     return { key: p.key, access: 'administrator' };
                                 } else {
-                                    // If no administrator found, downgrade any 'administrator' to 'member'
-                                    return { key: p.key, access: currentAccess === 'administrator' ? 'member' : currentAccess };
+                                    return { key: p.key, access: 'member' };
                                 }
                             });
                             
@@ -2186,24 +2193,31 @@
                                 }
                                 
                                 // API constraint: cannot mix 'member' and 'administrator' access levels
-                                // NORMALIZE: If any product is 'administrator', ALL non-'none' products must be 'administrator'
-                                const hasAdministrator = importUser.products.some(p => p.access === 'administrator');
+                                // MASTER RULE: Only Project Admin toggle can grant 'administrator' access
+                                // If Project Admin = 'administrator', ALL non-none products become 'administrator'
+                                // If Project Admin != 'administrator', ALL products are 'member' or 'none' (no administrator)
+                                const projectAdmin = importUser.products.find(p => p.key === 'projectAdministration');
+                                const isProjectAdmin = projectAdmin?.access === 'administrator';
                                 
                                 const products = importUser.products.map(p => {
                                     const currentAccess = p.access;
                                     
-                                    // Keep 'none' as is
+                                    // Keep projectAdministration exactly as set by user
+                                    if (p.key === 'projectAdministration') {
+                                        return { key: p.key, access: currentAccess };
+                                    }
+                                    
+                                    // Keep 'none' as is for all other products
                                     if (currentAccess === 'none') {
                                         return { key: p.key, access: 'none' };
                                     }
                                     
-                                    // If ANY product is 'administrator', upgrade ALL non-none to 'administrator'
-                                    // Otherwise keep as 'member'
-                                    if (hasAdministrator) {
+                                    // If Project Admin is ON, ALL non-none products become 'administrator'
+                                    // If Project Admin is OFF, ALL non-none products become 'member'
+                                    if (isProjectAdmin) {
                                         return { key: p.key, access: 'administrator' };
                                     } else {
-                                        // If no administrator found, downgrade any 'administrator' to 'member'
-                                        return { key: p.key, access: currentAccess === 'administrator' ? 'member' : currentAccess };
+                                        return { key: p.key, access: 'member' };
                                     }
                                 });
                                 
