@@ -289,13 +289,14 @@ class UserTableManager {
             if (e.key === 'Shift') shiftPressed = false;
         });
         
-        // Mouse down starts selection (only when Shift is NOT pressed)
+        // Mouse down starts selection (only for toggle cells WITH Shift pressed)
         tbody.addEventListener('mousedown', (e) => {
             const cell = e.target.closest('td');
             if (!cell || cell.cellIndex === 0 || e.target.type === 'checkbox') return;
             
-            // Only start mouse selection if Shift is NOT pressed
-            if (shiftPressed) return;
+            // Only select toggle cells, and only when Shift is pressed
+            if (!cell.classList.contains('modal-access-cell')) return;
+            if (!shiftPressed) return;
             
             // Start mouse selection
             this.isMouseSelecting = true;
@@ -309,7 +310,7 @@ class UserTableManager {
             this.selectedCells.add(cell);
             cell.style.backgroundColor = '#d4edff';
             
-            console.log('🖱️ Mouse selection started');
+            console.log('🖱️ Mouse selection started (Shift+drag)');
         });
         
         // Mouse move expands selection
@@ -318,6 +319,9 @@ class UserTableManager {
             
             const currentCell = e.target.closest('td');
             if (!currentCell || currentCell.cellIndex === 0) return;
+            
+            // Only expand selection for toggle cells
+            if (!currentCell.classList.contains('modal-access-cell')) return;
             
             const startRow = this.mouseSelectStart.parentElement;
             const currentRow = currentCell.parentElement;
@@ -341,7 +345,7 @@ class UserTableManager {
                     
                     for (let i = minRow; i <= maxRow; i++) {
                         const cell = allRows[i].cells[startCol];
-                        if (cell && cell.cellIndex !== 0) {
+                        if (cell && cell.cellIndex !== 0 && cell.classList.contains('modal-access-cell')) {
                             this.selectedCells.add(cell);
                             cell.style.backgroundColor = '#d4edff';
                         }
@@ -352,7 +356,7 @@ class UserTableManager {
                     
                     for (let i = minCol; i <= maxCol; i++) {
                         const cell = startRow.cells[i];
-                        if (cell && cell.cellIndex !== 0) {
+                        if (cell && cell.cellIndex !== 0 && cell.classList.contains('modal-access-cell')) {
                             this.selectedCells.add(cell);
                             cell.style.backgroundColor = '#d4edff';
                         }
