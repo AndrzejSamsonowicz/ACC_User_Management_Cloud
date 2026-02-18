@@ -138,6 +138,12 @@ class UserTableManager {
                     // Fill all dragged cells with source value
                     this.draggedCells.forEach(cell => {
                         if (cell !== this.dragSourceCell) {
+                            // Skip toggle cells - they should not be filled with text content
+                            if (cell.classList.contains('modal-access-cell')) {
+                                cell.style.backgroundColor = ''; // Clear highlight
+                                return;
+                            }
+                            
                             // Check if dragging to email column - validate format
                             if (cell.cellIndex === 1) { // Email column (index 1 after checkbox)
                                 if (!this.emailRegex.test(this.dragSourceValue)) {
@@ -155,16 +161,6 @@ class UserTableManager {
                             cell.textContent = this.dragSourceValue;
                             
                             console.log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
-                            
-                            // If this is an access cell, apply administrator class if needed
-                            if (cell.classList.contains('modal-access-cell')) {
-                                cell.classList.toggle('administrator', this.dragSourceValue === 'administrator');
-                                
-                                // Trigger auto-upgrade if filled with administrator
-                                if (this.dragSourceValue === 'administrator') {
-                                    this.upgradeAllAccessToAdministrator(cell);
-                                }
-                            }
                         }
                     });
                     
@@ -199,6 +195,9 @@ class UserTableManager {
             
             // Only work when Shift key is pressed
             if (!shiftPressed) return;
+            
+            // Skip toggle cells - they have their own drag propagation mechanism
+            if (currentCell.classList.contains('modal-access-cell')) return;
             
             // If we don't have a source cell yet, set it
             if (!this.dragSourceCell) {
@@ -362,11 +361,40 @@ class UserTableManager {
             }
         });
         
-        // Mouse up ends selection
+        // Mouse up ends selection and propagates value
         document.addEventListener('mouseup', () => {
             if (this.isMouseSelecting) {
                 this.isMouseSelecting = false;
                 console.log(`🖱️ Mouse selection complete: ${this.selectedCells.size} cells selected`);
+                
+                // Propagate toggle value from first cell to all selected cells
+                if (this.selectedCells.size > 1 && this.mouseSelectStart) {
+                    // Check if first cell is a toggle cell
+                    if (this.mouseSelectStart.classList.contains('modal-access-cell')) {
+                        const firstCheckbox = this.mouseSelectStart.querySelector('input[type="checkbox"]');
+                        
+                        if (firstCheckbox) {
+                            const firstIsChecked = firstCheckbox.checked;
+                            console.log(`🔄 Propagating toggle state (${firstIsChecked ? 'ON' : 'OFF'}) to ${this.selectedCells.size - 1} other cells`);
+                            
+                            // Apply to all selected cells (skip the first one as it's already set)
+                            this.selectedCells.forEach(cell => {
+                                if (cell === this.mouseSelectStart) return; // Skip first cell
+                                
+                                // Only apply to toggle cells
+                                if (cell.classList.contains('modal-access-cell')) {
+                                    const checkbox = cell.querySelector('input[type="checkbox"]');
+                                    
+                                    if (checkbox && checkbox.checked !== firstIsChecked) {
+                                        // Programmatically click the checkbox to trigger proper change handling
+                                        checkbox.click();
+                                        console.log(`   ✓ Toggled ${cell.getAttribute('data-column-name')}`);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
             }
         });
         
