@@ -904,7 +904,7 @@ class UserTableManager {
         const accessColumns = [
             'Project Admin', 'Insight', 'Docs', 
             'Design Collaboration', 'Model Coordination',
-            'Build', 'Cost', 'Forma', 'Take Off'
+            'Build', 'Cost', 'Forma', 'Preconstruction'
         ];
         
         accessColumns.forEach((columnName, index) => {
@@ -961,7 +961,7 @@ class UserTableManager {
         const accessColumns = [
             'Project Admin', 'Insight', 'Docs', 
             'Design Collaboration', 'Model Coordination',
-            'Build', 'Cost', 'Forma', 'Take Off'
+            'Build', 'Cost', 'Forma', 'Preconstruction'
         ];
         
         accessColumns.forEach((columnName, index) => {
@@ -1049,7 +1049,7 @@ class UserTableManager {
                    columnName === 'Build' || 
                    columnName === 'Cost' || 
                    columnName === 'Forma' ||
-                   columnName === 'Take Off') {
+                   columnName === 'Preconstruction') {
             cell.textContent = 'none';
         } else {
             // Default fallback (should not be reached with current services)
@@ -1105,7 +1105,7 @@ class UserTableManager {
         console.log('🔐 upgradeAllAccessToAdministrator() called');
         const row = triggerCell.parentElement;
         
-        // Find all access level cells in this row (columns 4-12: Project Admin through Take Off)
+        // Find all access level cells in this row (columns 4-12: Project Admin through Preconstruction)
         const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
         
         console.log(`🔐 Upgrading ${accessCells.length} access cells to administrator`);
@@ -1149,7 +1149,7 @@ class UserTableManager {
         console.log('🔓 downgradeAllAccessFromAdministrator() called');
         const row = triggerCell.parentElement;
         
-        // Find all access level cells in this row (columns 4-12: Project Admin through Take Off)
+        // Find all access level cells in this row (columns 4-12: Project Admin through Preconstruction)
         const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
         
         console.log(`🔓 Downgrading ${accessCells.length} access cells from administrator`);
@@ -1199,7 +1199,7 @@ class UserTableManager {
             9: 'Build',
             10: 'Cost',
             11: 'Forma',
-            12: 'Take Off'
+            12: 'Preconstruction'
         };
         return columnNames[columnIndex] || `Column ${columnIndex}`;
     }
@@ -2476,7 +2476,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const accessColumns = [
                 'Project Admin', 'Insight', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
-                'Build', 'Cost', 'Forma', 'Take Off'
+                'Build', 'Cost', 'Forma', 'Preconstruction'
             ];
             
             accessColumns.forEach((columnName, index) => {
@@ -2613,13 +2613,13 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 'build': 'Build',
                 'cost': 'Cost',
                 'forma': 'Forma',
-                'takeoff': 'Take Off'
+                'takeoff': 'Preconstruction'
             };
             
             const columnOrder = [
                 'Project Admin', 'Insight', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
-                'Build', 'Cost', 'Forma', 'Take Off'
+                'Build', 'Cost', 'Forma', 'Preconstruction'
             ];
             
             columnOrder.forEach((columnName, index) => {
@@ -2643,7 +2643,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                            columnName === 'Build' || 
                            columnName === 'Cost' || 
                            columnName === 'Forma' ||
-                           columnName === 'Take Off') {
+                           columnName === 'Preconstruction') {
                     defaultValue = 'none';
                 } else {
                     // Default fallback (should not be reached with current services)
