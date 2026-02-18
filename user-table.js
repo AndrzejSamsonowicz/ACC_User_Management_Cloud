@@ -1,6 +1,6 @@
 // Test that this file is loading
 console.log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
-console.log('🎯🎯🎯 VERSION: 2024-10-28-09 🎯🎯🎯');
+console.log('🎯🎯🎯 VERSION: 2025-02-18-11 - AUTO-DOWNGRADE WHEN ANY COLUMN OFF 🎯🎯🎯');
 console.log('🎯🎯🎯 ADMINISTRATOR AUTO-UPGRADE FUNCTIONALITY 🎯🎯🎯');
 
 // Global variable to hold the user table manager instance
@@ -936,7 +936,7 @@ class UserTableManager {
         const accessColumns = [
             'Project Admin', 'Docs', 
             'Design Collaboration', 'Model Coordination',
-            'Build', 'Cost', 'Forma', 'Preconstruction'
+            'Preconstruction', 'Build', 'Cost', 'Forma'
         ];
         
         accessColumns.forEach((columnName, index) => {
@@ -993,7 +993,7 @@ class UserTableManager {
         const accessColumns = [
             'Project Admin', 'Docs', 
             'Design Collaboration', 'Model Coordination',
-            'Build', 'Cost', 'Forma', 'Preconstruction'
+            'Preconstruction', 'Build', 'Cost', 'Forma'
         ];
         
         accessColumns.forEach((columnName, index) => {
@@ -1198,6 +1198,48 @@ class UserTableManager {
                 }
             });
         }
+        // Critical: If ANY product column is toggled OFF while Project Admin is ON
+        // Then turn OFF Project Admin and downgrade ALL other columns
+        else if (!isChecked) {
+            const accessCells = Array.from(row.cells).slice(4); // Skip first 4 columns
+            // Find Project Admin cell
+            const projectAdminCell = accessCells.find(c => 
+                c.classList.contains('modal-access-cell') && 
+                c.getAttribute('data-column-name') === 'Project Admin'
+            );
+            
+            // Check if Project Admin is currently ON
+            if (projectAdminCell && projectAdminCell.getAttribute('data-value') === 'administrator') {
+                console.log('🚨 Product column toggled OFF while Project Admin is ON → Downgrading ALL columns including Project Admin');
+                
+                // Downgrade all columns including Project Admin
+                accessCells.forEach((otherCell) => {
+                    if (!otherCell.classList.contains('modal-access-cell')) return;
+                    
+                    const otherCheckbox = otherCell.querySelector('input[type="checkbox"]');
+                    const otherColumnName = otherCell.getAttribute('data-column-name');
+                    
+                    if (otherCheckbox) {
+                        otherCheckbox.checked = false; // Turn OFF all toggles
+                        
+                        // Set to default values
+                        let otherNewValue;
+                        if (otherColumnName === 'Project Admin') {
+                            otherNewValue = 'none';
+                        } else if (otherColumnName === 'Docs') {
+                            otherNewValue = 'member';
+                        } else {
+                            otherNewValue = 'none';
+                        }
+                        
+                        otherCell.setAttribute('data-value', otherNewValue);
+                        otherCell.classList.remove('administrator');
+                        
+                        console.log(`🔻 Auto-downgraded: ${otherColumnName} = ${otherNewValue}`);
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -1353,10 +1395,10 @@ class UserTableManager {
             5: 'Docs',
             6: 'Design Collaboration',
             7: 'Model Coordination',
-            8: 'Build',
-            9: 'Cost',
-            10: 'Forma',
-            11: 'Preconstruction'
+            8: 'Preconstruction',
+            9: 'Build',
+            10: 'Cost',
+            11: 'Forma'
         };
         return columnNames[columnIndex] || `Column ${columnIndex}`;
     }
@@ -2312,10 +2354,10 @@ class UserTableManager {
                     { key: 'docs', cellIndex: 5 },
                     { key: 'designCollaboration', cellIndex: 6 },
                     { key: 'modelCoordination', cellIndex: 7 },
-                    { key: 'build', cellIndex: 8 },
-                    { key: 'cost', cellIndex: 9 },
-                    { key: 'forma', cellIndex: 10 },
-                    { key: 'takeoff', cellIndex: 11 }
+                    { key: 'takeoff', cellIndex: 8 },
+                    { key: 'build', cellIndex: 9 },
+                    { key: 'cost', cellIndex: 10 },
+                    { key: 'forma', cellIndex: 11 }
                 ];
                 
                 // First pass: collect all product access levels (except insight)
@@ -2662,7 +2704,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const accessColumns = [
                 'Project Admin', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
-                'Build', 'Cost', 'Forma', 'Preconstruction'
+                'Preconstruction', 'Build', 'Cost', 'Forma'
             ];
             
             accessColumns.forEach((columnName, index) => {
@@ -2806,7 +2848,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const columnOrder = [
                 'Project Admin', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
-                'Build', 'Cost', 'Forma', 'Preconstruction'
+                'Preconstruction', 'Build', 'Cost', 'Forma'
             ];
             
             columnOrder.forEach((columnName, index) => {

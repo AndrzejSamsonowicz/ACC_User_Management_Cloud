@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Autodesk APS Authentication and Hubs</title>
-    <!-- Version: 2025-02-18-08 - SHIFT+DRAG FOR TOGGLE SELECTION -->
+    <!-- Version: 2025-02-18-15 - UPDATE HINT TEXT -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
         
@@ -293,7 +293,7 @@
         }
         
         .toggle-switch input:checked + .toggle-slider {
-            background-color: #2196F3;
+            background-color: #0696D7;
         }
         
         .toggle-switch input:checked + .toggle-slider:before {
@@ -3017,7 +3017,7 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2025021805"></script>
+    <script src="user-table.js?v=2025021808"></script>
     <script src="update_account_users.js?v=2025110205"></script>
     <script src="get_account_users.js?v=2025110205"></script>
     <script src="get_project_users.js?v=20251109171700"></script>
@@ -3071,6 +3071,10 @@
                         <button id="updateFromMainListBtn" onclick="updateProjectUsersFromModalContext()">Synchronize</button>
                     </div>
                 </div>
+                <div style="margin-top: 10px; font-size: 13px; color: #666; line-height: 1.6;">
+                    <div>💡 Press <strong>Shift</strong> to select multiple cells vertically and horizontally</div>
+                    <div>💡 User Roles must match those defined in Account</div>
+                </div>
                 
                 <!-- Progress indicator for modal operations -->
                 <div class="project-progress" id="modalProgressIndicator" style="display:none; margin:15px 0;">
@@ -3109,10 +3113,10 @@
                                 <th>Docs</th>
                                 <th>Design Collaboration</th>
                                 <th>Model Coordination</th>
+                                <th>Preconstruction</th>
                                 <th>Build</th>
                                 <th>Cost</th>
                                 <th>Forma</th>
-                                <th>Preconstruction</th>
                             </tr>
                         </thead>
                         <tbody id="modalTableBody"></tbody>
