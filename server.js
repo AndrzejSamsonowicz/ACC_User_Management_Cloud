@@ -154,6 +154,16 @@ app.use((req, res, next) => {
     }
 });
 
+// Prevent caching of HTML files
+app.use((req, res, next) => {
+    if (req.url.endsWith('.html') || req.url === '/' || req.url.startsWith('/?')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 // Serve static files from current directory
 app.use(express.static(__dirname));
 

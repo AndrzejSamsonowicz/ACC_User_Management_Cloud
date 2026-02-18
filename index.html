@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Autodesk APS Authentication and Hubs</title>
+    <!-- Version: 2025-02-18-03 - COMPLETE NORMALIZATION FIX -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
         
@@ -229,6 +233,7 @@
             cursor: pointer;
             user-select: none;
             text-align: center;
+            padding: 12px 8px;
         }
         
         .modal-access-cell.selected {
@@ -247,7 +252,52 @@
         
         .modal-access-cell.administrator {
             background-color: #e8f5e9;
-            font-weight: bold;
+        }
+        
+        /* Toggle Switch Styles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #2196F3;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
         }
         
         .modal-tooltip {
@@ -1887,6 +1937,7 @@
         
         // Function to execute sync operations based on checkbox selections
         async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
+            console.log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-03 COMPLETE NORMALIZATION FIX 🔥🔥🔥');
             const enableUpdate = document.getElementById('enableUpdate').checked;
             const enableAdd = document.getElementById('enableAdd').checked;
             const enableDelete = document.getElementById('enableDelete').checked;
@@ -2005,10 +2056,27 @@
                             }
                             
                             // Build products array from import JSON (REQUIRED)
-                            const products = importUser.products.map(p => ({
-                                key: p.key,
-                                access: p.access
-                            }));
+                            // API constraint: cannot mix 'member' and 'administrator' access levels
+                            // NORMALIZE: If any product is 'administrator', ALL non-'none' products must be 'administrator'
+                            const hasAdministrator = importUser.products.some(p => p.access === 'administrator');
+                            
+                            const products = importUser.products.map(p => {
+                                const currentAccess = p.access;
+                                
+                                // Keep 'none' as is
+                                if (currentAccess === 'none') {
+                                    return { key: p.key, access: 'none' };
+                                }
+                                
+                                // If ANY product is 'administrator', upgrade ALL non-none to 'administrator'
+                                // Otherwise keep as 'member'
+                                if (hasAdministrator) {
+                                    return { key: p.key, access: 'administrator' };
+                                } else {
+                                    // If no administrator found, downgrade any 'administrator' to 'member'
+                                    return { key: p.key, access: currentAccess === 'administrator' ? 'member' : currentAccess };
+                                }
+                            });
                             
                             // Build PATCH payload - start with required field
                             const patchPayload = {
@@ -2044,8 +2112,20 @@
                             );
                             
                             if (!response.ok) {
-                                const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                                throw new Error(errorData.message || `HTTP ${response.status}`);
+                                const errorText = await response.text();
+                                let errorData;
+                                try {
+                                    errorData = JSON.parse(errorText);
+                                } catch (e) {
+                                    errorData = { message: errorText || response.statusText };
+                                }
+                                console.error(`❌ API Error for ${userToPatch.email}:`, {
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    errorData: errorData,
+                                    sentPayload: patchPayload
+                                });
+                                throw new Error(JSON.stringify(errorData) || `HTTP ${response.status}`);
                             }
                             
                             const result = await response.json();
@@ -2105,10 +2185,32 @@
                                     continue;
                                 }
                                 
+                                // API constraint: cannot mix 'member' and 'administrator' access levels
+                                // NORMALIZE: If any product is 'administrator', ALL non-'none' products must be 'administrator'
+                                const hasAdministrator = importUser.products.some(p => p.access === 'administrator');
+                                
+                                const products = importUser.products.map(p => {
+                                    const currentAccess = p.access;
+                                    
+                                    // Keep 'none' as is
+                                    if (currentAccess === 'none') {
+                                        return { key: p.key, access: 'none' };
+                                    }
+                                    
+                                    // If ANY product is 'administrator', upgrade ALL non-none to 'administrator'
+                                    // Otherwise keep as 'member'
+                                    if (hasAdministrator) {
+                                        return { key: p.key, access: 'administrator' };
+                                    } else {
+                                        // If no administrator found, downgrade any 'administrator' to 'member'
+                                        return { key: p.key, access: currentAccess === 'administrator' ? 'member' : currentAccess };
+                                    }
+                                });
+                                
                                 // Build user object
                                 const userPayload = {
                                     email: userToAdd.email,
-                                    products: importUser.products
+                                    products: products
                                 };
                                 
                                 // Get optional company and role from account user
@@ -2901,7 +3003,7 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2025110901"></script>
+    <script src="user-table.js?v=2025021802"></script>
     <script src="update_account_users.js?v=2025110205"></script>
     <script src="get_account_users.js?v=2025110205"></script>
     <script src="get_project_users.js?v=20251109171700"></script>
@@ -2989,7 +3091,7 @@
                                 <th class="modal-editable">Company</th>
                                 <th class="modal-editable">Role</th>
                                 <th>Project Admin</th>
-                                <th>Insight</th>
+                                <!-- <th>Insight</th> Hidden: Insight always defaults to 'member' and doesn't support 'administrator' -->
                                 <th>Docs</th>
                                 <th>Design Collaboration</th>
                                 <th>Model Coordination</th>

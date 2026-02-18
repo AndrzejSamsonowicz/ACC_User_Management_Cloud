@@ -900,9 +900,9 @@ class UserTableManager {
         const roleCell = this.createEditableCell();
         row.appendChild(roleCell);
         
-        // Access level cells
+        // Access level cells (Insight hidden from UI, but included in JSON with access='member')
         const accessColumns = [
-            'Project Admin', 'Insight', 'Docs', 
+            'Project Admin', 'Docs', 
             'Design Collaboration', 'Model Coordination',
             'Build', 'Cost', 'Forma', 'Preconstruction'
         ];
@@ -957,9 +957,9 @@ class UserTableManager {
         const roleCell = this.createEditableCell();
         row.appendChild(roleCell);
         
-        // Access level cells
+        // Access level cells (Insight hidden from UI, but included in JSON with access='member')
         const accessColumns = [
-            'Project Admin', 'Insight', 'Docs', 
+            'Project Admin', 'Docs', 
             'Design Collaboration', 'Model Coordination',
             'Build', 'Cost', 'Forma', 'Preconstruction'
         ];
@@ -1030,34 +1030,142 @@ class UserTableManager {
     }
 
     /**
-     * Create an access level cell with validation
+     * Create an access level cell with toggle switch
      */
     createAccessCell(columnName, columnIndex, rowIndex) {
         const cell = document.createElement('td');
         cell.className = 'modal-access-cell';
-        cell.contentEditable = true;
         cell.setAttribute('data-column', columnIndex);
         cell.setAttribute('data-row', rowIndex);
         
         // Set default values based on service type
+        let defaultValue;
         if (columnName === 'Project Admin') {
-            cell.textContent = 'none';
+            defaultValue = 'none';
         } else if (columnName === 'Insight' || columnName === 'Docs') {
-            cell.textContent = 'member';
+            defaultValue = 'member';
         } else if (columnName === 'Design Collaboration' || 
                    columnName === 'Model Coordination' || 
                    columnName === 'Build' || 
                    columnName === 'Cost' || 
                    columnName === 'Forma' ||
                    columnName === 'Preconstruction') {
-            cell.textContent = 'none';
+            defaultValue = 'none';
         } else {
-            // Default fallback (should not be reached with current services)
-            cell.textContent = 'member';
+            // Default fallback
+            defaultValue = 'member';
         }
         
-        this.initializeAccessCell(cell);
+        // Store the value in data attribute
+        cell.setAttribute('data-value', defaultValue);
+        cell.setAttribute('data-column-name', columnName);
+        
+        // Create toggle switch HTML
+        const toggleHtml = `
+            <label class="toggle-switch">
+                <input type="checkbox" ${this.isToggleChecked(columnName, defaultValue) ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+            </label>
+        `;
+        cell.innerHTML = toggleHtml;
+        
+        // Add click handler for toggle
+        const checkbox = cell.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', (e) => this.handleToggleChange(e, cell, columnName, columnIndex));
+        
+        // Prevent event bubbling
+        cell.addEventListener('click', (e) => {
+            if (e.target.classList.contains('toggle-slider')) {
+                e.stopPropagation();
+            }
+        });
+        
         return cell;
+    }
+    
+    /**
+     * Determine if toggle should be checked based on column and value
+     */
+    isToggleChecked(columnName, value) {
+        if (columnName === 'Project Admin') {
+            return value === 'administrator';
+        } else if (columnName === 'Docs') {
+            return value === 'administrator';
+        } else {
+            // Other products: checked = member or administrator
+            return value === 'member' || value === 'administrator';
+        }
+    }
+    
+    /**
+     * Handle toggle switch change
+     */
+    handleToggleChange(event, cell, columnName, columnIndex) {
+        const checkbox = event.target;
+        const isChecked = checkbox.checked;
+        const row = cell.parentElement;
+        
+        // Determine new value based on column and toggle state
+        let newValue;
+        if (columnName === 'Project Admin') {
+            newValue = isChecked ? 'administrator' : 'none';
+        } else if (columnName === 'Docs') {
+            newValue = isChecked ? 'administrator' : 'member';
+        } else {
+            // Other products
+            newValue = isChecked ? 'member' : 'none';
+        }
+        
+        // Update cell data
+        cell.setAttribute('data-value', newValue);
+        
+        // Update administrator class for visual feedback
+        if (newValue === 'administrator') {
+            cell.classList.add('administrator');
+        } else {
+            cell.classList.remove('administrator');
+        }
+        
+        console.log(`🔘 Toggle changed: ${columnName} = ${newValue}`);
+        
+        // Special handling for Project Admin: toggle all other columns
+        if (columnName === 'Project Admin') {
+            const accessCells = Array.from(row.cells).slice(4); // Skip first 4 columns
+            accessCells.forEach((otherCell) => {
+                if (otherCell === cell) return; // Skip self
+                if (!otherCell.classList.contains('modal-access-cell')) return;
+                
+                const otherCheckbox = otherCell.querySelector('input[type="checkbox"]');
+                const otherColumnName = otherCell.getAttribute('data-column-name');
+                
+                if (otherCheckbox) {
+                    otherCheckbox.checked = isChecked;
+                    
+                    // Update value based on the other column's rules
+                    let otherNewValue;
+                    if (isChecked) {
+                        otherNewValue = 'administrator';
+                    } else {
+                        // When unchecking, revert to defaults
+                        if (otherColumnName === 'Docs') {
+                            otherNewValue = 'member';
+                        } else {
+                            otherNewValue = 'none';
+                        }
+                    }
+                    
+                    otherCell.setAttribute('data-value', otherNewValue);
+                    
+                    if (otherNewValue === 'administrator') {
+                        otherCell.classList.add('administrator');
+                    } else {
+                        otherCell.classList.remove('administrator');
+                    }
+                    
+                    console.log(`🔘 Auto-toggled: ${otherColumnName} = ${otherNewValue}`);
+                }
+            });
+        }
     }
 
     /**
@@ -1111,7 +1219,7 @@ class UserTableManager {
         console.log(`🔐 Upgrading ${accessCells.length} access cells to administrator`);
         
         accessCells.forEach((cell, index) => {
-            const currentValue = cell.textContent.trim().toLowerCase();
+            const currentValue = cell.getAttribute('data-value') || 'none';
             const columnIndex = parseInt(cell.getAttribute('data-column'));
             
             // Only upgrade cells that have the modal-access-cell class (skip any non-product cells)
@@ -1120,17 +1228,26 @@ class UserTableManager {
                 return;
             }
             
+            // Get the checkbox input from the toggle switch
+            const checkbox = cell.querySelector('input[type="checkbox"]');
+            if (!checkbox) {
+                console.warn(`⚠️ No checkbox found in cell at column ${columnIndex}`);
+                return;
+            }
+            
             // Project Admin (column 4) can only be 'none' or 'administrator'
             if (columnIndex === 4) {
                 if (currentValue !== 'administrator') {
-                    cell.textContent = 'administrator';
+                    checkbox.checked = true;
+                    cell.setAttribute('data-value', 'administrator');
                     cell.classList.add('administrator');
                     console.log(`🔐 Upgraded Project Admin to administrator`);
                 }
             } else {
                 // All other products can be upgraded to administrator
                 if (currentValue !== 'administrator') {
-                    cell.textContent = 'administrator';
+                    checkbox.checked = true;
+                    cell.setAttribute('data-value', 'administrator');
                     cell.classList.add('administrator');
                     console.log(`🔐 Upgraded ${this.getColumnName(columnIndex)} to administrator`);
                 }
@@ -1155,7 +1272,7 @@ class UserTableManager {
         console.log(`🔓 Downgrading ${accessCells.length} access cells from administrator`);
         
         accessCells.forEach((cell, index) => {
-            const currentValue = cell.textContent.trim().toLowerCase();
+            const currentValue = cell.getAttribute('data-value') || 'none';
             const columnIndex = parseInt(cell.getAttribute('data-column'));
             
             // Only downgrade cells that have the modal-access-cell class (skip any non-product cells)
@@ -1169,15 +1286,24 @@ class UserTableManager {
                 return;
             }
             
-            // Insight (column 5) and Docs (column 6) become "member"
-            if (columnIndex === 5 || columnIndex === 6) {
-                cell.textContent = 'member';
+            // Get the checkbox input from the toggle switch
+            const checkbox = cell.querySelector('input[type="checkbox"]');
+            if (!checkbox) {
+                console.warn(`⚠️ No checkbox found in cell at column ${columnIndex}`);
+                return;
+            }
+            
+            // Docs (column 5) becomes "member"
+            if (columnIndex === 5) {
+                checkbox.checked = false; // OFF = 'member' for Docs
+                cell.setAttribute('data-value', 'member');
                 cell.classList.remove('administrator');
                 console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to member`);
             } 
             // All other products become "none"
             else {
-                cell.textContent = 'none';
+                checkbox.checked = false; // OFF = 'none' for other products
+                cell.setAttribute('data-value', 'none');
                 cell.classList.remove('administrator');
                 console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to none`);
             }
@@ -1192,14 +1318,13 @@ class UserTableManager {
     getColumnName(columnIndex) {
         const columnNames = {
             4: 'Project Admin',
-            5: 'Insight', 
-            6: 'Docs',
-            7: 'Design Collaboration',
-            8: 'Model Coordination',
-            9: 'Build',
-            10: 'Cost',
-            11: 'Forma',
-            12: 'Preconstruction'
+            5: 'Docs',
+            6: 'Design Collaboration',
+            7: 'Model Coordination',
+            8: 'Build',
+            9: 'Cost',
+            10: 'Forma',
+            11: 'Preconstruction'
         };
         return columnNames[columnIndex] || `Column ${columnIndex}`;
     }
@@ -2119,8 +2244,9 @@ class UserTableManager {
         Array.from(tbody.rows).forEach(row => {
             const cells = Array.from(row.cells);
             
-            // Skip rows that don't have enough cells (minimum: checkbox + email + company + role + 9 products = 13 cells)
-            if (cells.length < 13) {
+            // Skip rows that don't have enough cells (minimum: checkbox + email + company + role + 8 products = 12 cells)
+            // Note: Insight is not shown in UI but always included with access='member' in backend
+            if (cells.length < 12) {
                 console.warn('⚠️ Skipping row with insufficient cells:', cells.length);
                 return;
             }
@@ -2146,16 +2272,44 @@ class UserTableManager {
                 
                 console.log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}"`);
                 
-                const productKeys = [
-                    'projectAdministration', 'insight', 'docs', 
-                    'designCollaboration', 'modelCoordination',
-                    'build', 'cost', 'forma', 'takeoff'
+                // Product keys and their corresponding cell indices
+                // Note: 'insight' is not in the UI but access level matches other products to avoid mixing
+                const productMapping = [
+                    { key: 'projectAdministration', cellIndex: 4 },
+                    { key: 'insight', cellIndex: null }, // Not in UI, will be determined based on other products
+                    { key: 'docs', cellIndex: 5 },
+                    { key: 'designCollaboration', cellIndex: 6 },
+                    { key: 'modelCoordination', cellIndex: 7 },
+                    { key: 'build', cellIndex: 8 },
+                    { key: 'cost', cellIndex: 9 },
+                    { key: 'forma', cellIndex: 10 },
+                    { key: 'takeoff', cellIndex: 11 }
                 ];
                 
-                productKeys.forEach((key, index) => {
-                    const cellIndex = index + 4; // Products start at cell[4]
+                // First pass: collect all product access levels (except insight)
+                const productAccesses = [];
+                productMapping.forEach(({ key, cellIndex }) => {
+                    if (key === 'insight') return; // Skip insight for now
+                    
                     const cell = cells[cellIndex];
-                    const access = (cell?.textContent || cell?.innerText || '').trim() || 'none';
+                    const access = cell?.getAttribute('data-value') || 'none';
+                    productAccesses.push(access);
+                });
+                
+                // Determine insight access: if ANY product is 'administrator', insight must also be 'administrator'
+                // API constraint: cannot mix 'member' and 'administrator' levels
+                const hasAdministrator = productAccesses.some(access => access === 'administrator');
+                const insightAccess = hasAdministrator ? 'administrator' : 'member';
+                
+                // Second pass: build products array with correct insight access
+                productMapping.forEach(({ key, cellIndex }) => {
+                    let access;
+                    if (key === 'insight') {
+                        access = insightAccess;
+                    } else {
+                        const cell = cells[cellIndex];
+                        access = cell?.getAttribute('data-value') || 'none';
+                    }
                     user.products.push({
                         key: key,
                         access: access
@@ -2472,9 +2626,9 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             roleCell.textContent = userData.role;
             row.appendChild(roleCell);
             
-            // Access level cells with default values
+            // Access level cells with default values (Insight hidden from UI, but included in JSON with access='member')
             const accessColumns = [
-                'Project Admin', 'Insight', 'Docs', 
+                'Project Admin', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
                 'Build', 'Cost', 'Forma', 'Preconstruction'
             ];
@@ -2616,8 +2770,9 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 'takeoff': 'Preconstruction'
             };
             
+            // Column order for UI display (Insight hidden but kept in backend)
             const columnOrder = [
-                'Project Admin', 'Insight', 'Docs', 
+                'Project Admin', 'Docs', 
                 'Design Collaboration', 'Model Coordination',
                 'Build', 'Cost', 'Forma', 'Preconstruction'
             ];
@@ -2625,8 +2780,8 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             columnOrder.forEach((columnName, index) => {
                 const cell = document.createElement('td');
                 cell.className = 'modal-access-cell';
-                cell.contentEditable = true;
                 cell.setAttribute('data-column', index + 4);
+                cell.setAttribute('data-column-name', columnName);
                 
                 const product = user.products.find(p => 
                     productKeyMap[p.key] === columnName
@@ -2636,7 +2791,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 let defaultValue;
                 if (columnName === 'Project Admin') {
                     defaultValue = 'none';
-                } else if (columnName === 'Insight' || columnName === 'Docs') {
+                } else if (columnName === 'Docs') {
                     defaultValue = 'member';
                 } else if (columnName === 'Design Collaboration' || 
                            columnName === 'Model Coordination' || 
@@ -2650,10 +2805,45 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                     defaultValue = 'member';
                 }
                 
-                cell.textContent = product ? product.access : defaultValue;
+                const accessValue = product ? product.access : defaultValue;
                 
-                this.initializeAccessCell(cell);
-                cell.classList.toggle('administrator', cell.textContent === 'administrator');
+                // Determine if toggle should be checked based on column type and value
+                let isChecked;
+                if (columnName === 'Project Admin') {
+                    // Project Admin: OFF='none', ON='administrator'
+                    isChecked = (accessValue === 'administrator');
+                } else if (columnName === 'Docs') {
+                    // Docs: OFF='member', ON='administrator'
+                    isChecked = (accessValue === 'administrator');
+                } else {
+                    // Other products: OFF='none', ON='member' or 'administrator'
+                    isChecked = (accessValue === 'member' || accessValue === 'administrator');
+                }
+                
+                // Create toggle switch HTML
+                cell.innerHTML = `
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${isChecked ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                `;
+                
+                // Set data-value attribute
+                cell.setAttribute('data-value', accessValue);
+                
+                // Add administrator class for visual feedback
+                if (accessValue === 'administrator') {
+                    cell.classList.add('administrator');
+                }
+                
+                // Add event listener to checkbox
+                const checkbox = cell.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.addEventListener('change', (e) => {
+                        this.handleToggleChange(e, cell, columnName, index + 4);
+                    });
+                }
+                
                 row.appendChild(cell);
             });
             
