@@ -1,6 +1,6 @@
 // Test that this file is loading
 console.log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
-console.log('🎯🎯🎯 VERSION: 2025-02-18-11 - AUTO-DOWNGRADE WHEN ANY COLUMN OFF 🎯🎯🎯');
+console.log('🎯🎯🎯 VERSION: 2025-02-18-16 - CSV IMPORT DOCS DEFAULT 🎯🎯🎯');
 console.log('🎯🎯🎯 ADMINISTRATOR AUTO-UPGRADE FUNCTIONALITY 🎯🎯🎯');
 
 // Global variable to hold the user table manager instance
@@ -2712,7 +2712,17 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 row.appendChild(cell);
             });
             
-            tbody.appendChild(row);
+            // CSV IMPORT ENHANCEMENT: Set Docs to 'administrator' by default for imported users
+            const docsCell = row.cells[5]; // Column 5 is Docs (0=checkbox, 1=email, 2=company, 3=role, 4=Project Admin, 5=Docs)
+            if (docsCell && docsCell.classList.contains('modal-access-cell')) {
+                docsCell.setAttribute('data-value', 'administrator');
+                docsCell.classList.add('administrator');
+                const checkbox = docsCell.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = true; // Check the toggle for administrator
+                }
+                console.log(`✅ CSV Import: Set Docs to 'administrator' for ${userData.email}`);
+            }
             
             tbody.appendChild(row);
         });
