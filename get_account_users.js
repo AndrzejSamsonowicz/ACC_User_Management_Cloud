@@ -222,7 +222,7 @@ class AccountUsersManager {
             });
 
             const apiUrl = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users?${queryParams}`;
-            console.log(`Fetching account users: ${apiUrl}`);
+            log(`Fetching account users: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -231,22 +231,22 @@ class AccountUsersManager {
                 }
             });
 
-            console.log(`API Response Status: ${response.status} ${response.statusText}`);
+            log(`API Response Status: ${response.status} ${response.statusText}`);
 
             if (!response.ok) {
                 let errorData;
                 try {
                     errorData = await response.json();
-                    console.log('Error response data:', errorData);
+                    log('Error response data:', errorData);
                     if (errorData.errors && Array.isArray(errorData.errors)) {
-                        console.log('Detailed errors:', errorData.errors);
+                        log('Detailed errors:', errorData.errors);
                         errorData.errors.forEach((error, index) => {
-                            console.log(`Error ${index + 1}:`, error);
+                            log(`Error ${index + 1}:`, error);
                         });
                     }
                 } catch (parseError) {
                     const textError = await response.text();
-                    console.log('Error response (text):', textError);
+                    log('Error response (text):', textError);
                     throw new Error(`API error ${response.status}: ${response.statusText} - ${textError}`);
                 }
                 
@@ -260,7 +260,7 @@ class AccountUsersManager {
             }
 
             const usersData = await response.json();
-            console.log(`Fetched ${usersData.length || 0} users at offset ${offset}`);
+            log(`Fetched ${usersData.length || 0} users at offset ${offset}`);
 
             if (usersData && Array.isArray(usersData) && usersData.length > 0) {
                 allUsers = allUsers.concat(usersData);
@@ -272,14 +272,14 @@ class AccountUsersManager {
                 // Check if we got fewer results than requested (indicates end of data)
                 if (usersData.length < limit) {
                     hasMoreData = false;
-                    console.log('Got fewer results than limit, assuming end of data');
+                    log('Got fewer results than limit, assuming end of data');
                 } else {
                     offset += limit;
-                    console.log(`Next request will use offset: ${offset}`);
+                    log(`Next request will use offset: ${offset}`);
                 }
             } else {
                 hasMoreData = false;
-                console.log('No results returned, stopping pagination');
+                log('No results returned, stopping pagination');
             }
 
             // Safety check to prevent infinite loops

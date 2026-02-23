@@ -178,7 +178,7 @@
             const folderUrn = encodeURIComponent(folderId);
             const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions`;
             
-            console.log(`📥 Fetching permissions for folder: ${folderId}`);
+            log(`📥 Fetching permissions for folder: ${folderId}`);
             
             const response = await fetch(apiUrl, {
                 headers: {
@@ -193,10 +193,10 @@
             }
 
             const data = await response.json();
-            console.log(`📥 Raw API response:`, data);
+            log(`📥 Raw API response:`, data);
             
             const results = Array.isArray(data) ? data : (data.results || []);
-            console.log(`📥 Processing ${results.length} permission entries`);
+            log(`📥 Processing ${results.length} permission entries`);
             
             const permissions = results.map(perm => ({
                 subjectId: perm.subjectId,
@@ -206,7 +206,7 @@
                 email: perm.email
             }));
             
-            console.log(`📥 Returning ${permissions.length} permissions`);
+            log(`📥 Returning ${permissions.length} permissions`);
             return permissions;
         } catch (error) {
             console.error(`Error fetching folder permissions:`, error);
@@ -271,7 +271,7 @@
             const folderUrn = encodeURIComponent(folderId);
             const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-create`;
             
-            console.log(`📤 Creating ${permissions.length} permissions...`);
+            log(`📤 Creating ${permissions.length} permissions...`);
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -305,7 +305,7 @@
             const folderUrn = encodeURIComponent(folderId);
             const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-update`;
             
-            console.log(`📤 Updating ${permissions.length} permissions...`);
+            log(`📤 Updating ${permissions.length} permissions...`);
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -339,9 +339,9 @@
             const folderUrn = encodeURIComponent(folderId);
             const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-delete`;
             
-            console.log(`📤 Deleting ${permissions.length} permissions...`);
-            console.log(`📤 DELETE API URL: ${apiUrl}`);
-            console.log(`📤 DELETE Request Body:`, JSON.stringify(permissions, null, 2));
+            log(`📤 Deleting ${permissions.length} permissions...`);
+            log(`📤 DELETE API URL: ${apiUrl}`);
+            log(`📤 DELETE Request Body:`, JSON.stringify(permissions, null, 2));
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -352,7 +352,7 @@
                 body: JSON.stringify(permissions)
             });
 
-            console.log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
+            log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -360,7 +360,7 @@
             }
 
             const responseText = await response.text();
-            console.log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
+            log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
 
             return { success: true };
         } catch (error) {
@@ -377,7 +377,7 @@
      */
     async function syncPermissionsToACC(currentProjectData, currentProjectUsersRaw) {
         if (isSyncing) {
-            console.log('⚠️ Sync already in progress, ignoring request');
+            log('⚠️ Sync already in progress, ignoring request');
             return;
         }
 
@@ -390,7 +390,7 @@
         showFolderSyncModal();
         
         isSyncing = true;
-        console.log('🔒 Sync started - button locked');
+        log('🔒 Sync started - button locked');
 
         updateFolderSyncProgress('Loading permissions data from Firebase...', 0);
 
@@ -402,7 +402,7 @@
                 if (!currentProjectData.hubId || !currentProjectData.projectId) {
                     updateFolderSyncProgress('Error: Missing hub or project ID', 0);
                     isSyncing = false;
-                    console.log('🔓 Sync failed (no IDs) - button unlocked');
+                    log('🔓 Sync failed (no IDs) - button unlocked');
                     alert('Missing hub or project ID. Please reopen the folder permissions modal.');
                     return;
                 }
@@ -421,14 +421,14 @@
                 if (!loadResult.success || !loadResult.exists || !loadResult.data) {
                     updateFolderSyncProgress('Error: No saved permissions found', 0);
                     isSyncing = false;
-                    console.log('🔓 Sync failed (no data) - button unlocked');
+                    log('🔓 Sync failed (no data) - button unlocked');
                     alert('No saved folder permissions found. Please save permissions first.');
                     return;
                 }            const jsonData = loadResult.data;
-            console.log('\n🔄 ========== STARTING SYNC TO ACC ==========');
-            console.log(`📁 Project: ${currentProjectData.projectName}`);
-            console.log(`📊 Total folders in JSON: ${jsonData.folders.length}`);
-            console.log(`\n========== END TEST ==========\n\n`);
+            log('\n🔄 ========== STARTING SYNC TO ACC ==========');
+            log(`📁 Project: ${currentProjectData.projectName}`);
+            log(`📊 Total folders in JSON: ${jsonData.folders.length}`);
+            log(`\n========== END TEST ==========\n\n`);
 
             const syncSummary = {
                 totalFolders: jsonData.folders.length,
@@ -454,7 +454,7 @@
                 folderBatches.push(jsonData.folders.slice(i, i + BATCH_SIZE));
             }
 
-            console.log(`📦 Processing ${jsonData.folders.length} folders in ${folderBatches.length} batches of ${BATCH_SIZE}`);
+            log(`📦 Processing ${jsonData.folders.length} folders in ${folderBatches.length} batches of ${BATCH_SIZE}`);
 
             for (let batchIndex = 0; batchIndex < folderBatches.length; batchIndex++) {
                 const batch = folderBatches[batchIndex];
@@ -462,7 +462,7 @@
                 // Process batch in parallel
                 const batchPromises = batch.map(async (folder) => {
                     const folderName = `${folder.level2}${folder.level3 ? ' > ' + folder.level3 : ''}`;
-                    console.log(`\n📂 Processing: ${folderName}`);
+                    log(`\n📂 Processing: ${folderName}`);
                     
                     try {
                         // Fetch current permissions from ACC
@@ -477,7 +477,7 @@
                         const accPermMap = new Map();
 
                         // Parse JSON permissions
-                        console.log(`  📋 JSON permissions for ${folderName}:`, Object.keys(folder.permissions).length);
+                        log(`  📋 JSON permissions for ${folderName}:`, Object.keys(folder.permissions).length);
                         Object.values(folder.permissions).forEach(perm => {
                             if (perm.subjectId && perm.subjectType && perm.level) {
                                 const key = `${perm.subjectId}_${perm.subjectType}`;
@@ -487,7 +487,7 @@
                                     actions: levelToActions(perm.level),
                                     user: perm.user
                                 });
-                                console.log(`    📄 JSON: ${perm.user} | Key: ${key}`);
+                                log(`    📄 JSON: ${perm.user} | Key: ${key}`);
                             } else {
                                 // Permission is missing required fields (subjectId, subjectType, or level)
                                 console.warn(`  ⚠️ SKIP: Incomplete permission data for ${perm.user} (missing subjectId, subjectType, or level)`);
@@ -497,13 +497,13 @@
                         });
 
                         // Parse ACC permissions - only explicit permissions
-                        console.log(`  📋 ACC permissions for ${folderName}:`, currentPermissions.length);
+                        log(`  📋 ACC permissions for ${folderName}:`, currentPermissions.length);
                         currentPermissions.forEach(perm => {
                             const key = `${perm.subjectId}_${perm.subjectType}`;
                             const userName = perm.name || perm.email || perm.subjectId;
                             const hasExplicitPermissions = perm.actions && perm.actions.length > 0;
                             
-                            console.log(`    📄 ACC: ${userName} | Key: ${key} | Explicit: ${hasExplicitPermissions} | Actions: ${perm.actions?.length || 0}`);
+                            log(`    📄 ACC: ${userName} | Key: ${key} | Explicit: ${hasExplicitPermissions} | Actions: ${perm.actions?.length || 0}`);
                             
                             if (hasExplicitPermissions) {
                                 accPermMap.set(key, {
@@ -525,12 +525,12 @@
                             if (!accPermMap.has(key)) {
                                 // Check if user exists in project
                                 if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
-                                    console.log(`  ⚠️ SKIP CREATE: User doesn't exist in project (${jsonPerm.user})`);
+                                    log(`  ⚠️ SKIP CREATE: User doesn't exist in project (${jsonPerm.user})`);
                                     syncSummary.skippedNonExistent++;
                                     // Always add to show every occurrence across folders
                                     syncSummary.nonExistentUsers.push(jsonPerm.user);
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
-                                    console.log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
+                                    log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
                                 } else {
                                     toCreate.push({
@@ -539,7 +539,7 @@
                                         actions: jsonPerm.actions,
                                         user: jsonPerm.user
                                     });
-                                    console.log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                                    log(`  ➕ CREATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
                                 }
                             } else {
                                 const accPerm = accPermMap.get(key);
@@ -548,12 +548,12 @@
                                 if (!actionsMatch) {
                                     // Check if user exists in project
                                     if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
-                                        console.log(`  ⚠️ SKIP UPDATE: User doesn't exist in project (${jsonPerm.user})`);
+                                        log(`  ⚠️ SKIP UPDATE: User doesn't exist in project (${jsonPerm.user})`);
                                         syncSummary.skippedNonExistent++;
                                         // Always add to show every occurrence across folders
                                         syncSummary.nonExistentUsers.push(jsonPerm.user);
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
-                                        console.log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
+                                        log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
                                     } else {
                                         toUpdate.push({
@@ -562,7 +562,7 @@
                                             actions: jsonPerm.actions,
                                             user: jsonPerm.user
                                         });
-                                        console.log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
+                                        log(`  🔄 UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType})`);
                                     }
                                 }
                             }
@@ -572,7 +572,7 @@
                         accPermMap.forEach((accPerm, key) => {
                             if (!jsonPermMap.has(key)) {
                                 if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType, currentProjectUsersRaw)) {
-                                    console.log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
+                                    log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
                                     syncSummary.skippedAdmins++;
                                 } else {
                                     toDelete.push({
@@ -580,7 +580,7 @@
                                         subjectType: accPerm.subjectType,
                                         user: accPerm.user
                                     });
-                                    console.log(`  ➖ DELETE: ${accPerm.user} (${accPerm.subjectType})`);
+                                    log(`  ➖ DELETE: ${accPerm.user} (${accPerm.subjectType})`);
                                 }
                             }
                         });
@@ -698,22 +698,22 @@
                 
                 // Update summary and progress
                 batchResults.forEach(({ folderName, results }) => {
-                    console.log(`📦 Batch result for ${folderName}:`, results);
+                    log(`📦 Batch result for ${folderName}:`, results);
                     syncSummary.processedFolders++;
                     syncSummary.created += results.created;
                     syncSummary.updated += results.updated;
                     syncSummary.deleted += results.deleted;
                     syncSummary.errors.push(...results.errors);
                     if (results.createdUsers) {
-                        console.log(`  Adding ${results.createdUsers.length} created users`);
+                        log(`  Adding ${results.createdUsers.length} created users`);
                         syncSummary.createdUsers.push(...results.createdUsers);
                     }
                     if (results.updatedUsers) {
-                        console.log(`  Adding ${results.updatedUsers.length} updated users`);
+                        log(`  Adding ${results.updatedUsers.length} updated users`);
                         syncSummary.updatedUsers.push(...results.updatedUsers);
                     }
                     if (results.deletedUsers) {
-                        console.log(`  Adding ${results.deletedUsers.length} deleted users`);
+                        log(`  Adding ${results.deletedUsers.length} deleted users`);
                         syncSummary.deletedUsers.push(...results.deletedUsers);
                     }
                 });
@@ -721,9 +721,9 @@
                 // Update progress after each batch
                 const progressPercent = (syncSummary.processedFolders / syncSummary.totalFolders) * 100;
                 updateFolderSyncProgress(`Syncing permissions... ${syncSummary.processedFolders}/${syncSummary.totalFolders} folders`, progressPercent);
-                console.log(`📊 Progress: ${Math.round(progressPercent)}% (${syncSummary.processedFolders}/${syncSummary.totalFolders} folders)`);
+                log(`📊 Progress: ${Math.round(progressPercent)}% (${syncSummary.processedFolders}/${syncSummary.totalFolders} folders)`);
                 
-                console.log(`📊 Current summary:`, {
+                log(`📊 Current summary:`, {
                     created: syncSummary.created,
                     updated: syncSummary.updated,
                     deleted: syncSummary.deleted,
@@ -734,18 +734,18 @@
             }
 
             // Remove test code section
-            console.log('\n🔄 ========== SYNC COMPLETE ==========');
-            console.log(`📊 Summary:`);
-            console.log(`  Folders processed: ${syncSummary.processedFolders}/${syncSummary.totalFolders}`);
-            console.log(`  ➕ Created: ${syncSummary.created}`);
-            console.log(`  🔄 Updated: ${syncSummary.updated}`);
-            console.log(`  ➖ Deleted: ${syncSummary.deleted}`);
-            console.log(`  ⚠️ Skipped (admins): ${syncSummary.skipped}`);
-            console.log(`  ❌ Errors: ${syncSummary.errors.length}`);
+            log('\n🔄 ========== SYNC COMPLETE ==========');
+            log(`📊 Summary:`);
+            log(`  Folders processed: ${syncSummary.processedFolders}/${syncSummary.totalFolders}`);
+            log(`  ➕ Created: ${syncSummary.created}`);
+            log(`  🔄 Updated: ${syncSummary.updated}`);
+            log(`  ➖ Deleted: ${syncSummary.deleted}`);
+            log(`  ⚠️ Skipped (admins): ${syncSummary.skipped}`);
+            log(`  ❌ Errors: ${syncSummary.errors.length}`);
             
             if (syncSummary.errors.length > 0) {
-                console.log(`\nErrors:`);
-                syncSummary.errors.forEach(err => console.log(`  - ${err}`));
+                log(`\nErrors:`);
+                syncSummary.errors.forEach(err => log(`  - ${err}`));
             }
 
                 // Show results in modal
@@ -753,13 +753,13 @@
                 
                 // Unlock sync button
                 isSyncing = false;
-                console.log('🔓 Sync completed - button unlocked');
+                log('🔓 Sync completed - button unlocked');
 
             } catch (error) {
                 console.error('❌ Sync error:', error);
                 updateFolderSyncProgress(`Error: ${error.message}`, 0);
                 isSyncing = false;
-                console.log('🔓 Sync failed - button unlocked');
+                log('🔓 Sync failed - button unlocked');
                 alert(`Sync failed: ${error.message}`);
             }
         })();

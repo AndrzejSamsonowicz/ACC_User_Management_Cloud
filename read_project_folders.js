@@ -61,16 +61,16 @@
      * Initialize the folders permissions module
      */
     window.initFoldersPermissions = function() {
-        console.log('📁 Folders Permissions module initialized');
+        log('📁 Folders Permissions module initialized');
     };
 
     /**
      * Show the folders management modal for a project
      */
     window.showFoldersModal = async function(projectId, projectName, hubId, accessToken) {
-        console.log('📁 Opening folders modal for project:', projectName);
-        console.log('📁 Project ID:', projectId);
-        console.log('📁 Hub ID:', hubId);
+        log('📁 Opening folders modal for project:', projectName);
+        log('📁 Project ID:', projectId);
+        log('📁 Hub ID:', hubId);
 
         // Store current project data
         currentProjectData = {
@@ -131,14 +131,14 @@
      * Fetch complete folder hierarchy (3 levels) with parallel API calls
      */
     async function fetchFolderHierarchy(hubId, projectId, accessToken) {
-        console.log('📂 Fetching folder hierarchy...');
+        log('📂 Fetching folder hierarchy...');
         
         // Show progress modal
         showLoadingProgress('Loading folder structure...', 0);
         
         // Step 1: Get top-level folders
         const topFolders = await fetchTopFolders(hubId, projectId, accessToken);
-        console.log(`📂 Found ${topFolders.length} top-level folders`);
+        log(`📂 Found ${topFolders.length} top-level folders`);
         updateLoadingProgress('Fetching level 2 folders...', 10);
 
         const hierarchy = [];
@@ -148,7 +148,7 @@
         // Step 2: Fetch ALL level 2 folders in PARALLEL
         const level2Promises = topFolders.map(async (level1Folder) => {
             const level2Folders = await fetchFolderContents(projectId, level1Folder.id, accessToken);
-            console.log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
+            log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
             
             processedFolders++;
             const progress = 10 + (processedFolders / totalFolders) * 40; // 10% to 50%
@@ -202,7 +202,7 @@
 
         // Build final hierarchy
         for (const { level1Folder, level2Folder, level3Folders } of level3Results) {
-            console.log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
+            log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
             
             if (level3Folders.length === 0) {
                 hierarchy.push({
@@ -222,7 +222,7 @@
         }
 
         updateLoadingProgress('Complete!', 100);
-        console.log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
+        log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
         
         // Hide progress modal after a brief delay
         setTimeout(() => hideLoadingProgress(), 500);
@@ -238,7 +238,7 @@
         const formattedProjectId = projectId.startsWith('b.') ? projectId : `b.${projectId}`;
         const url = `https://developer.api.autodesk.com/project/v1/hubs/${hubId}/projects/${formattedProjectId}/topFolders`;
         
-        console.log('📡 Fetching top folders from:', url);
+        log('📡 Fetching top folders from:', url);
 
         const response = await fetch(url, {
             headers: {
@@ -275,7 +275,7 @@
         const encodedFolderId = encodeURIComponent(folderId);
         const url = `https://developer.api.autodesk.com/data/v1/projects/${formattedProjectId}/folders/${encodedFolderId}/contents?filter[type]=folders`;
         
-        console.log('📡 Fetching folder contents from:', url);
+        log('📡 Fetching folder contents from:', url);
 
         const response = await fetch(url, {
             headers: {
@@ -309,7 +309,7 @@
      * Fetch project users
      */
     async function fetchProjectUsers(hubId, projectId, accessToken) {
-        console.log('👥 Fetching project users...');
+        log('👥 Fetching project users...');
         
         let allUsers = [];
         let offset = 0;
@@ -339,9 +339,9 @@
             
             // Log first response to see structure
             if (offset === 0 && usersData.results && usersData.results.length > 0) {
-                console.log('Sample API user response:', usersData.results[0]);
-                console.log('Available keys:', Object.keys(usersData.results[0]));
-                console.log('Role field check:', {
+                log('Sample API user response:', usersData.results[0]);
+                log('Available keys:', Object.keys(usersData.results[0]));
+                log('Role field check:', {
                     default_role: usersData.results[0].default_role,
                     role: usersData.results[0].role,
                     role_name: usersData.results[0].role_name,
@@ -393,15 +393,15 @@
             
             // Debug: log if role is missing
             if (userData.default_role === 'No Role') {
-                console.log('User without role:', user);
+                log('User without role:', user);
             }
             
             return userData;
         });
         
-        console.log(`✅ Fetched ${displayUsers.length} project users`);
-        console.log('Sample display user:', displayUsers[0]);
-        console.log('Sample raw user:', rawUsers[0]);
+        log(`✅ Fetched ${displayUsers.length} project users`);
+        log('Sample display user:', displayUsers[0]);
+        log('Sample raw user:', rawUsers[0]);
         
         return {
             displayUsers: displayUsers,
@@ -681,7 +681,7 @@
                 if (requiredColumns > currentColumns) {
                     // Need to add more columns to all rows
                     const columnsToAdd = requiredColumns - currentColumns;
-                    console.log(`📊 Need to add ${columnsToAdd} columns (current: ${currentColumns}, required: ${requiredColumns})`);
+                    log(`📊 Need to add ${columnsToAdd} columns (current: ${currentColumns}, required: ${requiredColumns})`);
                     
                     // Add columns to the entire table
                     const table = document.querySelector('.folders-table');
@@ -697,7 +697,7 @@
                         
                         // Update additionalColumnsCount
                         additionalColumnsCount += columnsToAdd;
-                        console.log(`📊 Added ${columnsToAdd} columns, total additional columns: ${additionalColumnsCount}`);
+                        log(`📊 Added ${columnsToAdd} columns, total additional columns: ${additionalColumnsCount}`);
                         
                         // Re-setup drag and drop for ALL cells (including new ones)
                         setupTableDragAndDrop();
@@ -904,7 +904,7 @@
                     tableContainer.style.width = `${100 / currentZoom}%`;
                 }
                 
-                console.log(`🔍 Table zoom: ${Math.round(currentZoom * 100)}%`);
+                log(`🔍 Table zoom: ${Math.round(currentZoom * 100)}%`);
             }
         }, { passive: false });
     }
@@ -982,7 +982,7 @@
                                 targetCell.style.backgroundColor = colors.background;
                                 targetCell.style.color = colors.color;
                                 
-                                console.log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                             }
                         }
                     }
@@ -1027,7 +1027,7 @@
                     hasContent: cell.classList.contains('has-content')
                 };
             });
-            console.log(`📋 Copied ${copiedCells.length} cells`);
+            log(`📋 Copied ${copiedCells.length} cells`);
         }
         
         // Handle Ctrl+V (Paste)
@@ -1112,7 +1112,7 @@
                 }
             });
             
-            console.log(`📌 Pasted ${copiedCells.length} cells`);
+            log(`📌 Pasted ${copiedCells.length} cells`);
         }
     }
 
@@ -1398,29 +1398,29 @@
             });
         });
 
-        console.log('🧹 Table cleaned - all users removed from display');
+        log('🧹 Table cleaned - all users removed from display');
     }
 
     /**
      * Lookup subjectId and subjectType for a user/company/role name
      */
     function lookupSubjectInfo(userName) {
-        console.log(`🔍 Looking up subject info for: "${userName}"`);
+        log(`🔍 Looking up subject info for: "${userName}"`);
         
         if (!currentProjectUsersRaw || currentProjectUsersRaw.length === 0) {
             console.error('❌ No raw user data available for lookup!');
-            console.log('currentProjectUsersRaw:', currentProjectUsersRaw);
+            log('currentProjectUsersRaw:', currentProjectUsersRaw);
             return null;
         }
 
-        console.log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
+        log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
 
         // Check if it's an email (USER)
         if (userName.includes('@')) {
-            console.log('✉️ Detected as EMAIL');
+            log('✉️ Detected as EMAIL');
             const user = currentProjectUsersRaw.find(u => u.email === userName);
             if (user) {
-                console.log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
+                log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
                 const result = {
                     subjectId: user.id,
                     subjectType: 'USER'
@@ -1439,7 +1439,7 @@
         // Check if it's a name (USER by name)
         const userByName = currentProjectUsersRaw.find(u => u.name === userName);
         if (userByName) {
-            console.log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
+            log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
             const result = {
                 subjectId: userByName.id,
                 subjectType: 'USER',
@@ -1455,10 +1455,10 @@
         }
 
         // Check if it's a company name (COMPANY)
-        console.log('🏢 Checking as COMPANY');
+        log('🏢 Checking as COMPANY');
         const companyUser = currentProjectUsersRaw.find(u => u.companyName === userName);
         if (companyUser && companyUser.companyId) {
-            console.log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
+            log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
             return {
                 subjectId: companyUser.companyId,
                 subjectType: 'COMPANY'
@@ -1466,12 +1466,12 @@
         }
 
         // Check if it's a role name (ROLE)
-        console.log('👤 Checking as ROLE');
+        log('👤 Checking as ROLE');
         for (const user of currentProjectUsersRaw) {
             if (user.roles && Array.isArray(user.roles)) {
                 const matchingRole = user.roles.find(r => r.name === userName);
                 if (matchingRole && user.roleIds && user.roleIds.length > 0) {
-                    console.log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
+                    log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
                     return {
                         subjectId: user.roleIds[0],
                         subjectType: 'ROLE'
@@ -1481,8 +1481,8 @@
         }
 
         console.error(`❌ Could not find subject info for: "${userName}"`);
-        console.log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
-        console.log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
+        log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
+        log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
         return null;
     }
 
@@ -1575,8 +1575,8 @@
         const folders = [];
         const rows = table.querySelectorAll('tbody tr');
 
-        console.log('💾 Starting save operation...');
-        console.log(`📊 Current raw users available: ${currentProjectUsersRaw ? currentProjectUsersRaw.length : 0}`);
+        log('💾 Starting save operation...');
+        log(`📊 Current raw users available: ${currentProjectUsersRaw ? currentProjectUsersRaw.length : 0}`);
 
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
@@ -1604,13 +1604,13 @@
                     const userName = usernameSpan.textContent.trim();
                     const permissionLevel = permissionInput.value.trim();
                     
-                    console.log(`\n📝 Processing permission for: ${userName}`);
+                    log(`\n📝 Processing permission for: ${userName}`);
                     
                     // Look up subjectId and subjectType
                     const subjectInfo = lookupSubjectInfo(userName);
                     
                     if (subjectInfo) {
-                        console.log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
+                        log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
                         const permissionData = {
                             subjectId: subjectInfo.subjectId,
                             subjectType: subjectInfo.subjectType,
@@ -1683,7 +1683,7 @@
             const result = await response.json();
             
             if (result.success) {
-                console.log(`💾 Saved folder permissions to Firebase for project: ${currentProjectData.projectName}`);
+                log(`💾 Saved folder permissions to Firebase for project: ${currentProjectData.projectName}`);
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 showTooltip(saveBtn, '✓ Saved successfully');
             } else {
@@ -1706,7 +1706,7 @@
         // Create a set of current user emails from the display users
         const currentUserEmails = new Set(currentProjectUsers.map(u => u.email));
         
-        console.log('🔍 Current project user emails:', Array.from(currentUserEmails));
+        log('🔍 Current project user emails:', Array.from(currentUserEmails));
         
         // Extract all unique users from saved permissions
         const savedUsers = new Set();
@@ -1722,27 +1722,27 @@
             }
         });
 
-        console.log('🔍 Saved users from JSON:', Array.from(savedUsers));
+        log('🔍 Saved users from JSON:', Array.from(savedUsers));
 
         // Check which saved users don't exist in current project users
         // Only include regular user emails (skip companies and roles)
         savedUsers.forEach(user => {
             // Skip if not an email (companies and roles don't have @)
             if (!user.includes('@')) {
-                console.log(`  ⏭️ Skipping non-email: ${user}`);
+                log(`  ⏭️ Skipping non-email: ${user}`);
                 return;
             }
             
             // Only add if user email doesn't exist in current project
             if (!currentUserEmails.has(user)) {
-                console.log(`  ❌ Deleted user found: ${user}`);
+                log(`  ❌ Deleted user found: ${user}`);
                 deletedUsers.push(user);
             } else {
-                console.log(`  ✅ User still exists: ${user}`);
+                log(`  ✅ User still exists: ${user}`);
             }
         });
 
-        console.log('🔍 Deleted users (emails only) found:', deletedUsers);
+        log('🔍 Deleted users (emails only) found:', deletedUsers);
         return deletedUsers;
     }
 
@@ -1831,7 +1831,7 @@
                     
                     if (deletedSet.has(userName)) {
                         delete folder.permissions[columnKey];
-                        console.log(`🗑️ Removed ${userName} from folder ${folder.level1}`);
+                        log(`🗑️ Removed ${userName} from folder ${folder.level1}`);
                     }
                 });
             }
@@ -1860,12 +1860,12 @@
             const result = await response.json();
             
             if (!result.success || !result.exists || !result.data) {
-                console.log('📂 No saved folder permissions found for this project');
+                log('📂 No saved folder permissions found for this project');
                 return;
             }
 
             const data = result.data;
-            console.log(`📂 Loading saved folder permissions for: ${projectName}`);
+            log(`📂 Loading saved folder permissions for: ${projectName}`);
 
             // Check for users that no longer exist in the project
             const deletedUsers = await checkForDeletedUsers(data);
@@ -1955,7 +1955,7 @@
                 });
             });
 
-            console.log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
+            log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
         } catch (error) {
             console.error('Error loading folder permissions:', error);
         }

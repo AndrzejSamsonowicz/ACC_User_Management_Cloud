@@ -1,7 +1,7 @@
 // Test that this file is loading
-console.log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
-console.log('🎯🎯🎯 VERSION: 2025-02-18-16 - CSV IMPORT DOCS DEFAULT 🎯🎯🎯');
-console.log('🎯🎯🎯 ADMINISTRATOR AUTO-UPGRADE FUNCTIONALITY 🎯🎯🎯');
+log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
+log('🎯🎯🎯 VERSION: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM 🎯🎯🎯');
+log('🎯🎯🎯 ADMINISTRATOR AUTO-UPGRADE FUNCTIONALITY 🎯🎯🎯');
 
 // Global variable to hold the user table manager instance
 let userTableManager = null;
@@ -79,7 +79,7 @@ class UserTableManager {
                 checkboxes.forEach(checkbox => {
                     checkbox.checked = e.target.checked;
                 });
-                console.log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all rows`);
+                log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all rows`);
             });
         }
         
@@ -104,7 +104,7 @@ class UserTableManager {
                     checkboxes[i].checked = checkState;
                 }
                 
-                console.log(`✅ Shift-selected checkboxes from ${start} to ${end}`);
+                log(`✅ Shift-selected checkboxes from ${start} to ${end}`);
             }
             
             lastCheckedIndex = currentIndex;
@@ -133,7 +133,7 @@ class UserTableManager {
                 
                 // If we were dragging, fill the cells before clearing
                 if (this.isDragging && this.draggedCells.size > 1) {
-                    console.log(`🖱️ Shift released, filling ${this.draggedCells.size} cells`);
+                    log(`🖱️ Shift released, filling ${this.draggedCells.size} cells`);
                     
                     // Fill all dragged cells with source value
                     this.draggedCells.forEach(cell => {
@@ -147,7 +147,7 @@ class UserTableManager {
                             // Check if dragging to email column - validate format
                             if (cell.cellIndex === 1) { // Email column (index 1 after checkbox)
                                 if (!this.emailRegex.test(this.dragSourceValue)) {
-                                    console.log(`❌ Cannot drag non-email "${this.dragSourceValue}" to email column`);
+                                    log(`❌ Cannot drag non-email "${this.dragSourceValue}" to email column`);
                                     cell.style.backgroundColor = ''; // Clear highlight
                                     return; // Skip this cell
                                 }
@@ -160,7 +160,7 @@ class UserTableManager {
                             const oldValue = cell.textContent.trim();
                             cell.textContent = this.dragSourceValue;
                             
-                            console.log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
+                            log(`✏️ Filled cell: "${oldValue}" → "${this.dragSourceValue}"`);
                         }
                     });
                     
@@ -168,7 +168,7 @@ class UserTableManager {
                     this.recheckDuplicates();
                     this.updateUserCount();
                     
-                    console.log('🖱️ Drag fill completed!');
+                    log('🖱️ Drag fill completed!');
                 }
                 
                 // Clear drag state when Shift is released
@@ -207,14 +207,14 @@ class UserTableManager {
                 this.draggedCells.add(currentCell);
                 // Highlight the first cell immediately
                 currentCell.style.backgroundColor = '#b3d9ff';
-                console.log('🖱️ Source cell set (Shift hover):', this.dragSourceValue);
+                log('🖱️ Source cell set (Shift hover):', this.dragSourceValue);
                 return;
             }
             
             // Activate dragging mode on first move to different cell
             if (!this.isDragging && currentCell !== this.dragSourceCell) {
                 this.isDragging = true;
-                console.log('🖱️ Drag activated, started from cell:', this.dragSourceValue);
+                log('🖱️ Drag activated, started from cell:', this.dragSourceValue);
             }
             
             // Skip checkbox cells
@@ -269,7 +269,7 @@ class UserTableManager {
                     }
                 }
                 
-                console.log(`🖱️ Highlighting ${this.draggedCells.size} cells (${isVertical ? 'vertical' : 'horizontal'})`);
+                log(`🖱️ Highlighting ${this.draggedCells.size} cells (${isVertical ? 'vertical' : 'horizontal'})`);
             }
         });
     }
@@ -310,7 +310,7 @@ class UserTableManager {
             this.selectedCells.add(cell);
             cell.style.backgroundColor = '#d4edff';
             
-            console.log('🖱️ Mouse selection started (Shift+drag)');
+            log('🖱️ Mouse selection started (Shift+drag)');
         });
         
         // Mouse move expands selection
@@ -369,7 +369,7 @@ class UserTableManager {
         document.addEventListener('mouseup', () => {
             if (this.isMouseSelecting) {
                 this.isMouseSelecting = false;
-                console.log(`🖱️ Mouse selection complete: ${this.selectedCells.size} cells selected`);
+                log(`🖱️ Mouse selection complete: ${this.selectedCells.size} cells selected`);
                 
                 // Propagate toggle value from first cell to all selected cells
                 if (this.selectedCells.size > 1 && this.mouseSelectStart) {
@@ -379,7 +379,7 @@ class UserTableManager {
                         
                         if (firstCheckbox) {
                             const firstIsChecked = firstCheckbox.checked;
-                            console.log(`🔄 Propagating toggle state (${firstIsChecked ? 'ON' : 'OFF'}) to ${this.selectedCells.size - 1} other cells`);
+                            log(`🔄 Propagating toggle state (${firstIsChecked ? 'ON' : 'OFF'}) to ${this.selectedCells.size - 1} other cells`);
                             
                             // Apply to all selected cells (skip the first one as it's already set)
                             this.selectedCells.forEach(cell => {
@@ -392,7 +392,7 @@ class UserTableManager {
                                     if (checkbox && checkbox.checked !== firstIsChecked) {
                                         // Programmatically click the checkbox to trigger proper change handling
                                         checkbox.click();
-                                        console.log(`   ✓ Toggled ${cell.getAttribute('data-column-name')}`);
+                                        log(`   ✓ Toggled ${cell.getAttribute('data-column-name')}`);
                                     }
                                 }
                             });
@@ -411,7 +411,7 @@ class UserTableManager {
             if (!clickedInsideTable && this.selectedCells.size > 0) {
                 this.selectedCells.forEach(c => c.style.backgroundColor = '');
                 this.selectedCells.clear();
-                console.log('🖱️ Selection cleared (clicked outside table)');
+                log('🖱️ Selection cleared (clicked outside table)');
             }
         });
     }
@@ -469,11 +469,11 @@ class UserTableManager {
                     cell.style.backgroundColor = '#d4edff';
                 }, 200);
             } else {
-                console.log('⚠️ Cannot delete email column content');
+                log('⚠️ Cannot delete email column content');
             }
         });
         
-        console.log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
+        log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
         this.updateUserCount();
     }
 
@@ -497,7 +497,7 @@ class UserTableManager {
         const isHorizontal = cells.every(cell => cell.parentElement === sourceRow);
         
         if (!isVertical && !isHorizontal) {
-            console.log('⚠️ Cannot copy non-linear selection');
+            log('⚠️ Cannot copy non-linear selection');
             return;
         }
         
@@ -517,9 +517,9 @@ class UserTableManager {
         // Also copy to system clipboard for external paste
         const textToCopy = cells.map(cell => cell.textContent.trim()).join('\n');
         navigator.clipboard.writeText(textToCopy).then(() => {
-            console.log(`📋 Copied ${cells.length} cells to clipboard (${isVertical ? 'vertical' : 'horizontal'})`);
+            log(`📋 Copied ${cells.length} cells to clipboard (${isVertical ? 'vertical' : 'horizontal'})`);
         }).catch(err => {
-            console.log('⚠️ Failed to copy to system clipboard:', err);
+            log('⚠️ Failed to copy to system clipboard:', err);
         });
     }
 
@@ -545,7 +545,7 @@ class UserTableManager {
             }, 200);
         });
         
-        console.log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
+        log(`🗑️ Deleted content from ${this.selectedCells.size} cells`);
         this.recheckDuplicates();
         this.updateUserCount();
     }
@@ -563,13 +563,13 @@ class UserTableManager {
             const clipboardText = await navigator.clipboard.readText();
             if (clipboardText) {
                 externalData = clipboardText.split(/\r?\n/).filter(line => line.trim());
-                console.log(`📋 Got ${externalData.length} lines from system clipboard`);
+                log(`📋 Got ${externalData.length} lines from system clipboard`);
             }
         } catch (err) {
             // Silently ignore clipboard permission errors
             // User can still paste using internal copy or grant permission
             if (err.name !== 'NotAllowedError') {
-                console.log('⚠️ Could not read system clipboard:', err);
+                log('⚠️ Could not read system clipboard:', err);
             }
         }
         
@@ -592,7 +592,7 @@ class UserTableManager {
         const targetIsHorizontal = targetCells.every(cell => cell.parentElement === targetRow);
         
         if (!targetIsVertical && !targetIsHorizontal) {
-            console.log('⚠️ Cannot paste to non-linear selection');
+            log('⚠️ Cannot paste to non-linear selection');
             return;
         }
         
@@ -630,7 +630,7 @@ class UserTableManager {
                     }
                 }
             }
-            console.log('✅ Pasted from external clipboard');
+            log('✅ Pasted from external clipboard');
             this.updateUserCount();
             return;
         }
@@ -658,9 +658,9 @@ class UserTableManager {
                             cell.style.backgroundColor = '#d4edff';
                         }, 300);
                         
-                        console.log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
+                        log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
                     } else {
-                        console.log('⚠️ Skipped email column to avoid duplication');
+                        log('⚠️ Skipped email column to avoid duplication');
                     }
                 }
             }
@@ -686,14 +686,14 @@ class UserTableManager {
                             cell.style.backgroundColor = '#d4edff';
                         }, 300);
                         
-                        console.log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
+                        log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
                     } else {
-                        console.log('⚠️ Skipped email column to avoid duplication');
+                        log('⚠️ Skipped email column to avoid duplication');
                     }
                 }
             }
         } else {
-            console.log('⚠️ Copy/paste orientation mismatch (vertical vs horizontal)');
+            log('⚠️ Copy/paste orientation mismatch (vertical vs horizontal)');
         }
         
         this.updateUserCount();
@@ -734,7 +734,7 @@ class UserTableManager {
      * Sort table by column index
      */
     sortTable(columnIndex) {
-        console.log(`🔃 Sorting column ${columnIndex}`);
+        log(`🔃 Sorting column ${columnIndex}`);
         
         const tbody = document.getElementById(this.tableBodyId);
         const rows = Array.from(tbody.rows);
@@ -780,7 +780,7 @@ class UserTableManager {
         // Update sort indicators
         this.updateSortIndicators();
         
-        console.log(`✅ Sorted column ${columnIndex} ${ascending ? 'ascending' : 'descending'}`);
+        log(`✅ Sorted column ${columnIndex} ${ascending ? 'ascending' : 'descending'}`);
     }
 
     /**
@@ -808,15 +808,15 @@ class UserTableManager {
      * Open the user management modal
      */
     openModal(projectId, projectName) {
-        console.log('🎯 openModal() called with projectId:', projectId, 'projectName:', projectName);
+        log('🎯 openModal() called with projectId:', projectId, 'projectName:', projectName);
         const modal = document.getElementById(this.modalId);
-        console.log('🎯 Modal element:', modal);
+        log('🎯 Modal element:', modal);
         
         // Store the project info when modal opens
         if (projectId && projectName) {
             this.modalProjectId = projectId;
             this.modalProjectName = projectName;
-            console.log('🎯 Stored project info:', this.modalProjectId, this.modalProjectName);
+            log('🎯 Stored project info:', this.modalProjectId, this.modalProjectName);
         } else {
             console.error('❌ No project info provided when opening modal');
             alert('Error: No project selected. Please select a project first.');
@@ -827,7 +827,7 @@ class UserTableManager {
         if (window.currentHubId) {
             this.modalHubId = window.currentHubId;
             this.modalHubName = window.currentHubName || 'Unknown Hub';
-            console.log('🎯 Stored hub info:', this.modalHubId, this.modalHubName);
+            log('🎯 Stored hub info:', this.modalHubId, this.modalHubName);
         } else {
             this.modalHubId = null;
             this.modalHubName = null;
@@ -838,7 +838,7 @@ class UserTableManager {
         this.updateHubInfoDisplay();
         
         modal.style.display = 'block';
-        console.log('🎯 Calling loadTableData()...');
+        log('🎯 Calling loadTableData()...');
         this.loadTableData();
         
         // Focus on the modal for better accessibility
@@ -911,7 +911,7 @@ class UserTableManager {
      * Add a new row to the table
      */
     addRow() {
-        console.log('➕ addRow() called');
+        log('➕ addRow() called');
         const tbody = document.getElementById(this.tableBodyId);
         const row = document.createElement('tr');
         
@@ -920,7 +920,7 @@ class UserTableManager {
         row.appendChild(checkboxCell);
         
         // Email cell
-        console.log('➕ Creating email cell...');
+        log('➕ Creating email cell...');
         const emailCell = this.createEmailCell();
         row.appendChild(emailCell);
         
@@ -945,7 +945,7 @@ class UserTableManager {
         });
         
         tbody.appendChild(row);
-        console.log('➕ Row added to table, total rows:', tbody.rows.length);
+        log('➕ Row added to table, total rows:', tbody.rows.length);
         this.updateUserCount();
     }
 
@@ -970,7 +970,7 @@ class UserTableManager {
      * Create a new table row (without appending it to the table)
      */
     createNewRow() {
-        console.log('🔧 createNewRow() called');
+        log('🔧 createNewRow() called');
         const row = document.createElement('tr');
         
         // Checkbox cell
@@ -1001,7 +1001,7 @@ class UserTableManager {
             row.appendChild(cell);
         });
         
-        console.log('🔧 New row created (not yet appended)');
+        log('🔧 New row created (not yet appended)');
         return row;
     }
 
@@ -1015,13 +1015,13 @@ class UserTableManager {
         
         // Use both paste and input events for better coverage
         emailCell.addEventListener('paste', (e) => {
-            console.log('🔥🔥🔥 PASTE EVENT TRIGGERED ON EMAIL CELL! 🔥🔥🔥');
+            log('🔥🔥🔥 PASTE EVENT TRIGGERED ON EMAIL CELL! 🔥🔥🔥');
             this.handlePaste(e);
         }, true);
         
         // Also listen for input events (fired after paste)
         emailCell.addEventListener('input', (e) => {
-            console.log('📝📝📝 INPUT EVENT TRIGGERED ON EMAIL CELL! 📝📝📝');
+            log('📝📝📝 INPUT EVENT TRIGGERED ON EMAIL CELL! 📝📝📝');
             setTimeout(() => {
                 this.handleInputForMultiEmail(e.target);
             }, 10);
@@ -1041,7 +1041,7 @@ class UserTableManager {
         emailCell.addEventListener('focus', (e) => {
             e.target.setAttribute('data-previous-value', e.target.textContent.trim());
             this.currentlyFocusedCell = e.target; // Track the currently focused cell
-            console.log('🎯 Email cell focused, row tracked for deletion');
+            log('🎯 Email cell focused, row tracked for deletion');
         });
         return emailCell;
     }
@@ -1056,7 +1056,7 @@ class UserTableManager {
         cell.addEventListener('paste', (e) => this.handlePaste(e));
         cell.addEventListener('focus', (e) => {
             this.currentlyFocusedCell = e.target; // Track the currently focused cell
-            console.log('🎯 Editable cell focused, row tracked for deletion');
+            log('🎯 Editable cell focused, row tracked for deletion');
         });
         return cell;
     }
@@ -1158,7 +1158,7 @@ class UserTableManager {
             cell.classList.remove('administrator');
         }
         
-        console.log(`🔘 Toggle changed: ${columnName} = ${newValue}`);
+        log(`🔘 Toggle changed: ${columnName} = ${newValue}`);
         
         // Special handling for Project Admin: toggle all other columns
         if (columnName === 'Project Admin') {
@@ -1194,7 +1194,7 @@ class UserTableManager {
                         otherCell.classList.remove('administrator');
                     }
                     
-                    console.log(`🔘 Auto-toggled: ${otherColumnName} = ${otherNewValue}`);
+                    log(`🔘 Auto-toggled: ${otherColumnName} = ${otherNewValue}`);
                 }
             });
         }
@@ -1210,7 +1210,7 @@ class UserTableManager {
             
             // Check if Project Admin is currently ON
             if (projectAdminCell && projectAdminCell.getAttribute('data-value') === 'administrator') {
-                console.log('🚨 Product column toggled OFF while Project Admin is ON → Downgrading ALL columns including Project Admin');
+                log('🚨 Product column toggled OFF while Project Admin is ON → Downgrading ALL columns including Project Admin');
                 
                 // Downgrade all columns including Project Admin
                 accessCells.forEach((otherCell) => {
@@ -1235,7 +1235,7 @@ class UserTableManager {
                         otherCell.setAttribute('data-value', otherNewValue);
                         otherCell.classList.remove('administrator');
                         
-                        console.log(`🔻 Auto-downgraded: ${otherColumnName} = ${otherNewValue}`);
+                        log(`🔻 Auto-downgraded: ${otherColumnName} = ${otherNewValue}`);
                     }
                 });
             }
@@ -1250,7 +1250,7 @@ class UserTableManager {
             const previousValue = e.target.getAttribute('data-previous-value') || 'none';
             const value = this.validateAccessValue(e.target, e.target.textContent);
             
-            console.log(`🔍 Access cell blur - Previous: "${previousValue}", New: "${value}"`);
+            log(`🔍 Access cell blur - Previous: "${previousValue}", New: "${value}"`);
             
             if (value !== false) {
                 e.target.textContent = value;
@@ -1258,16 +1258,16 @@ class UserTableManager {
                 
                 // If this cell becomes "administrator", upgrade all other access cells in the same row
                 if (value === 'administrator') {
-                    console.log('⬆️ Triggering upgrade to administrator');
+                    log('⬆️ Triggering upgrade to administrator');
                     this.upgradeAllAccessToAdministrator(e.target);
                 }
                 // If this cell was "administrator" and becomes something else, downgrade all other cells
                 else if (previousValue === 'administrator' && value !== 'administrator') {
-                    console.log('⬇️ Triggering downgrade from administrator');
+                    log('⬇️ Triggering downgrade from administrator');
                     this.downgradeAllAccessFromAdministrator(e.target);
                 }
             } else {
-                console.log('❌ Validation failed, reverting to previous value');
+                log('❌ Validation failed, reverting to previous value');
                 e.target.textContent = previousValue;
             }
         });
@@ -1275,7 +1275,7 @@ class UserTableManager {
         cell.addEventListener('focus', (e) => {
             e.target.setAttribute('data-previous-value', e.target.textContent.trim());
             this.currentlyFocusedCell = e.target; // Track the currently focused cell
-            console.log('🎯 Access cell focused, row tracked for deletion');
+            log('🎯 Access cell focused, row tracked for deletion');
         });
     }
 
@@ -1284,13 +1284,13 @@ class UserTableManager {
      * When any product becomes "administrator", all products must be "administrator"
      */
     upgradeAllAccessToAdministrator(triggerCell) {
-        console.log('🔐 upgradeAllAccessToAdministrator() called');
+        log('🔐 upgradeAllAccessToAdministrator() called');
         const row = triggerCell.parentElement;
         
         // Find all access level cells in this row (columns 4-12: Project Admin through Preconstruction)
         const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
         
-        console.log(`🔐 Upgrading ${accessCells.length} access cells to administrator`);
+        log(`🔐 Upgrading ${accessCells.length} access cells to administrator`);
         
         accessCells.forEach((cell, index) => {
             const currentValue = cell.getAttribute('data-value') || 'none';
@@ -1298,7 +1298,7 @@ class UserTableManager {
             
             // Only upgrade cells that have the modal-access-cell class (skip any non-product cells)
             if (!cell.classList.contains('modal-access-cell')) {
-                console.log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
+                log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
                 return;
             }
             
@@ -1315,7 +1315,7 @@ class UserTableManager {
                     checkbox.checked = true;
                     cell.setAttribute('data-value', 'administrator');
                     cell.classList.add('administrator');
-                    console.log(`🔐 Upgraded Project Admin to administrator`);
+                    log(`🔐 Upgraded Project Admin to administrator`);
                 }
             } else {
                 // All other products can be upgraded to administrator
@@ -1323,12 +1323,12 @@ class UserTableManager {
                     checkbox.checked = true;
                     cell.setAttribute('data-value', 'administrator');
                     cell.classList.add('administrator');
-                    console.log(`🔐 Upgraded ${this.getColumnName(columnIndex)} to administrator`);
+                    log(`🔐 Upgraded ${this.getColumnName(columnIndex)} to administrator`);
                 }
             }
         });
         
-        console.log('🔐 All access levels upgraded to administrator');
+        log('🔐 All access levels upgraded to administrator');
     }
 
     /**
@@ -1337,13 +1337,13 @@ class UserTableManager {
      * Insight and Docs become "member", all others become "none"
      */
     downgradeAllAccessFromAdministrator(triggerCell) {
-        console.log('🔓 downgradeAllAccessFromAdministrator() called');
+        log('🔓 downgradeAllAccessFromAdministrator() called');
         const row = triggerCell.parentElement;
         
         // Find all access level cells in this row (columns 4-12: Project Admin through Preconstruction)
         const accessCells = Array.from(row.cells).slice(4); // Skip Checkbox (0), Email (1), Company (2), Role (3)
         
-        console.log(`🔓 Downgrading ${accessCells.length} access cells from administrator`);
+        log(`🔓 Downgrading ${accessCells.length} access cells from administrator`);
         
         accessCells.forEach((cell, index) => {
             const currentValue = cell.getAttribute('data-value') || 'none';
@@ -1351,7 +1351,7 @@ class UserTableManager {
             
             // Only downgrade cells that have the modal-access-cell class (skip any non-product cells)
             if (!cell.classList.contains('modal-access-cell')) {
-                console.log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
+                log(`⏭️ Skipping non-access cell at index ${cell.cellIndex}`);
                 return;
             }
             
@@ -1372,18 +1372,18 @@ class UserTableManager {
                 checkbox.checked = false; // OFF = 'member' for Docs
                 cell.setAttribute('data-value', 'member');
                 cell.classList.remove('administrator');
-                console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to member`);
+                log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to member`);
             } 
             // All other products become "none"
             else {
                 checkbox.checked = false; // OFF = 'none' for other products
                 cell.setAttribute('data-value', 'none');
                 cell.classList.remove('administrator');
-                console.log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to none`);
+                log(`🔓 Downgraded ${this.getColumnName(columnIndex)} to none`);
             }
         });
         
-        console.log('🔓 All access levels downgraded from administrator');
+        log('🔓 All access levels downgraded from administrator');
     }
 
     /**
@@ -1492,14 +1492,14 @@ class UserTableManager {
      * Handle input events to detect multi-email pastes that bypassed paste handler
      */
     handleInputForMultiEmail(cell) {
-        console.log('Input event triggered, checking for multi-emails');
+        log('Input event triggered, checking for multi-emails');
         
         const content = cell.textContent || cell.innerText || '';
-        console.log('Cell content:', JSON.stringify(content));
+        log('Cell content:', JSON.stringify(content));
         
         // Check if this is an email cell (index 1 after checkbox)
         if (cell.cellIndex !== 1) {
-            console.log('Not an email cell, skipping');
+            log('Not an email cell, skipping');
             return;
         }
         
@@ -1509,7 +1509,7 @@ class UserTableManager {
         // First try line breaks
         if (content.includes('\n') || content.includes('\r')) {
             emails = content.split(/[\r\n]+/).map(line => line.trim()).filter(line => line);
-            console.log('Found line breaks, split into:', emails);
+            log('Found line breaks, split into:', emails);
         } 
         // Then try spaces
         else if (content.includes(' ')) {
@@ -1518,17 +1518,17 @@ class UserTableManager {
             const emailLike = potentialEmails.filter(item => this.emailRegex.test(item));
             if (emailLike.length > 1) {
                 emails = potentialEmails;
-                console.log('Found spaces with multiple emails:', emails);
+                log('Found spaces with multiple emails:', emails);
             }
         }
         
         if (emails.length > 1) {
             // Filter to valid emails
             const validEmails = emails.filter(email => this.emailRegex.test(email.trim()));
-            console.log('Valid emails found:', validEmails);
+            log('Valid emails found:', validEmails);
             
             if (validEmails.length > 1) {
-                console.log('Processing multi-email input');
+                log('Processing multi-email input');
                 // Clear the cell first
                 cell.textContent = '';
                 // Process the emails
@@ -1542,27 +1542,27 @@ class UserTableManager {
      */
     handlePaste(e) {
         // Add this as the very first line to ensure we see it
-        console.log('🔥🔥🔥 PASTE EVENT HANDLER CALLED! 🔥🔥🔥');
-        console.log('🔥 Event object:', e);
-        console.log('🔥 Event target:', e.target);
-        console.log('🔥 Event type:', e.type);
+        log('🔥🔥🔥 PASTE EVENT HANDLER CALLED! 🔥🔥🔥');
+        log('🔥 Event object:', e);
+        log('🔥 Event target:', e.target);
+        log('🔥 Event type:', e.type);
         
         try {
             const pastedText = (e.clipboardData || window.clipboardData).getData('text');
             const targetCell = e.target;
             
-            console.log('📋 Pasted text:', JSON.stringify(pastedText));
-            console.log('📋 Target cell:', targetCell);
-            console.log('📋 Target cell index:', targetCell.cellIndex);
+            log('📋 Pasted text:', JSON.stringify(pastedText));
+            log('📋 Target cell:', targetCell);
+            log('📋 Target cell index:', targetCell.cellIndex);
             
             // Check which column we're pasting into (account for checkbox at index 0)
             const isEmailCell = targetCell.cellIndex === 1;
             const isCompanyCell = targetCell.cellIndex === 2;
             const isRoleCell = targetCell.cellIndex === 3;
             
-            console.log('📧 Is email cell:', isEmailCell);
-            console.log('🏢 Is company cell:', isCompanyCell);
-            console.log('👤 Is role cell:', isRoleCell);
+            log('📧 Is email cell:', isEmailCell);
+            log('🏢 Is company cell:', isCompanyCell);
+            log('👤 Is role cell:', isRoleCell);
             
             if ((isEmailCell || isCompanyCell || isRoleCell) && pastedText) {
                 // Check for multiple items (split by lines)
@@ -1570,45 +1570,45 @@ class UserTableManager {
                 
                 if (pastedText.includes('\n') || pastedText.includes('\r')) {
                     items = pastedText.split(/[\r\n]+/).map(line => line.trim()).filter(line => line);
-                    console.log('� Split by lines:', items);
+                    log('� Split by lines:', items);
                 } else if (isEmailCell && pastedText.includes(' ')) {
                     // Only check for space-separated emails in email column
                     const parts = pastedText.split(/\s+/).map(item => item.trim()).filter(item => item);
                     const emailLike = parts.filter(item => this.emailRegex.test(item));
                     if (emailLike.length > 1) {
                         items = parts;
-                        console.log('📧 Split by spaces (emails):', items);
+                        log('📧 Split by spaces (emails):', items);
                     }
                 }
                 
-                console.log('� Total items found:', items.length);
+                log('� Total items found:', items.length);
                 
                 if (items.length > 1) {
-                    console.log('🚀 PREVENTING DEFAULT PASTE - MULTIPLE ITEMS DETECTED');
+                    log('🚀 PREVENTING DEFAULT PASTE - MULTIPLE ITEMS DETECTED');
                     e.preventDefault();
                     e.stopPropagation();
                     
                     if (isEmailCell) {
                         // Email column: validate emails
                         const validEmails = items.filter(email => this.emailRegex.test(email.trim()));
-                        console.log('✅ Valid emails:', validEmails);
-                        console.log('✅ Valid email count:', validEmails.length);
+                        log('✅ Valid emails:', validEmails);
+                        log('✅ Valid email count:', validEmails.length);
                         
                         if (validEmails.length > 1) {
-                            console.log('🚀 Calling handleMultiEmailPaste...');
+                            log('🚀 Calling handleMultiEmailPaste...');
                             this.handleMultiEmailPaste(validEmails, targetCell);
                             return;
                         }
                     } else {
                         // Company or Role column: no validation needed, accept all items
-                        console.log('🚀 Calling handleMultiTextPaste...');
+                        log('🚀 Calling handleMultiTextPaste...');
                         this.handleMultiTextPaste(items, targetCell);
                         return;
                     }
                 }
             }
             
-            console.log('➡️ Allowing default paste behavior');
+            log('➡️ Allowing default paste behavior');
             // Let default paste behavior happen for single items or non-supported cells
             
         } catch (error) {
@@ -1623,16 +1623,16 @@ class UserTableManager {
      * Handle pasting multiple emails by using existing rows and creating new ones as needed
      */
     handleMultiEmailPaste(emails, targetCell) {
-        console.log('🚀🚀🚀 HANDLE MULTI-EMAIL PASTE CALLED! 🚀🚀🚀');
-        console.log('📧 Emails to paste:', emails);
-        console.log('🎯 Target cell:', targetCell);
+        log('🚀🚀🚀 HANDLE MULTI-EMAIL PASTE CALLED! 🚀🚀🚀');
+        log('📧 Emails to paste:', emails);
+        log('🎯 Target cell:', targetCell);
         
         const tbody = document.getElementById(this.tableBodyId);
         const currentRow = targetCell.parentElement;
         const currentRowIndex = Array.from(tbody.rows).indexOf(currentRow);
         
-        console.log(`📊 Pasting ${emails.length} emails starting at row ${currentRowIndex}`);
-        console.log('📊 Current tbody rows:', tbody.rows.length);
+        log(`📊 Pasting ${emails.length} emails starting at row ${currentRowIndex}`);
+        log('📊 Current tbody rows:', tbody.rows.length);
         
         // Clear the existing emails from our tracking (we'll re-add valid ones)
         const existingRows = Array.from(tbody.rows);
@@ -1647,10 +1647,10 @@ class UserTableManager {
         // Process each email
         for (let i = 0; i < emails.length; i++) {
             const email = emails[i].trim();
-            console.log(`📧 Processing email ${i+1}/${emails.length}: "${email}"`);
+            log(`📧 Processing email ${i+1}/${emails.length}: "${email}"`);
             
             if (!email || !this.emailRegex.test(email)) {
-                console.log(`❌ Skipping invalid email: "${email}"`);
+                log(`❌ Skipping invalid email: "${email}"`);
                 continue;
             }
             
@@ -1661,10 +1661,10 @@ class UserTableManager {
             if (currentRowIndex + i < tbody.rows.length) {
                 // Use existing row
                 targetRow = tbody.rows[currentRowIndex + i];
-                console.log(`♻️ Using existing row ${currentRowIndex + i}`);
+                log(`♻️ Using existing row ${currentRowIndex + i}`);
             } else {
                 // Create new row
-                console.log(`➕ Creating new row for email ${i+1}`);
+                log(`➕ Creating new row for email ${i+1}`);
                 targetRow = this.createNewRow();
                 tbody.appendChild(targetRow);
             }
@@ -1681,13 +1681,13 @@ class UserTableManager {
             // Set the email content directly
             emailCell.textContent = email;
             emailCell.setAttribute('data-previous-value', email);
-            console.log(`✅ Set email "${email}" in row ${currentRowIndex + i}`);
+            log(`✅ Set email "${email}" in row ${currentRowIndex + i}`);
             
             // Add to tracking (bypassing validation since this is a bulk operation)
             this.existingEmails.add(email);
         }
         
-        console.log('🎉 Multi-email paste completed!');
+        log('🎉 Multi-email paste completed!');
         this.updateUserCount();
     }
 
@@ -1695,26 +1695,26 @@ class UserTableManager {
      * Handle pasting multiple text items (for Company and Role columns)
      */
     handleMultiTextPaste(items, targetCell) {
-        console.log('🚀🚀🚀 HANDLE MULTI-TEXT PASTE CALLED! 🚀🚀🚀');
-        console.log('📄 Items to paste:', items);
-        console.log('🎯 Target cell:', targetCell);
-        console.log('🎯 Target cell index (column):', targetCell.cellIndex);
+        log('🚀🚀🚀 HANDLE MULTI-TEXT PASTE CALLED! 🚀🚀🚀');
+        log('📄 Items to paste:', items);
+        log('🎯 Target cell:', targetCell);
+        log('🎯 Target cell index (column):', targetCell.cellIndex);
         
         const tbody = document.getElementById(this.tableBodyId);
         const currentRow = targetCell.parentElement;
         const currentRowIndex = Array.from(tbody.rows).indexOf(currentRow);
         const columnIndex = targetCell.cellIndex;
         
-        console.log(`📊 Pasting ${items.length} items starting at row ${currentRowIndex}, column ${columnIndex}`);
-        console.log('📊 Current tbody rows:', tbody.rows.length);
+        log(`📊 Pasting ${items.length} items starting at row ${currentRowIndex}, column ${columnIndex}`);
+        log('📊 Current tbody rows:', tbody.rows.length);
         
         // Process each item
         for (let i = 0; i < items.length; i++) {
             const item = items[i].trim();
-            console.log(`📄 Processing item ${i+1}/${items.length}: "${item}"`);
+            log(`📄 Processing item ${i+1}/${items.length}: "${item}"`);
             
             if (!item) {
-                console.log(`❌ Skipping empty item: "${item}"`);
+                log(`❌ Skipping empty item: "${item}"`);
                 continue;
             }
             
@@ -1725,20 +1725,20 @@ class UserTableManager {
             if (currentRowIndex + i < tbody.rows.length) {
                 // Use existing row
                 targetRow = tbody.rows[currentRowIndex + i];
-                console.log(`♻️ Using existing row ${currentRowIndex + i}`);
+                log(`♻️ Using existing row ${currentRowIndex + i}`);
             } else {
                 // Create new row
-                console.log(`➕ Creating new row for item ${i+1}`);
+                log(`➕ Creating new row for item ${i+1}`);
                 targetRow = this.createNewRow();
                 tbody.appendChild(targetRow);
             }
             
             targetCellInRow = targetRow.cells[columnIndex];
             targetCellInRow.textContent = item;
-            console.log(`✅ Set "${item}" in row ${currentRowIndex + i}, column ${columnIndex}`);
+            log(`✅ Set "${item}" in row ${currentRowIndex + i}, column ${columnIndex}`);
         }
         
-        console.log('🎉 Multi-text paste completed!');
+        log('🎉 Multi-text paste completed!');
         this.updateUserCount();
     }
 
@@ -1763,14 +1763,14 @@ class UserTableManager {
      * Delete rows with checked checkboxes
      */
     deleteSelectedRows() {
-        console.log('🗑️ deleteSelectedRows() called');
+        log('🗑️ deleteSelectedRows() called');
         const tbody = document.getElementById(this.tableBodyId);
         
         // Find all checked checkboxes
         const checkedCheckboxes = tbody.querySelectorAll('input[type="checkbox"].row-checkbox:checked');
         
         if (checkedCheckboxes.length > 0) {
-            console.log(`🗑️ Deleting ${checkedCheckboxes.length} checked rows`);
+            log(`🗑️ Deleting ${checkedCheckboxes.length} checked rows`);
             
             // Delete all rows with checked checkboxes
             checkedCheckboxes.forEach(checkbox => {
@@ -1781,7 +1781,7 @@ class UserTableManager {
                     const email = emailCell.textContent.trim();
                     if (email) {
                         this.existingEmails.delete(email);
-                        console.log(`🗑️ Removed email "${email}" from tracking`);
+                        log(`🗑️ Removed email "${email}" from tracking`);
                     }
                     
                     // Remove the row
@@ -1789,7 +1789,7 @@ class UserTableManager {
                 }
             });
             
-            console.log('🗑️ All checked rows deleted successfully');
+            log('🗑️ All checked rows deleted successfully');
             
             // Uncheck "Select All" checkbox
             const selectAllCheckbox = document.getElementById('selectAllCheckbox');
@@ -1808,7 +1808,7 @@ class UserTableManager {
         const rows = Array.from(tbody.rows);
         
         if (rows.length === 0) {
-            console.log('🗑️ No rows to delete');
+            log('🗑️ No rows to delete');
             return;
         }
         
@@ -1817,11 +1817,11 @@ class UserTableManager {
         // If we have a currently focused cell, find its row
         if (this.currentlyFocusedCell) {
             rowToDelete = this.currentlyFocusedCell.parentElement;
-            console.log('🗑️ Found focused cell, deleting its row');
+            log('🗑️ Found focused cell, deleting its row');
         } else {
             // Fallback: delete the last row if no focused cell
             rowToDelete = rows[rows.length - 1];
-            console.log('🗑️ No focused cell, deleting last row as fallback');
+            log('🗑️ No focused cell, deleting last row as fallback');
         }
         
         if (rowToDelete && tbody.contains(rowToDelete)) {
@@ -1830,17 +1830,17 @@ class UserTableManager {
             const email = emailCell.textContent.trim();
             if (email) {
                 this.existingEmails.delete(email);
-                console.log(`🗑️ Removed email "${email}" from tracking`);
+                log(`🗑️ Removed email "${email}" from tracking`);
             }
             
             // Remove the row
             tbody.removeChild(rowToDelete);
-            console.log('🗑️ Row deleted successfully');
+            log('🗑️ Row deleted successfully');
             
             // Clear the focused cell reference if it was in the deleted row
             if (this.currentlyFocusedCell && this.currentlyFocusedCell.parentElement === rowToDelete) {
                 this.currentlyFocusedCell = null;
-                console.log('🗑️ Cleared focused cell reference');
+                log('🗑️ Cleared focused cell reference');
             }
             
             // Re-check for duplicates and update highlighting
@@ -1848,7 +1848,7 @@ class UserTableManager {
             
             this.updateUserCount();
         } else {
-            console.log('🗑️ Error: Could not find row to delete');
+            log('🗑️ Error: Could not find row to delete');
         }
     }
 
@@ -1856,7 +1856,7 @@ class UserTableManager {
      * Re-check for duplicate emails and update highlighting
      */
     recheckDuplicates() {
-        console.log('🔍 Rechecking for duplicates...');
+        log('🔍 Rechecking for duplicates...');
         const tbody = document.getElementById(this.tableBodyId);
         
         // First, clear all error highlighting (email is now in cell[1], not cell[0])
@@ -1886,7 +1886,7 @@ class UserTableManager {
         
         // If duplicates still exist, re-highlight them
         if (duplicateEmails.length > 0) {
-            console.log('🔍 Duplicates still exist:', duplicateEmails);
+            log('🔍 Duplicates still exist:', duplicateEmails);
             duplicateEmails.forEach(duplicateEmail => {
                 const rowIndices = emailsFound.get(duplicateEmail);
                 rowIndices.forEach(rowIndex => {
@@ -1896,7 +1896,7 @@ class UserTableManager {
                 });
             });
         } else {
-            console.log('✅ No duplicates found, all clear!');
+            log('✅ No duplicates found, all clear!');
             // Hide the duplicate alert if showing
             const alertDiv = document.getElementById('duplicateEmailAlert');
             if (alertDiv) {
@@ -1920,7 +1920,7 @@ class UserTableManager {
      * Update account users before saving to JSON (silent mode with progress bar)
      */
     async updateAccountUsersBeforeSave(accountId) {
-        console.log('🔄 updateAccountUsersBeforeSave called with accountId:', accountId, 'projectId:', this.modalProjectId);
+        log('🔄 updateAccountUsersBeforeSave called with accountId:', accountId, 'projectId:', this.modalProjectId);
         
         // Validate we have a project ID
         if (!this.modalProjectId) {
@@ -1940,7 +1940,7 @@ class UserTableManager {
             this.showSaveProgress('Analyzing users...', 20);
             const results = await updateAccountUsersForAccount(accountId, { performOps: true }, this.modalProjectId);
             
-            console.log('✅ Account update results:', results);
+            log('✅ Account update results:', results);
             
             // Check for invalid roles - users were SKIPPED
             const invalidRoleCount = results.invalidRoles?.size || 0;
@@ -1997,7 +1997,7 @@ class UserTableManager {
         try {
             // If we don't have the original data loaded, assume it changed
             if (!this.originalJsonData || !this.originalJsonData.users) {
-                console.log('📊 No original data to compare - assuming changed');
+                log('📊 No original data to compare - assuming changed');
                 return true;
             }
             
@@ -2006,7 +2006,7 @@ class UserTableManager {
             
             // Different number of users means changed
             if (oldUsers.length !== newUsers.length) {
-                console.log('📊 User count changed:', oldUsers.length, '→', newUsers.length);
+                log('📊 User count changed:', oldUsers.length, '→', newUsers.length);
                 return true;
             }
             
@@ -2016,7 +2016,7 @@ class UserTableManager {
                 const oldUser = oldUsers.find(u => u.email === newUser.email);
                 
                 if (!oldUser) {
-                    console.log('📊 New user found:', newUser.email);
+                    log('📊 New user found:', newUser.email);
                     return true;
                 }
                 
@@ -2027,7 +2027,7 @@ class UserTableManager {
                         const oldProduct = oldUser.products.find(p => p.key === newProduct.key);
                         
                         if (!oldProduct || oldProduct.access !== newProduct.access) {
-                            console.log(`📊 Product access changed for ${newUser.email}:`, 
+                            log(`📊 Product access changed for ${newUser.email}:`, 
                                 newProduct.key, oldProduct?.access || 'none', '→', newProduct.access);
                             return true;
                         }
@@ -2035,7 +2035,7 @@ class UserTableManager {
                 }
             }
             
-            console.log('📊 No JSON data changes detected');
+            log('📊 No JSON data changes detected');
             return false;
             
         } catch (error) {
@@ -2209,7 +2209,7 @@ class UserTableManager {
      * Save table data to JSON file (with optional account update)
      */
     async saveTableToJson(skipAccountUpdate = false) {
-        console.log('💾 saveTableToJson() called, skipAccountUpdate:', skipAccountUpdate);
+        log('💾 saveTableToJson() called, skipAccountUpdate:', skipAccountUpdate);
         
         const tbody = document.getElementById(this.tableBodyId);
         
@@ -2230,7 +2230,7 @@ class UserTableManager {
                 );
                 
                 if (!proceed) {
-                    console.log('⚠️ User cancelled save due to hub mismatch');
+                    log('⚠️ User cancelled save due to hub mismatch');
                     return;
                 }
             }
@@ -2263,7 +2263,7 @@ class UserTableManager {
         
         // If duplicates found, highlight them and show alert in modal
         if (duplicateEmails.length > 0) {
-            console.log('❌ Duplicate emails found:', duplicateEmails);
+            log('❌ Duplicate emails found:', duplicateEmails);
             
             // Hide progress bar if showing
             this.hideSaveProgress();
@@ -2334,7 +2334,7 @@ class UserTableManager {
             const email = (emailCell.textContent || emailCell.innerText || '').trim();
             
             if (email) {
-                console.log(`💾 Processing user: ${email}`);
+                log(`💾 Processing user: ${email}`);
                 const user = {
                     email: email.toLowerCase(), // Always save email in lowercase for consistency
                     metadata: {
@@ -2344,7 +2344,7 @@ class UserTableManager {
                     products: []
                 };
                 
-                console.log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}"`);
+                log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}"`);
                 
                 // Product keys and their corresponding cell indices
                 // Note: 'insight' is not in the UI but access level matches other products to avoid mixing
@@ -2399,8 +2399,8 @@ class UserTableManager {
             exportDate: new Date().toISOString()
         };
         
-        console.log(`💾 Saving ${users.length} users to server`);
-        console.log('💾 Sample user data:', users[0]);
+        log(`💾 Saving ${users.length} users to server`);
+        log('💾 Sample user data:', users[0]);
         
         // Update progress if account update will run
         if (!skipAccountUpdate) {
@@ -2436,11 +2436,11 @@ class UserTableManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
+                log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
                 
                 // DISABLED: Account update feature (Autodesk API sync)
                 // To re-enable, change skipAccountUpdate to false when calling saveTableToJson
-                console.log('ℹ️ Account update disabled - data saved to Firebase only');
+                log('ℹ️ Account update disabled - data saved to Firebase only');
                 
                 this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
                     '✓ Saved successfully');
@@ -2467,7 +2467,7 @@ class UserTableManager {
      * Import user data from CSV file
      */
     importFromCSV() {
-        console.log('📁 importFromCSV() called');
+        log('📁 importFromCSV() called');
         
         // Create import modal
         this.showImportCSVModal();
@@ -2549,7 +2549,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            console.log('✅ Sample CSV downloaded');
+            log('✅ Sample CSV downloaded');
         };
 
         // Import CSV file
@@ -2560,13 +2560,13 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 return;
             }
 
-            console.log('📁 Processing CSV file:', file.name);
+            log('📁 Processing CSV file:', file.name);
             
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const csvContent = e.target.result;
-                    console.log('📁 CSV content loaded');
+                    log('📁 CSV content loaded');
                     this.parseAndImportCSV(csvContent);
                     modal.remove();
                 } catch (error) {
@@ -2583,11 +2583,11 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
      * Parse CSV content and import user data
      */
     parseAndImportCSV(csvContent) {
-        console.log('📊 parseAndImportCSV() called');
+        log('📊 parseAndImportCSV() called');
         
         // Split into lines and filter out empty lines
         const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
-        console.log(`📊 Found ${lines.length} lines in CSV`);
+        log(`📊 Found ${lines.length} lines in CSV`);
         
         if (lines.length === 0) {
             this.showTooltip(document.querySelector('button[onclick="importCSV()"]'), 
@@ -2605,7 +2605,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             
             // Skip first line (header row)
             if (index === 0) {
-                console.log(`📊 Skipping header row: ${trimmedLine}`);
+                log(`📊 Skipping header row: ${trimmedLine}`);
                 return;
             }
             
@@ -2654,15 +2654,15 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             validCount++;
             
             if (parts.length === 3) {
-                console.log(`✅ Line ${index + 1}: ${email} | ${company} | ${role}`);
+                log(`✅ Line ${index + 1}: ${email} | ${company} | ${role}`);
             } else if (parts.length === 2) {
-                console.log(`✅ Line ${index + 1}: ${email} | ${company || role}`);
+                log(`✅ Line ${index + 1}: ${email} | ${company || role}`);
             } else {
-                console.log(`✅ Line ${index + 1}: ${email}`);
+                log(`✅ Line ${index + 1}: ${email}`);
             }
         });
         
-        console.log(`📊 Import summary: ${validCount} valid users, ${errorCount} errors`);
+        log(`📊 Import summary: ${validCount} valid users, ${errorCount} errors`);
         
         if (importedUsers.length === 0) {
             this.showTooltip(document.querySelector('button[onclick="importCSV()"]'), 
@@ -2721,7 +2721,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 if (checkbox) {
                     checkbox.checked = true; // Check the toggle for administrator
                 }
-                console.log(`✅ CSV Import: Set Docs to 'administrator' for ${userData.email}`);
+                log(`✅ CSV Import: Set Docs to 'administrator' for ${userData.email}`);
             }
             
             tbody.appendChild(row);
@@ -2736,14 +2736,14 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         
         this.showTooltip(document.querySelector('button[onclick="importCSV()"]'), message);
         
-        console.log('🎉 CSV import completed!');
+        log('🎉 CSV import completed!');
     }
 
     /**
      * Load table data from server
      */
     loadTableData() {
-        console.log('📊 loadTableData() called');
+        log('📊 loadTableData() called');
         
         // Check if we have a project ID
         if (!this.modalProjectId) {
@@ -2753,7 +2753,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         }
         
         const loadUrl = `${window.location.origin}/load-project-users/${this.modalProjectId}`;
-        console.log('📊 Fetching from:', loadUrl);
+        log('📊 Fetching from:', loadUrl);
         
         // Prepare headers with auth token
         const headers = {};
@@ -2763,25 +2763,25 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         
         fetch(loadUrl, { headers })
             .then(response => {
-                console.log('📊 Response status:', response.status);
-                console.log('📊 Response OK:', response.ok);
+                log('📊 Response status:', response.status);
+                log('📊 Response OK:', response.ok);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 return response.json();
             })
             .then(jsonData => {
-                console.log('📊 Data loaded from server:', jsonData);
-                console.log('📊 Number of users:', jsonData.users ? jsonData.users.length : 0);
+                log('📊 Data loaded from server:', jsonData);
+                log('📊 Number of users:', jsonData.users ? jsonData.users.length : 0);
                 
                 // Store original data for comparison later
                 this.originalJsonData = JSON.parse(JSON.stringify(jsonData)); // Deep copy
                 
                 if (jsonData.users && jsonData.users.length > 0) {
-                    console.log('📊 Found', jsonData.users.length, 'users, calling populateTableFromData');
+                    log('📊 Found', jsonData.users.length, 'users, calling populateTableFromData');
                     this.populateTableFromData(jsonData.users);
                 } else {
-                    console.log('📊 No users data in JSON, adding default row');
+                    log('📊 No users data in JSON, adding default row');
                     this.addRow(); // Add default row if no saved data
                 }
             })
@@ -2790,7 +2790,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 console.error('❌ Error name:', error.name);
                 console.error('❌ Error message:', error.message);
                 console.error('❌ Error stack:', error.stack);
-                console.log('📊 Adding default row due to error');
+                log('📊 Adding default row due to error');
                 
                 // Show user-friendly error message
                 alert(`Failed to load user data from server:\n${error.message}\n\nPlease make sure the server is running (npm start or node server.js)`);
@@ -2803,15 +2803,15 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
      * Populate table from JSON data
      */
     populateTableFromData(users) {
-        console.log('📋 populateTableFromData called with:', users);
+        log('📋 populateTableFromData called with:', users);
         const tbody = document.getElementById(this.tableBodyId);
         tbody.innerHTML = '';
         this.existingEmails.clear();
         
         users.forEach(user => {
-            console.log('📋 Populating row for user:', user.email);
-            console.log('📋   Company:', user.metadata?.company);
-            console.log('📋   Role:', user.metadata?.role);
+            log('📋 Populating row for user:', user.email);
+            log('📋   Company:', user.metadata?.company);
+            log('📋   Role:', user.metadata?.role);
             
             const row = document.createElement('tr');
             
@@ -2831,14 +2831,14 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const companyCell = this.createEditableCell();
             const companyValue = (user.metadata && user.metadata.company) || '';
             companyCell.textContent = companyValue;
-            console.log('📋   Setting company cell to:', companyValue);
+            log('📋   Setting company cell to:', companyValue);
             row.appendChild(companyCell);
 
             // Role cell
             const roleCell = this.createEditableCell();
             const roleValue = (user.metadata && user.metadata.role) || '';
             roleCell.textContent = roleValue;
-            console.log('📋   Setting role cell to:', roleValue);
+            log('📋   Setting role cell to:', roleValue);
             row.appendChild(roleCell);
             
             // Access level cells
@@ -2944,12 +2944,12 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
  * Initialize the user table manager
  */
 function initUserTable() {
-    console.log('🚀🚀🚀 initUserTable called - user-table.js is loading! 🚀🚀🚀');
+    log('🚀🚀🚀 initUserTable called - user-table.js is loading! 🚀🚀🚀');
     try {
         userTableManager = new UserTableManager();
-        console.log('✅ UserTableManager created:', userTableManager);
+        log('✅ UserTableManager created:', userTableManager);
         userTableManager.init();
-        console.log('✅ UserTableManager initialized successfully');
+        log('✅ UserTableManager initialized successfully');
     } catch (error) {
         console.error('💥 Error initializing UserTableManager:', error);
         console.error('💥 Stack trace:', error.stack);
@@ -2960,13 +2960,13 @@ function initUserTable() {
  * Test function to verify the module is working
  */
 function testUserTableModule() {
-    console.log('🧪 Testing user table module...');
-    console.log('🧪 userTableManager:', userTableManager);
+    log('🧪 Testing user table module...');
+    log('🧪 userTableManager:', userTableManager);
     if (userTableManager) {
-        console.log('🧪 UserTableManager exists and is initialized');
+        log('🧪 UserTableManager exists and is initialized');
         return true;
     } else {
-        console.log('🧪 UserTableManager is not initialized');
+        log('🧪 UserTableManager is not initialized');
         return false;
     }
 }
@@ -2975,9 +2975,9 @@ function testUserTableModule() {
  * Global functions to maintain compatibility with existing HTML
  */
 function openUserManagementModal(projectId, projectName) {
-    console.log('🚀 openUserManagementModal called with projectId:', projectId, 'projectName:', projectName);
+    log('🚀 openUserManagementModal called with projectId:', projectId, 'projectName:', projectName);
     if (userTableManager) {
-        console.log('✅ userTableManager exists, calling openModal()');
+        log('✅ userTableManager exists, calling openModal()');
         userTableManager.openModal(projectId, projectName);
     } else {
         console.error('❌ userTableManager not initialized!');

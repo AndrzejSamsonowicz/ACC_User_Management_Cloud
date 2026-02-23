@@ -2,7 +2,7 @@
 // Handles comparison between account users and users_main_list
 // and prepares lists for PATCH (update) and POST (add) operations.
 
-console.log('🔁 update_account_users.js loaded');
+log('🔁 update_account_users.js loaded');
 
 // Security: HTML escape function to prevent XSS
 function escapeHtml(text) {
@@ -51,7 +51,7 @@ async function get2LeggedTokenWithWriteScope() {
         }
         
         const tokenData = await response.json();
-        console.log('Got 2-legged token with account:write scope');
+        log('Got 2-legged token with account:write scope');
         return tokenData.access_token;
     } catch (error) {
         console.error('Error getting 2-legged token with write scope:', error);
@@ -92,7 +92,7 @@ async function fetchAllCompanies(accountId, twoLeggedToken) {
 async function createCompanies(accountId, twoLeggedToken, companies) {
     if (!companies || companies.length === 0) return [];
     
-    console.log(`🏢 Creating ${companies.length} companies one by one...`);
+    log(`🏢 Creating ${companies.length} companies one by one...`);
     const created = [];
     
     for (const company of companies) {
@@ -117,9 +117,9 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
             if (company.website_url) payload.website_url = company.website_url;
             if (company.description) payload.description = company.description;
 
-            console.log('🏢 Creating company:', company.name);
-            console.log('🏢 POST URL:', url);
-            console.log('🏢 Payload:', JSON.stringify(payload, null, 2));
+            log('🏢 Creating company:', company.name);
+            log('🏢 POST URL:', url);
+            log('🏢 Payload:', JSON.stringify(payload, null, 2));
 
             const res = await fetch(url, {
                 method: 'POST',
@@ -130,7 +130,7 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
                 body: JSON.stringify(payload)
             });
 
-            console.log('🏢 Response status:', res.status, res.statusText);
+            log('🏢 Response status:', res.status, res.statusText);
 
             if (!res.ok) {
                 const txt = await res.text();
@@ -141,7 +141,7 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
             }
 
             const result = await res.json();
-            console.log('✅ Successfully created company:', company.name, result);
+            log('✅ Successfully created company:', company.name, result);
             created.push(result);
             
         } catch (error) {
@@ -150,7 +150,7 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
         }
     }
     
-    console.log(`🏢 Created ${created.length} out of ${companies.length} companies`);
+    log(`🏢 Created ${created.length} out of ${companies.length} companies`);
     return created;
 }
 
@@ -237,7 +237,7 @@ async function importUsers(accountId, token, usersArray) {
         batches.push(usersArray.slice(i, i + BATCH_SIZE));
     }
     
-    console.log(`📦 Splitting ${usersArray.length} users into ${batches.length} batches of ${BATCH_SIZE}`);
+    log(`📦 Splitting ${usersArray.length} users into ${batches.length} batches of ${BATCH_SIZE}`);
     
     // Accumulate results from all batches
     const aggregatedResults = {
@@ -250,7 +250,7 @@ async function importUsers(accountId, token, usersArray) {
     // Process each batch sequentially with delays
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
-        console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
+        log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
         
         // Format users according to HQ API specification from documentation
         const payload = batch.map(user => {
@@ -267,7 +267,7 @@ async function importUsers(accountId, token, usersArray) {
             if (user.nickname) formattedUser.nickname = user.nickname;
             if (user.company) formattedUser.company = user.company;
             
-            console.log(`📤 API Payload for ${user.email}:`, JSON.stringify(formattedUser, null, 2));
+            log(`📤 API Payload for ${user.email}:`, JSON.stringify(formattedUser, null, 2));
             return formattedUser;
         });
         
@@ -307,7 +307,7 @@ async function importUsers(accountId, token, usersArray) {
                         }
                         
                         const retryResult = await retryRes.json();
-                        console.log(`✅ Batch ${batchIndex + 1} completed after retry: ${retryResult.success} success, ${retryResult.failure} failures`);
+                        log(`✅ Batch ${batchIndex + 1} completed after retry: ${retryResult.success} success, ${retryResult.failure} failures`);
                         
                         // Aggregate retry results
                         aggregatedResults.success += retryResult.success || 0;
@@ -321,7 +321,7 @@ async function importUsers(accountId, token, usersArray) {
                         
                         // Continue to next batch
                         if (batchIndex + 1 < batches.length) {
-                            console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+                            log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
                             await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
                         }
                         continue;
@@ -354,7 +354,7 @@ async function importUsers(accountId, token, usersArray) {
             }
             
             const batchResult = await res.json();
-            console.log(`✅ Batch ${batchIndex + 1} completed: ${batchResult.success} success, ${batchResult.failure} failures`);
+            log(`✅ Batch ${batchIndex + 1} completed: ${batchResult.success} success, ${batchResult.failure} failures`);
             
             // Aggregate results
             aggregatedResults.success += batchResult.success || 0;
@@ -381,18 +381,18 @@ async function importUsers(accountId, token, usersArray) {
         
         // Add delay between batches (except for the last batch)
         if (batchIndex + 1 < batches.length) {
-            console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+            log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
             await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
         }
     }
     
-    console.log(`📊 Final results: ${aggregatedResults.success} succeeded, ${aggregatedResults.failure} failed`);
+    log(`📊 Final results: ${aggregatedResults.success} succeeded, ${aggregatedResults.failure} failed`);
     return aggregatedResults;
 }
 
 // Main function - compute lists and (optionally) perform operations
 async function updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null) {
-    console.log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, options);
+    log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, options);
 
     try {
         // Validate inputs first
@@ -411,11 +411,11 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         let userToken = null;
         
         // Get 2-legged token for company operations (Construction Admin API)
-        console.log('🔑 Checking for get2LeggedToken function...');
+        log('🔑 Checking for get2LeggedToken function...');
         if (typeof get2LeggedToken === 'function') {
-            console.log('✅ get2LeggedToken function found, calling...');
+            log('✅ get2LeggedToken function found, calling...');
             twoLeggedToken = await get2LeggedToken();
-            console.log('✅ 2-legged token obtained from global function');
+            log('✅ 2-legged token obtained from global function');
         } else {
             throw new Error('get2LeggedToken() not available in this page.');
         }
@@ -424,9 +424,9 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         // Let's try to get our own token with the correct scopes
         let hqApiToken = null;
         try {
-            console.log('🔑 Getting HQ API token with account:write scope...');
+            log('🔑 Getting HQ API token with account:write scope...');
             hqApiToken = await get2LeggedTokenWithWriteScope();
-            console.log('✅ HQ API token with write scope obtained');
+            log('✅ HQ API token with write scope obtained');
         } catch (error) {
             console.warn('⚠️ Could not get HQ API token with write scope:', error.message);
             console.warn('⚠️ Will use existing 2-legged token (may have limited permissions)');
@@ -434,10 +434,10 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         }
 
         // For user operations (HQ API), require 3-legged token
-        console.log('🔑 Checking for 3-legged token...');
-        console.log('Debug: typeof currentAccessToken =', typeof currentAccessToken);
-        console.log('Debug: currentAccessToken =', currentAccessToken ? 'exists' : 'undefined');
-        console.log('Debug: typeof window.currentAccessToken =', typeof window.currentAccessToken);
+        log('🔑 Checking for 3-legged token...');
+        log('Debug: typeof currentAccessToken =', typeof currentAccessToken);
+        log('Debug: currentAccessToken =', currentAccessToken ? 'exists' : 'undefined');
+        log('Debug: typeof window.currentAccessToken =', typeof window.currentAccessToken);
         
         // Try multiple ways to get the 3-legged token
         let token3Legged = null;
@@ -451,7 +451,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         
         if (token3Legged) {
             userToken = token3Legged;
-            console.log('✅ 3-legged token available');
+            log('✅ 3-legged token available');
         } else {
             console.error('❌ 3-legged token not available');
             console.error('Available global variables:', Object.keys(window).filter(k => k.includes('token') || k.includes('Token') || k.includes('access')));
@@ -460,30 +460,30 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         // Important: According to APS documentation, HQ API user operations (PATCH/POST) require 2-legged tokens
         // Use 2-legged token with account:write scope for all HQ API operations per documentation
         userToken = hqApiToken;
-        console.log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
+        log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
         // Load import JSON from local server endpoint (project-specific)
-        console.log(`📥 Loading project-specific user list for project: ${projectId}`);
+        log(`📥 Loading project-specific user list for project: ${projectId}`);
         const importData = await fetchJSON(`${window.location.origin}/load-project-users/${projectId}`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`
             }
         });
         const importUsersList = importData.users || []; // Renamed to avoid conflict with function
-        console.log(`Loaded ${importUsersList.length} users from project-specific import file (project: ${projectId})`);
-        console.log('📋 Sample user data from load:', JSON.stringify(importUsersList[0], null, 2));
+        log(`Loaded ${importUsersList.length} users from project-specific import file (project: ${projectId})`);
+        log('📋 Sample user data from load:', JSON.stringify(importUsersList[0], null, 2));
 
         // Fetch account users (may need 2-legged token for reading)
         let accountUsers;
         try {
             // Try with 3-legged token first
             accountUsers = await fetchAllAccountUsers(accountId, userToken);
-            console.log(`✅ Fetched ${accountUsers.length} account users with 3-legged token`);
+            log(`✅ Fetched ${accountUsers.length} account users with 3-legged token`);
         } catch (err) {
             if (err.message.includes('Only support 2 legged access token')) {
-                console.log('⚠️ Falling back to 2-legged token for fetching users');
+                log('⚠️ Falling back to 2-legged token for fetching users');
                 accountUsers = await fetchAllAccountUsers(accountId, twoLeggedToken);
-                console.log(`✅ Fetched ${accountUsers.length} account users with 2-legged token`);
+                log(`✅ Fetched ${accountUsers.length} account users with 2-legged token`);
             } else {
                 throw err;
             }
@@ -497,7 +497,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
 
         // Fetch companies and build name -> id map (case-insensitive)
         let companies = await fetchAllCompanies(accountId, twoLeggedToken);
-        console.log(`Fetched ${companies.length} companies`);
+        log(`Fetched ${companies.length} companies`);
         const companyMap = new Map();
         companies.forEach(c => {
             if (c.name) companyMap.set(c.name.trim().toLowerCase(), c.id);
@@ -518,7 +518,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             const companyName = (user.metadata && user.metadata.company) ? user.metadata.company.trim() : '';
             const role = (user.metadata && user.metadata.role) ? user.metadata.role.trim() : '';
             
-            console.log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
+            log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
 
             const accountUser = accountByEmail.get(email);
             if (accountUser) {
@@ -566,18 +566,18 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     nickname: user.nickname || user.first_name || user.email.split('@')[0],
                     company: companyName || ''
                 });
-                console.log(`➕ Added to ADD list: ${email} with company_id="${companyId}", default_role="${role || 'Team Member'}"`);
+                log(`➕ Added to ADD list: ${email} with company_id="${companyId}", default_role="${role || 'Team Member'}"`);
             }
         });
 
-        console.log(`To PATCH: ${toPatch.length}, To ADD: ${toAdd.length}, Companies to create: ${companiesToCreate.size}`);
+        log(`To PATCH: ${toPatch.length}, To ADD: ${toAdd.length}, Companies to create: ${companiesToCreate.size}`);
 
         // Create missing companies if any (and then re-fetch companies map)
         if (companiesToCreate.size > 0) {
             const createList = Array.from(companiesToCreate.values());
-            console.log('Creating companies:', createList);
+            log('Creating companies:', createList);
             // Use 2-legged token with account:write scope for company creation
-            console.log('🔑 Using 2-legged token with account:write scope for company creation');
+            log('🔑 Using 2-legged token with account:write scope for company creation');
             await createCompanies(accountId, hqApiToken, createList);
 
             // Re-fetch companies
@@ -586,7 +586,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             companies.forEach(c => {
                 if (c.name) companyMap.set(c.name.trim().toLowerCase(), c.id);
             });
-            console.log('Re-fetched companies after creation, total:', companies.length);
+            log('Re-fetched companies after creation, total:', companies.length);
 
             // Update companyIds in toPatch/toAdd
             toPatch.forEach(item => {
@@ -613,7 +613,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         if (simulationMode) {
             console.warn('⚠️ Running in SIMULATION MODE - operations will show what WOULD be done');
         } else {
-            console.log('🚀 Attempting real operations with 2-legged token + account:write scope');
+            log('🚀 Attempting real operations with 2-legged token + account:write scope');
         }
 
         // PATCH existing users with rate limiting
@@ -621,11 +621,11 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         const PATCH_BATCH_SIZE = 3; // Reduced to 3 users at a time for better reliability
         const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches
         
-        console.log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE}`);
+        log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE}`);
         
         for (let i = 0; i < toPatch.length; i += PATCH_BATCH_SIZE) {
             const batch = toPatch.slice(i, i + PATCH_BATCH_SIZE);
-            console.log(`📝 Processing PATCH batch ${Math.floor(i / PATCH_BATCH_SIZE) + 1}/${Math.ceil(toPatch.length / PATCH_BATCH_SIZE)} (users ${i + 1}-${Math.min(i + PATCH_BATCH_SIZE, toPatch.length)} of ${toPatch.length})`);
+            log(`📝 Processing PATCH batch ${Math.floor(i / PATCH_BATCH_SIZE) + 1}/${Math.ceil(toPatch.length / PATCH_BATCH_SIZE)} (users ${i + 1}-${Math.min(i + PATCH_BATCH_SIZE, toPatch.length)} of ${toPatch.length})`);
             
             // Process batch sequentially to avoid Promise.all issues with error handling
             for (const item of batch) {
@@ -636,12 +636,12 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     
                     // Only include fields we have
                     if (Object.keys(body).length === 0) {
-                        console.log(`⏭️ Skipping patch for ${item.email} - no data to update`);
+                        log(`⏭️ Skipping patch for ${item.email} - no data to update`);
                         results.patched.push({ email: item.email, skipped: true });
                         continue;
                     }
                     
-                    console.log(`📝 Attempting to update ${item.email} with:`, body);
+                    log(`📝 Attempting to update ${item.email} with:`, body);
                     
                     if (simulationMode) {
                         // Simulate success
@@ -651,7 +651,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                             changes: body,
                             note: 'Would update: ' + Object.keys(body).join(', ')
                         });
-                        console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
+                        log(`✅ SIMULATION: Would update ${item.email} with:`, body);
                     } else {
                         // Try actual operation
                         let retryCount = 0;
@@ -659,12 +659,12 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                         
                         while (!success && retryCount < 3) {
                             try {
-                                console.log(`🔍 PATCH URL: https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${item.userId}`);
-                                console.log(`🔍 PATCH Body:`, JSON.stringify(body, null, 2));
+                                log(`🔍 PATCH URL: https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${item.userId}`);
+                                log(`🔍 PATCH Body:`, JSON.stringify(body, null, 2));
                                 const result = await patchUser(accountId, item.userId, userToken, body);
                                 results.patched.push({ email: item.email, changes: body });
-                                console.log(`✅ Successfully updated ${item.email} with:`, body);
-                                console.log(`✅ API Response:`, JSON.stringify(result, null, 2));
+                                log(`✅ Successfully updated ${item.email} with:`, body);
+                                log(`✅ API Response:`, JSON.stringify(result, null, 2));
                                 success = true;
                             } catch (patchError) {
                                 console.error(`❌ Patch attempt ${retryCount + 1} failed for ${item.email}:`, patchError.message);
@@ -680,7 +680,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                                         changes: body,
                                         note: 'Would update: ' + Object.keys(body).join(', ') + ' (auth failed)'
                                     });
-                                    console.log(`✅ SIMULATION: Would update ${item.email} with:`, body);
+                                    log(`✅ SIMULATION: Would update ${item.email} with:`, body);
                                     success = true; // Don't retry, just switch to simulation
                                     
                                 } else if (patchError.message.includes('404') && patchError.message.includes("this default_role doesn't exist")) {
@@ -728,7 +728,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             
             // Add delay between batches (except for the last batch)
             if (i + PATCH_BATCH_SIZE < toPatch.length) {
-                console.log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+                log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
                 await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
             }
         }
@@ -736,12 +736,12 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         // POST new users in batches (API takes an array)
         try {
             if (toAdd.length > 0) {
-                console.log('About to call importUsers with:', toAdd.length, 'users');
-                console.log('typeof importUsers:', typeof importUsers);
+                log('About to call importUsers with:', toAdd.length, 'users');
+                log('typeof importUsers:', typeof importUsers);
                 
                 // Use window reference to ensure function is accessible
                 const importUsersFunction = window.importUsers || importUsers;
-                console.log('typeof importUsersFunction:', typeof importUsersFunction);
+                log('typeof importUsersFunction:', typeof importUsersFunction);
                 
                 if (typeof importUsersFunction !== 'function') {
                     console.error('importUsers function is not available, switching to simulation mode');
@@ -757,13 +757,13 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                             details: item,
                             note: `Would add user with role: ${item.default_role || 'Team Member'}`
                         });
-                        console.log(`✅ SIMULATION: Would add user ${item.email} with role ${item.default_role || 'Team Member'}`);
+                        log(`✅ SIMULATION: Would add user ${item.email} with role ${item.default_role || 'Team Member'}`);
                     });
                 } else {
                     // Try actual operation, but switch to simulation on 403
                     try {
                         const importResult = await importUsersFunction(accountId, userToken, toAdd);
-                        console.log('Import result:', importResult);
+                        log('Import result:', importResult);
                         
                         // Handle batched import results
                         if (importResult.success_items && importResult.success_items.length > 0) {
@@ -797,7 +797,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                             });
                         }
                         
-                        console.log(`✅ Import completed: ${importResult.success} succeeded, ${importResult.failure} failed out of ${toAdd.length} users`);
+                        log(`✅ Import completed: ${importResult.success} succeeded, ${importResult.failure} failed out of ${toAdd.length} users`);
                     } catch (authError) {
                         if (authError.message.includes('403') || authError.message.includes('privilege') || authError.message.includes('AUTH-010')) {
                             // Switch to simulation mode
@@ -810,7 +810,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                                     details: item,
                                     note: `Would add user with role: ${item.default_role || 'Team Member'} (auth failed)`
                                 });
-                                console.log(`✅ SIMULATION: Would add user ${item.email} with role ${item.default_role || 'Team Member'}`);
+                                log(`✅ SIMULATION: Would add user ${item.email} with role ${item.default_role || 'Team Member'}`);
                             });
                         } else {
                             throw authError;
@@ -834,7 +834,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
 
 // Expose a global wrapper for UI with progress bar
 async function updateAccountUsersInteractive(accountId) {
-    console.log('🚀 updateAccountUsersInteractive called with accountId:', accountId);
+    log('🚀 updateAccountUsersInteractive called with accountId:', accountId);
     
     // Create progress modal
     createProgressModal();
@@ -843,16 +843,16 @@ async function updateAccountUsersInteractive(accountId) {
         updateProgress('Starting user comparison...', 0);
         
         // Add detailed debugging
-        console.log('📊 Available functions check:');
-        console.log('- get2LeggedToken:', typeof get2LeggedToken);
-        console.log('- currentAccessToken:', typeof currentAccessToken);
-        console.log('- fetchJSON:', typeof fetchJSON);
-        console.log('- updateAccountUsersForAccount:', typeof updateAccountUsersForAccount);
+        log('📊 Available functions check:');
+        log('- get2LeggedToken:', typeof get2LeggedToken);
+        log('- currentAccessToken:', typeof currentAccessToken);
+        log('- fetchJSON:', typeof fetchJSON);
+        log('- updateAccountUsersForAccount:', typeof updateAccountUsersForAccount);
         
         // Preview first
         updateProgress('Running preview analysis...', 10);
         const preview = await updateAccountUsersForAccount(accountId, { performOps: false });
-        console.log('✅ Preview result:', preview);
+        log('✅ Preview result:', preview);
 
         updateProgress(`Found: ${preview.toPatch.length} to update, ${preview.toAdd.length} to add`, 20);
         
@@ -871,7 +871,7 @@ async function updateAccountUsersInteractive(accountId) {
         
         // Perform operations
         const results = await updateAccountUsersForAccount(accountId, { performOps: true });
-        console.log('✅ Operation results:', results);
+        log('✅ Operation results:', results);
         
         updateProgress('Operations completed', 100);
         

@@ -1,5 +1,5 @@
 // Project Users Viewer (Read-Only)
-console.log('🚀🚀🚀 get_project_users.js LOADING - VERSION 20251109171600 🚀🚀🚀');
+log('🚀🚀🚀 get_project_users.js LOADING - VERSION 20251109171600 🚀🚀🚀');
 
 class ProjectUsersViewer {
     constructor() {
@@ -230,12 +230,12 @@ class ProjectUsersViewer {
             // Fetch all users with pagination
             const allUsers = await this.fetchAllUsers(projectId);
             
-            console.log('🔍 RAW API DATA - Total users:', allUsers.length);
+            log('🔍 RAW API DATA - Total users:', allUsers.length);
             if (allUsers.length > 0) {
-                console.log('🔍 First raw user:', allUsers[0]);
-                console.log('🔍 First user.email:', allUsers[0].email);
-                console.log('🔍 First user.companyName:', allUsers[0].companyName);
-                console.log('🔍 First user.roles:', allUsers[0].roles);
+                log('🔍 First raw user:', allUsers[0]);
+                log('🔍 First user.email:', allUsers[0].email);
+                log('🔍 First user.companyName:', allUsers[0].companyName);
+                log('🔍 First user.roles:', allUsers[0].roles);
             }
             
             // Store original users data
@@ -252,11 +252,11 @@ class ProjectUsersViewer {
                     role: roleNames
                 };
                 
-                console.log('🔍 Mapped user:', mapped);
+                log('🔍 Mapped user:', mapped);
                 return mapped;
             });
             
-            console.log('🔍 FINAL originalUsers array:', this.originalUsers);
+            log('🔍 FINAL originalUsers array:', this.originalUsers);
             
             // Reset sort to default
             this.sortColumn = 'email';
@@ -292,7 +292,7 @@ class ProjectUsersViewer {
             });
 
             const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
-            console.log(`Fetching users: ${apiUrl}`);
+            log(`Fetching users: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -305,7 +305,7 @@ class ProjectUsersViewer {
                 let errorData;
                 try {
                     errorData = await response.json();
-                    console.log('Error response:', errorData);
+                    log('Error response:', errorData);
                 } catch (parseError) {
                     const textError = await response.text();
                     throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
@@ -320,7 +320,7 @@ class ProjectUsersViewer {
             }
 
             const usersData = await response.json();
-            console.log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
+            log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
 
             if (usersData.results && usersData.results.length > 0) {
                 allUsers = allUsers.concat(usersData.results);
@@ -513,9 +513,9 @@ const projectUsersViewer = new ProjectUsersViewer();
 
 // Global function to be called from main page
 async function showProjectUsers(projectId, projectName, accessToken) {
-    console.log('🎯🎯🎯 showProjectUsers CALLED! 🎯🎯🎯');
-    console.log('Project ID:', projectId);
-    console.log('Project Name:', projectName);
+    log('🎯🎯🎯 showProjectUsers CALLED! 🎯🎯🎯');
+    log('Project ID:', projectId);
+    log('Project Name:', projectName);
     
     try {
         // Get 2-legged token for project users (Construction Admin API requires 2-legged)

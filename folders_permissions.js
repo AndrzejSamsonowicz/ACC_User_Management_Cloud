@@ -19,7 +19,7 @@
         const encodedFolderId = encodeURIComponent(folderId);
         const url = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${encodedFolderId}/permissions`;
         
-        console.log('🔐 Fetching permissions for folder:', folderId);
+        log('🔐 Fetching permissions for folder:', folderId);
 
         try {
             const response = await fetch(url, {
@@ -38,7 +38,7 @@
             }
 
             const permissions = await response.json();
-            console.log(`✅ Found ${permissions.length} permissions for folder`);
+            log(`✅ Found ${permissions.length} permissions for folder`);
             
             return permissions;
         } catch (error) {
@@ -55,7 +55,7 @@
      * @returns {Promise<Object>} Map of folderId to permissions array
      */
     async function fetchAllFolderPermissions(projectId, hierarchy, accessToken) {
-        console.log('🔐 Fetching permissions for all folders in hierarchy...');
+        log('🔐 Fetching permissions for all folders in hierarchy...');
         
         const permissionsMap = {};
         const uniqueFolderIds = new Set();
@@ -67,7 +67,7 @@
             if (row.level3?.id) uniqueFolderIds.add(row.level3.id);
         });
 
-        console.log(`📂 Found ${uniqueFolderIds.size} unique folders to fetch permissions for`);
+        log(`📂 Found ${uniqueFolderIds.size} unique folders to fetch permissions for`);
 
         // Fetch permissions for each folder
         // Process in batches to avoid overwhelming the API
@@ -86,10 +86,10 @@
                 permissionsMap[folderId] = permissions;
             });
             
-            console.log(`📊 Progress: ${Math.min(i + batchSize, folderIds.length)}/${folderIds.length} folders`);
+            log(`📊 Progress: ${Math.min(i + batchSize, folderIds.length)}/${folderIds.length} folders`);
         }
 
-        console.log('✅ Finished fetching all folder permissions');
+        log('✅ Finished fetching all folder permissions');
         return permissionsMap;
     }
 
@@ -200,6 +200,6 @@
         matchPermissionsToUsers
     };
 
-    console.log('🔐 Folder Permissions module initialized');
+    log('🔐 Folder Permissions module initialized');
 
 })();

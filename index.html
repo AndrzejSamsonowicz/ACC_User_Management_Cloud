@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Autodesk APS Authentication and Hubs</title>
-    <!-- Version: 2025-02-18-16 - CSV IMPORT DOCS DEFAULT -->
+    <!-- Version: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
         
@@ -469,6 +469,13 @@
 
     <script>
         // ========================================================================
+        // DEBUG MODE CONFIGURATION
+        // ========================================================================
+        // Set to true for development, false for production (silences console.log)
+        const DEBUG_MODE = false;
+        const log = DEBUG_MODE ? console.log.bind(console) : () => {};
+        
+        // ========================================================================
         // GLOBAL VARIABLES
         // ========================================================================
         
@@ -492,7 +499,7 @@
                           localStorage.getItem('DEMO_MODE') === 'true';
         
         if (isDemoMode) {
-            console.log('🎨 DEMO MODE: Authentication bypassed for UI testing');
+            log('🎨 DEMO MODE: Authentication bypassed for UI testing');
             localStorage.setItem('DEMO_MODE', 'true');
             // Skip Firebase initialization in demo mode
             displayDemoInfo();
@@ -525,7 +532,7 @@
         // Keep window.authToken for backward compatibility, but log warning
         Object.defineProperty(window, 'authToken', {
             get: function() {
-                console.warn('⚠️ Accessing window.authToken directly - use getAuthToken() instead');
+                log('⚠️ Accessing window.authToken directly - use getAuthToken() instead');
                 return authToken;
             },
             set: function(value) {
@@ -573,7 +580,7 @@
                     // Remove loading overlay - auth verified
                     document.body.classList.add('auth-verified');
                     
-                    console.log('✓ Admin authenticated successfully');
+                    log('✓ Admin authenticated successfully');
                 } else {
                     // Regular user - check license
                     const userDoc = await db.collection('users').doc(user.uid).get();
@@ -613,8 +620,8 @@
                     // Remove loading overlay - auth verified
                     document.body.classList.add('auth-verified');
                     
-                    console.log('✓ User authenticated successfully');
-                    console.log('✓ License valid until:', licenseExpiry.toLocaleDateString());
+                    log('✓ User authenticated successfully');
+                    log('✓ License valid until:', licenseExpiry.toLocaleDateString());
                 }
                 
             } catch (error) {
@@ -655,14 +662,14 @@
                     if (data.clientId && data.clientSecret) {
                         CLIENT_ID = data.clientId;
                         CLIENT_SECRET = data.clientSecret;
-                        console.log('✓ Credentials loaded from secure encrypted storage');
+                        log('✓ Credentials loaded from secure encrypted storage');
                     } else {
                         // No credentials in Firebase - clear any old localStorage data
                         CLIENT_ID = '';
                         CLIENT_SECRET = '';
                         localStorage.removeItem('APS_CLIENT_ID');
                         localStorage.removeItem('APS_CLIENT_SECRET');
-                        console.log('ℹ No credentials saved yet - please enter them');
+                        log('ℹ No credentials saved yet - please enter them');
                     }
                 } else {
                     // Clear localStorage on error
@@ -694,7 +701,7 @@
                 });
                 
                 if (response.ok) {
-                    console.log('✓ Credentials saved to secure storage');
+                    log('✓ Credentials saved to secure storage');
                     return true;
                 } else {
                     const error = await response.json();
@@ -710,13 +717,13 @@
         // Display license info in UI
         function displayLicenseInfo(expiryDate, email, isAdmin = false) {
             // License info display disabled - keeping function for backward compatibility
-            console.log('ℹ️ License info display disabled');
+            log('ℹ️ License info display disabled');
         }
         
         // Add logout button
         function addLogoutButton() {
             // Logout button display disabled - keeping function for backward compatibility
-            console.log('ℹ️ Logout button display disabled');
+            log('ℹ️ Logout button display disabled');
         }
         
         // Handle logout
@@ -753,7 +760,7 @@
                 if (storedClientId && storedClientSecret) {
                     CLIENT_ID = storedClientId;
                     CLIENT_SECRET = storedClientSecret;
-                    console.log('Credentials loaded from browser storage');
+                    log('Credentials loaded from browser storage');
                 } else {
                     console.warn('No credentials found in browser storage');
                 }
@@ -969,10 +976,10 @@
         }
 
         function showCredentialsModal() {
-            console.log('showCredentialsModal called');
+            log('showCredentialsModal called');
             try {
                 createCredentialsModal();
-                console.log('credentialsModal:', credentialsModal);
+                log('credentialsModal:', credentialsModal);
                 
                 // Pre-fill with current values
                 document.getElementById('clientIdInput').value = CLIENT_ID || '';
@@ -980,7 +987,7 @@
                 
                 credentialsModal.style.display = 'block';
                 document.getElementById('clientIdInput').focus();
-                console.log('Modal displayed');
+                log('Modal displayed');
             } catch (error) {
                 console.error('Error showing credentials modal:', error);
                 alert('Error opening credentials modal. Check console for details.');
@@ -1031,7 +1038,7 @@
                     messageDiv.style.border = '1px solid #c3e6cb';
                     messageDiv.style.display = 'block';
 
-                    console.log('Credentials saved to encrypted storage');
+                    log('Credentials saved to encrypted storage');
 
                     // Auto-close after 2 seconds
                     setTimeout(() => {
@@ -1074,7 +1081,7 @@
             // Clear local storage
             localStorage.clear();
             
-            console.log('User logged out successfully');
+            log('User logged out successfully');
             
             // Redirect to login page immediately (this clears OAuth codes from URL)
             window.location.replace('login.html');
@@ -1094,10 +1101,10 @@
             const authUrl = `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${scopes}&state=${state}`;
             
             // Debug information
-            console.log('Auth URL:', authUrl);
-            console.log('Client ID:', CLIENT_ID);
-            console.log('Redirect URI:', REDIRECT_URI);
-            console.log('Scopes:', scopes);
+            log('Auth URL:', authUrl);
+            log('Client ID:', CLIENT_ID);
+            log('Redirect URI:', REDIRECT_URI);
+            log('Scopes:', scopes);
             
             window.location.href = authUrl;
         }
@@ -1185,7 +1192,7 @@
                 });
 
                 const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/accounts/${accountId}/projects?${queryParams}`;
-                console.log(`Fetching projects: ${apiUrl}`);
+                log(`Fetching projects: ${apiUrl}`);
 
                 const response = await fetch(apiUrl, {
                     headers: {
@@ -1198,7 +1205,7 @@
                     let errorData;
                     try {
                         errorData = await response.json();
-                        console.log('Error response:', errorData);
+                        log('Error response:', errorData);
                     } catch (parseError) {
                         const textError = await response.text();
                         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
@@ -1212,7 +1219,7 @@
                 }
 
                 const projectsData = await response.json();
-                console.log(`Fetched ${projectsData.results?.length || 0} projects at offset ${offset}`);
+                log(`Fetched ${projectsData.results?.length || 0} projects at offset ${offset}`);
 
                 if (projectsData.results && projectsData.results.length > 0) {
                     allProjects = allProjects.concat(projectsData.results);
@@ -1401,12 +1408,12 @@
 
         // Function to display hubs in the left panel
         function displayHubs(hubsData) {
-            console.log('Displaying hubs:', hubsData); // Debug log
+            log('Displaying hubs:', hubsData); // Debug log
             const hubsList = document.getElementById('hubsList');
             
             if (!hubsData || !hubsData.data || hubsData.data.length === 0) {
                 hubsList.innerHTML = '<div class="no-results">No hubs found</div>';
-                console.log('No hubs data available'); // Debug log
+                log('No hubs data available'); // Debug log
                 return;
             }
 
@@ -1416,7 +1423,7 @@
                 return extensionType === 'hubs:autodesk.bim360:Account';
             });
 
-            console.log(`Filtered to ${bim360Hubs.length} BIM 360 Account hubs from ${hubsData.data.length} total hubs`);
+            log(`Filtered to ${bim360Hubs.length} BIM 360 Account hubs from ${hubsData.data.length} total hubs`);
 
             if (bim360Hubs.length === 0) {
                 hubsList.innerHTML = '<div class="no-results">No BIM 360 Account hubs found</div>';
@@ -1437,7 +1444,7 @@
                 `;
             });
 
-            console.log(`Displaying ${hubsData.data.length} hubs`); // Debug log
+            log(`Displaying ${hubsData.data.length} hubs`); // Debug log
             hubsList.innerHTML = hubsHTML;
         }
 
@@ -1719,12 +1726,12 @@
                 
                 const importData = await importResponse.json();
                 const importUsers = importData.users || [];
-                console.log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
+                log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
                 
                 // Fetch project users
                 if (progressBar) progressBar.style.width = '60%';
                 const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
-                console.log(`Fetched ${projectUsers.length} project users`);
+                log(`Fetched ${projectUsers.length} project users`);
                 
                 // Build email maps for quick lookup
                 const importEmailMap = new Map();
@@ -1742,8 +1749,8 @@
                 const listToPost = [];  // Users in JSON but not in project (to add)
                 const listToDelete = []; // Users in project but not in JSON (to delete)
                 
-                console.log('Import users emails:', Array.from(importEmailMap.keys()));
-                console.log('Project users emails:', Array.from(projectEmailMap.keys()));
+                log('Import users emails:', Array.from(importEmailMap.keys()));
+                log('Project users emails:', Array.from(projectEmailMap.keys()));
                 
                 // List 1 & 2: Check import users
                 importUsers.forEach(importUser => {
@@ -1755,14 +1762,14 @@
                     
                     if (projectEmailMap.has(email)) {
                         // User exists in both → PATCH
-                        console.log(`✓ PATCH: ${importUser.email} (exists in both)`);
+                        log(`✓ PATCH: ${importUser.email} (exists in both)`);
                         listToPatch.push({
                             email: importUser.email,
                             projectUserId: projectEmailMap.get(email).id
                         });
                     } else {
                         // User in JSON but not in project → POST
-                        console.log(`+ POST: ${importUser.email} (only in JSON)`);
+                        log(`+ POST: ${importUser.email} (only in JSON)`);
                         listToPost.push({
                             email: importUser.email
                         });
@@ -1779,7 +1786,7 @@
                     
                     if (!importEmailMap.has(email)) {
                         // User in project but not in JSON → DELETE
-                        console.log(`- DELETE: ${projectUser.email} (only in project)`);
+                        log(`- DELETE: ${projectUser.email} (only in project)`);
                         listToDelete.push({
                             email: projectUser.email,
                             id: projectUser.id
@@ -1787,10 +1794,10 @@
                     }
                 });
                 
-                console.log('Analysis complete:');
-                console.log(`- To PATCH (update): ${listToPatch.length}`, listToPatch);
-                console.log(`- To POST (add): ${listToPost.length}`, listToPost);
-                console.log(`- To DELETE (remove): ${listToDelete.length}`, listToDelete);
+                log('Analysis complete:');
+                log(`- To PATCH (update): ${listToPatch.length}`, listToPatch);
+                log(`- To POST (add): ${listToPost.length}`, listToPost);
+                log(`- To DELETE (remove): ${listToDelete.length}`, listToDelete);
                 
                 // Hide progress immediately before showing dialog
                 if (progressEl) progressEl.style.display = 'none';
@@ -1807,7 +1814,7 @@
         
         // Function to trigger update from modal context
         async function updateProjectUsersFromModalContext() {
-            console.log('🚀 updateProjectUsersFromModalContext called');
+            log('🚀 updateProjectUsersFromModalContext called');
             
             // Get project context from userTableManager
             if (!userTableManager || !userTableManager.modalProjectId) {
@@ -1824,7 +1831,7 @@
                 return;
             }
             
-            console.log('Context:', { projectId, accountId, accessToken: accessToken ? 'exists' : 'missing' });
+            log('Context:', { projectId, accountId, accessToken: accessToken ? 'exists' : 'missing' });
             
             // Call the existing function with modal progress indicator
             await updateProjectUsersFromMainList(projectId, accountId, accessToken, 'modalProgressIndicator');
@@ -1937,12 +1944,12 @@
         
         // Function to execute sync operations based on checkbox selections
         async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
-            console.log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-07 PROJECT ADMIN AS MASTER CONTROL 🔥🔥🔥');
+            log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-07 PROJECT ADMIN AS MASTER CONTROL 🔥🔥🔥');
             const enableUpdate = document.getElementById('enableUpdate').checked;
             const enableAdd = document.getElementById('enableAdd').checked;
             const enableDelete = document.getElementById('enableDelete').checked;
             
-            console.log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId });
+            log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId });
             
             if (!projectId || !accountId) {
                 alert('Missing project or account ID');
@@ -1983,10 +1990,10 @@
                 const twoLeggedToken = await get2LeggedToken();
                 
                 // STEP 1: Update account users first (company and role from Users Main List)
-                console.log('🚀 STEP 1: Updating account users with company and role from Users Main List');
+                log('🚀 STEP 1: Updating account users with company and role from Users Main List');
                 try {
                     const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId);
-                    console.log('✅ Account users updated:', accountUpdateResult);
+                    log('✅ Account users updated:', accountUpdateResult);
                 } catch (accountError) {
                     console.error('⚠️ Account update failed (continuing anyway):', accountError);
                     // Continue even if account update fails - user might not have permissions
@@ -2019,7 +2026,7 @@
                 const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 const projectEmailMap = new Map(projectUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 
-                console.log('Data loaded:', {
+                log('Data loaded:', {
                     importUsers: importUsers.length,
                     accountUsers: accountUsers.length,
                     projectUsers: projectUsers.length
@@ -2103,7 +2110,7 @@
                                 patchPayload.roleIds = [accountUser.default_role_id];
                             }
                             
-                            console.log(`PATCH user ${userToPatch.email}:`, patchPayload);
+                            log(`PATCH user ${userToPatch.email}:`, patchPayload);
                             
                             // Execute PATCH request
                             const response = await fetch(
@@ -2136,7 +2143,7 @@
                             }
                             
                             const result = await response.json();
-                            console.log(`✓ Updated ${userToPatch.email}:`, result);
+                            log(`✓ Updated ${userToPatch.email}:`, result);
                             results.updated++;
                             completedOperations++;
                             updateProgress();
@@ -2155,7 +2162,7 @@
                 
                 // === POST Operation - Add users ===
                 if (enableAdd && listToPost.length > 0) {
-                    console.log('\n=== POST Operation - Adding Users ===');
+                    log('\n=== POST Operation - Adding Users ===');
                     
                     // Batch users in groups of 200 (API limit)
                     const batchSize = 200;
@@ -2164,7 +2171,7 @@
                         batches.push(listToPost.slice(i, i + batchSize));
                     }
                     
-                    console.log(`Processing ${listToPost.length} users in ${batches.length} batch(es)`);
+                    log(`Processing ${listToPost.length} users in ${batches.length} batch(es)`);
                     
                     const totalToAdd = listToPost.length;
                     let processedCount = 0;
@@ -2246,7 +2253,7 @@
                                 continue;
                             }
                             
-                            console.log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
+                            log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
                             
                             // Execute POST request
                             const postUrl = `https://developer.api.autodesk.com/construction/admin/v2/projects/${projectId}/users:import`;
@@ -2265,7 +2272,7 @@
                             }
                             
                             const result = await response.json();
-                            console.log(`✓ Batch ${batchIndex + 1} completed:`, result);
+                            log(`✓ Batch ${batchIndex + 1} completed:`, result);
                             results.added += usersToAdd.length;
                             processedCount += usersToAdd.length;
                             completedOperations += usersToAdd.length;
@@ -2287,7 +2294,7 @@
                 
                 // === DELETE Operation - Remove users ===
                 if (enableDelete && listToDelete.length > 0) {
-                    console.log('\n=== DELETE Operation - Removing Users ===');
+                    log('\n=== DELETE Operation - Removing Users ===');
                     
                     for (let i = 0; i < listToDelete.length; i++) {
                         const userToDelete = listToDelete[i];
@@ -2306,7 +2313,7 @@
                                 continue;
                             }
                             
-                            console.log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
+                            log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
                             
                             // Execute DELETE request
                             const deleteUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`;
@@ -2323,7 +2330,7 @@
                                 throw new Error(errorData.message || `HTTP ${response.status}`);
                             }
                             
-                            console.log(`✓ Deleted ${userToDelete.email}`);
+                            log(`✓ Deleted ${userToDelete.email}`);
                             results.deleted++;
                             completedOperations++;
                             updateProgress();
@@ -2461,7 +2468,7 @@
                 });
 
                 const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
-                console.log(`Fetching users: ${apiUrl}`);
+                log(`Fetching users: ${apiUrl}`);
 
                 const response = await fetch(apiUrl, {
                     headers: {
@@ -2474,7 +2481,7 @@
                     let errorData;
                     try {
                         errorData = await response.json();
-                        console.log('Error response:', errorData);
+                        log('Error response:', errorData);
                     } catch (parseError) {
                         const textError = await response.text();
                         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
@@ -2489,7 +2496,7 @@
                 }
 
                 const usersData = await response.json();
-                console.log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
+                log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
 
                 if (usersData.results && usersData.results.length > 0) {
                     allUsers = allUsers.concat(usersData.results);
@@ -2551,7 +2558,7 @@
                 }
                 
                 const tokenData = await response.json();
-                console.log('Got 2-legged token for HQ API');
+                log('Got 2-legged token for HQ API');
                 return tokenData.access_token;
             } catch (error) {
                 console.error('Error getting 2-legged token:', error);
@@ -2811,7 +2818,7 @@
                 }
                 
                 const tokenData = await response.json();
-                console.log('Got 2-legged token for HQ API');
+                log('Got 2-legged token for HQ API');
                 return tokenData.access_token;
             } catch (error) {
                 console.error('Error getting 2-legged token:', error);
@@ -2868,7 +2875,7 @@
                 });
 
                 const apiUrl = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users?${queryParams}`;
-                console.log(`Fetching account users: ${apiUrl}`);
+                log(`Fetching account users: ${apiUrl}`);
 
                 const response = await fetch(apiUrl, {
                     headers: {
@@ -2877,13 +2884,13 @@
                     }
                 });
 
-                console.log(`API Response Status: ${response.status} ${response.statusText}`);
+                log(`API Response Status: ${response.status} ${response.statusText}`);
 
                 if (!response.ok) {
                     let errorData;
                     try {
                         errorData = await response.json();
-                        console.log('Error response data:', errorData);
+                        log('Error response data:', errorData);
                     } catch (parseError) {
                         const textError = await response.text();
                         throw new Error(`API error ${response.status}: ${response.statusText} - ${textError}`);
@@ -2898,7 +2905,7 @@
                 }
 
                 const usersData = await response.json();
-                console.log(`Fetched ${usersData.length || 0} users at offset ${offset}`, usersData);
+                log(`Fetched ${usersData.length || 0} users at offset ${offset}`, usersData);
 
                 if (usersData && Array.isArray(usersData) && usersData.length > 0) {
                     allUsers = allUsers.concat(usersData);
@@ -3017,29 +3024,29 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2025021809"></script>
-    <script src="update_account_users.js?v=2025110205"></script>
-    <script src="get_account_users.js?v=2025110205"></script>
-    <script src="get_project_users.js?v=20251109171700"></script>
-    <script src="manage_project_users.js?v=2025110206"></script>
-    <script src="update_folder_permission.js?v=2025120107"></script>
-    <script src="read_project_folders.js?v=2025120115"></script>
-    <script src="folders_permissions.js?v=2025110301"></script>
+    <script src="user-table.js?v=2025021817"></script>
+    <script src="update_account_users.js?v=2025021817"></script>
+    <script src="get_account_users.js?v=2025021817"></script>
+    <script src="get_project_users.js?v=2025021817"></script>
+    <script src="manage_project_users.js?v=2025021817"></script>
+    <script src="update_folder_permission.js?v=2025021817"></script>
+    <script src="read_project_folders.js?v=2025021817"></script>
+    <script src="folders_permissions.js?v=2025021817"></script>
     <script>
         // Initialize user table management when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing user table...');
+            log('DOM loaded, initializing user table...');
             initUserTable();
         });
         
         // Fallback for cases where DOMContentLoaded already fired
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                console.log('DOM loaded (delayed), initializing user table...');
+                log('DOM loaded (delayed), initializing user table...');
                 initUserTable();
             });
         } else {
-            console.log('DOM already loaded, initializing user table immediately...');
+            log('DOM already loaded, initializing user table immediately...');
             initUserTable();
         }
     </script>
