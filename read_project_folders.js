@@ -571,7 +571,7 @@
 3 - View/Download+PublishMarkups
 4 - View/Download+PublishMarkups+Upload
 5 - View/Download+PublishMarkups+Upload+Edit
-6 - Full control`;
+6 - Full controll`;
 
         inputElement.addEventListener('mouseenter', (e) => {
             // Set timeout for 1 second
@@ -1173,6 +1173,16 @@
                         <span>Role</span>
                     </label>
                 </div>
+            </div>
+            <div class="user-list-instructions">
+                Drag and drop users to the table on the left.<br>
+                Access levels:<br>
+                1 - View Only<br>
+                2 - View/Download<br>
+                3 - View/Download+PublishMarkups<br>
+                4 - View/Download+PublishMarkups+Upload<br>
+                5 - View/Download+PublishMarkups+Upload+Edit<br>
+                6 - Full controll
             </div>
         `;
         userHTML += '<div class="user-list-items">';
@@ -2242,7 +2252,7 @@
                 }
 
                 .folders-user-list {
-                    width: 300px;
+                    width: 320px;
                     border-left: 2px solid #ddd;
                     background-color: #f8f9fa;
                     overflow-y: auto;
@@ -2309,6 +2319,15 @@
 
                 .user-display-option:hover {
                     color: #007bff;
+                }
+
+                .user-list-instructions {
+                    padding: 12px 20px;
+                    background-color: #f8f9fa;
+                    border-bottom: 1px solid #ddd;
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #555;
                 }
 
                 .user-list-items {
