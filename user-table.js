@@ -109,6 +109,59 @@ class UserTableManager {
             
             lastCheckedIndex = currentIndex;
         });
+        
+        // Shift+click range selection for product toggle columns
+        let lastProductToggle = null; // Store {rowIndex, columnIndex, checked}
+        
+        tbody.addEventListener('click', (e) => {
+            // Check if clicked on a product toggle checkbox
+            const checkbox = e.target;
+            if (checkbox.type !== 'checkbox') return;
+            
+            const cell = checkbox.closest('.modal-access-cell');
+            if (!cell) return; // Not a product toggle
+            
+            const row = cell.parentElement;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const currentRowIndex = rows.indexOf(row);
+            const currentColumnIndex = Array.from(row.cells).indexOf(cell);
+            
+            if (e.shiftKey && lastProductToggle !== null && 
+                lastProductToggle.columnIndex === currentColumnIndex &&
+                lastProductToggle.rowIndex !== currentRowIndex) {
+                
+                // Shift+click: apply toggle state to range in same column
+                const start = Math.min(lastProductToggle.rowIndex, currentRowIndex);
+                const end = Math.max(lastProductToggle.rowIndex, currentRowIndex);
+                const checkState = checkbox.checked;
+                
+                log(`🔵 Shift-selecting product toggles from row ${start} to ${end}, column ${currentColumnIndex}`);
+                
+                for (let i = start; i <= end; i++) {
+                    const targetRow = rows[i];
+                    const targetCell = targetRow.cells[currentColumnIndex];
+                    const targetCheckbox = targetCell?.querySelector('input[type="checkbox"]');
+                    
+                    if (targetCheckbox && targetCell.classList.contains('modal-access-cell')) {
+                        // Set the checkbox state
+                        targetCheckbox.checked = checkState;
+                        
+                        // Trigger the change event to update the cell properly
+                        const changeEvent = new Event('change', { bubbles: true });
+                        targetCheckbox.dispatchEvent(changeEvent);
+                    }
+                }
+                
+                log(`✅ Shift-selected product toggles in column ${currentColumnIndex} from row ${start} to ${end}`);
+            }
+            
+            // Update last clicked toggle info
+            lastProductToggle = {
+                rowIndex: currentRowIndex,
+                columnIndex: currentColumnIndex,
+                checked: checkbox.checked
+            };
+        }, true); // Use capture phase to get the event before 'change'
     }
 
     /**
