@@ -616,12 +616,12 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             log('🚀 Attempting real operations with 2-legged token + account:write scope');
         }
 
-        // PATCH existing users with rate limiting
+        // PATCH existing users with rate limiting (OPTIMIZED)
         // Process in small batches with delays to avoid API rate limits
-        const PATCH_BATCH_SIZE = 3; // Reduced to 3 users at a time for better reliability
-        const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches
+        const PATCH_BATCH_SIZE = 5; // OPTIMIZATION: Increased from 3 to 5 users at a time
+        const DELAY_BETWEEN_BATCHES = 400; // OPTIMIZATION: Reduced from 1500ms to 400ms
         
-        log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE}`);
+        log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE} (OPTIMIZED)`);
         
         for (let i = 0; i < toPatch.length; i += PATCH_BATCH_SIZE) {
             const batch = toPatch.slice(i, i + PATCH_BATCH_SIZE);
@@ -717,8 +717,8 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                         }
                     }
                     
-                    // Small delay between individual requests within the same batch
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // OPTIMIZATION: Reduced delay from 200ms to 50ms between individual requests within batch
+                    await new Promise(resolve => setTimeout(resolve, 50));
                     
                 } catch (err) {
                     console.error(`❌ Outer catch - Patch error for ${item.email}:`, err.message);

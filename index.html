@@ -1802,8 +1802,17 @@
                 // Hide progress immediately before showing dialog
                 if (progressEl) progressEl.style.display = 'none';
                 
+                // OPTIMIZATION: Pass cached data to avoid duplicate fetches
+                const cachedData = {
+                    importData: importData,
+                    importUsers: importUsers,
+                    projectUsers: projectUsers,
+                    importEmailMap: importEmailMap,
+                    projectEmailMap: projectEmailMap
+                };
+                
                 // Show results in a dialog
-                showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken);
+                showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData);
                 
             } catch (error) {
                 console.error('Error analyzing users:', error);
@@ -1838,7 +1847,8 @@
         }
         
         // Function to show the 3 lists in a dialog
-        function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
+        // OPTIMIZATION: Cache fetched data to avoid duplicate API calls
+        function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
             // Create modal HTML
             const modalHTML = `
                 <div id="userListsModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
@@ -1937,14 +1947,15 @@
             const syncButton = document.getElementById('syncButton');
             if (syncButton) {
                 syncButton.onclick = async function() {
-                    await executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken);
+                    await executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData);
                 };
             }
         }
         
         // Function to execute sync operations based on checkbox selections
-        async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken) {
-            log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-18-07 PROJECT ADMIN AS MASTER CONTROL 🔥🔥🔥');
+        // OPTIMIZATION: Accept cached data to avoid duplicate fetches
+        async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
+            log('🔥🔥🔥 SYNC CODE VERSION: 2025-02-25-OPTIMIZED - FASTER SYNC WITH PARALLELIZATION 🔥🔥🔥');
             const enableUpdate = document.getElementById('enableUpdate').checked;
             const enableAdd = document.getElementById('enableAdd').checked;
             const enableDelete = document.getElementById('enableDelete').checked;
@@ -1999,32 +2010,42 @@
                     // Continue even if account update fails - user might not have permissions
                 }
                 
-                // STEP 2: Fetch all required data
+                // STEP 2: Fetch all required data (OPTIMIZED: Use cache if available)
+                let importData, importUsers, projectUsers, importEmailMap, projectEmailMap;
                 
-                // Load user permissions from Firestore (project-specific)
-                const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-                    headers: isDemoMode ? {} : {
-                        'Authorization': `Bearer ${authToken}`
+                if (cachedData) {
+                    // OPTIMIZATION: Use cached data from initial analysis
+                    log('✅ Using cached data - skipping duplicate API calls');
+                    importData = cachedData.importData;
+                    importUsers = cachedData.importUsers;
+                    projectUsers = cachedData.projectUsers;
+                    importEmailMap = cachedData.importEmailMap;
+                    projectEmailMap = cachedData.projectEmailMap;
+                } else {
+                    // Fallback: Fetch data if cache not available
+                    log('⚠️ No cached data - fetching from API');
+                    const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
+                        headers: isDemoMode ? {} : {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    
+                    if (!importResponse.ok) {
+                        throw new Error('Failed to load user permissions');
                     }
-                });
-                
-                if (!importResponse.ok) {
-                    throw new Error('Failed to load user permissions');
+                    
+                    importData = await importResponse.json();
+                    projectUsers = await fetchAllProjectUsers(projectId, twoLeggedToken);
+                    importUsers = importData.users || [];
+                    
+                    // Create lookup maps (filter out users without emails)
+                    importEmailMap = new Map(importUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
+                    projectEmailMap = new Map(projectUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 }
                 
-                const importData = await importResponse.json();
-                
-                const [accountUsers, projectUsers] = await Promise.all([
-                    accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId),
-                    fetchAllProjectUsers(projectId, twoLeggedToken)
-                ]);
-                
-                const importUsers = importData.users || [];
-                
-                // Create lookup maps (filter out users without emails)
-                const importEmailMap = new Map(importUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
+                // Always fetch account users (needed for company/role)
+                const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
                 const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
-                const projectEmailMap = new Map(projectUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 
                 log('Data loaded:', {
                     importUsers: importUsers.length,
@@ -2039,15 +2060,37 @@
                     errors: []
                 };
                 
-                // Execute PATCH operations
+                // Execute PATCH operations (OPTIMIZED: Parallel processing with concurrency control)
                 if (enableUpdate && listToPatch.length > 0) {
+                    log('\n=== PATCH Operation - Updating Users (Parallel Processing) ===');
                     
-                    for (let i = 0; i < listToPatch.length; i++) {
-                        const userToPatch = listToPatch[i];
+                    // Helper function for parallel execution with concurrency limit
+                    const executeInParallel = async (items, concurrency, executor) => {
+                        const results = [];
+                        const executing = [];
                         
+                        for (const [index, item] of items.entries()) {
+                            const promise = executor(item, index).then(result => {
+                                executing.splice(executing.indexOf(promise), 1);
+                                return result;
+                            });
+                            
+                            results.push(promise);
+                            executing.push(promise);
+                            
+                            if (executing.length >= concurrency) {
+                                await Promise.race(executing);
+                            }
+                        }
+                        
+                        return Promise.all(results);
+                    };
+                    
+                    // PATCH executor function
+                    const patchUser = async (userToPatch) => {
                         if (!userToPatch.email) {
                             console.warn('Skipping user with no email in PATCH operation');
-                            continue;
+                            return { success: false, skipped: true };
                         }
                         
                         const email = userToPatch.email.toLowerCase();
@@ -2063,28 +2106,17 @@
                             }
                             
                             // Build products array from import JSON (REQUIRED)
-                            // API constraint: cannot mix 'member' and 'administrator' access levels
-                            // MASTER RULE: Only Project Admin toggle can grant 'administrator' access
-                            // If Project Admin = 'administrator', ALL non-none products become 'administrator'
-                            // If Project Admin != 'administrator', ALL products are 'member' or 'none' (no administrator)
                             const projectAdmin = importUser.products.find(p => p.key === 'projectAdministration');
                             const isProjectAdmin = projectAdmin?.access === 'administrator';
                             
                             const products = importUser.products.map(p => {
                                 const currentAccess = p.access;
-                                
-                                // Keep projectAdministration exactly as set by user
                                 if (p.key === 'projectAdministration') {
                                     return { key: p.key, access: currentAccess };
                                 }
-                                
-                                // Keep 'none' as is for all other products
                                 if (currentAccess === 'none') {
                                     return { key: p.key, access: 'none' };
                                 }
-                                
-                                // If Project Admin is ON, ALL non-none products become 'administrator'
-                                // If Project Admin is OFF, ALL non-none products become 'member'
                                 if (isProjectAdmin) {
                                     return { key: p.key, access: 'administrator' };
                                 } else {
@@ -2092,23 +2124,10 @@
                                 }
                             });
                             
-                            // Build PATCH payload - start with required field
-                            const patchPayload = {
-                                products: products
-                            };
-                            
-                            // Add optional company fields if available from account user
-                            if (accountUser.company_id) {
-                                patchPayload.companyId = accountUser.company_id;
-                            }
-                            if (accountUser.company_name) {
-                                patchPayload.companyName = accountUser.company_name;
-                            }
-                            
-                            // Add optional role field if available from account user
-                            if (accountUser.default_role_id) {
-                                patchPayload.roleIds = [accountUser.default_role_id];
-                            }
+                            const patchPayload = { products: products };
+                            if (accountUser.company_id) patchPayload.companyId = accountUser.company_id;
+                            if (accountUser.company_name) patchPayload.companyName = accountUser.company_name;
+                            if (accountUser.default_role_id) patchPayload.roleIds = [accountUser.default_role_id];
                             
                             log(`PATCH user ${userToPatch.email}:`, patchPayload);
                             
@@ -2148,16 +2167,22 @@
                             completedOperations++;
                             updateProgress();
                             
+                            // OPTIMIZATION: Reduced delay from 100ms to 20ms
+                            await new Promise(resolve => setTimeout(resolve, 20));
+                            return { success: true, email: userToPatch.email };
+                            
                         } catch (error) {
                             console.error(`✗ Failed to update ${userToPatch.email}:`, error);
                             results.errors.push(`Update failed for ${userToPatch.email}: ${error.message}`);
                             completedOperations++;
                             updateProgress();
+                            return { success: false, email: userToPatch.email, error: error.message };
                         }
-                        
-                        // Small delay to avoid rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
+                    };
+                    
+                    // OPTIMIZATION: Process 4 users in parallel (up from 1)
+                    log(`Processing ${listToPatch.length} PATCH operations with concurrency=4`);
+                    await executeInParallel(listToPatch, 4, patchUser);
                 }
                 
                 // === POST Operation - Add users ===
@@ -2285,23 +2310,22 @@
                             updateProgress();
                         }
                         
-                        // Delay between batches to avoid rate limiting
+                        // OPTIMIZATION: Reduced delay between batches from 500ms to 200ms
                         if (batchIndex < batches.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await new Promise(resolve => setTimeout(resolve, 200));
                         }
                     }
                 }
                 
-                // === DELETE Operation - Remove users ===
+                // === DELETE Operation - Remove users (OPTIMIZED: Parallel processing) ===
                 if (enableDelete && listToDelete.length > 0) {
-                    log('\n=== DELETE Operation - Removing Users ===');
+                    log('\n=== DELETE Operation - Removing Users (Parallel Processing) ===');
                     
-                    for (let i = 0; i < listToDelete.length; i++) {
-                        const userToDelete = listToDelete[i];
-                        
+                    // DELETE executor function
+                    const deleteUser = async (userToDelete) => {
                         if (!userToDelete.email) {
                             console.warn('Skipping user with no email in DELETE operation');
-                            continue;
+                            return { success: false, skipped: true };
                         }
                         
                         try {
@@ -2310,7 +2334,7 @@
                             if (!projectUser || !projectUser.id) {
                                 console.warn(`Skipping ${userToDelete.email}: No user ID found in project`);
                                 results.errors.push(`Delete failed for ${userToDelete.email}: No user ID`);
-                                continue;
+                                return { success: false, email: userToDelete.email };
                             }
                             
                             log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
@@ -2335,16 +2359,44 @@
                             completedOperations++;
                             updateProgress();
                             
+                            // OPTIMIZATION: Reduced delay from 100ms to 20ms
+                            await new Promise(resolve => setTimeout(resolve, 20));
+                            return { success: true, email: userToDelete.email };
+                            
                         } catch (error) {
                             console.error(`✗ Failed to delete ${userToDelete.email}:`, error);
                             results.errors.push(`Delete failed for ${userToDelete.email}: ${error.message}`);
                             completedOperations++;
                             updateProgress();
+                            return { success: false, email: userToDelete.email, error: error.message };
+                        }
+                    };
+                    
+                    // Helper function for parallel execution with concurrency limit
+                    const executeInParallelDelete = async (items, concurrency, executor) => {
+                        const results = [];
+                        const executing = [];
+                        
+                        for (const [index, item] of items.entries()) {
+                            const promise = executor(item, index).then(result => {
+                                executing.splice(executing.indexOf(promise), 1);
+                                return result;
+                            });
+                            
+                            results.push(promise);
+                            executing.push(promise);
+                            
+                            if (executing.length >= concurrency) {
+                                await Promise.race(executing);
+                            }
                         }
                         
-                        // Small delay to avoid rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
+                        return Promise.all(results);
+                    };
+                    
+                    // OPTIMIZATION: Process 4 users in parallel
+                    log(`Processing ${listToDelete.length} DELETE operations with concurrency=4`);
+                    await executeInParallelDelete(listToDelete, 4, deleteUser);
                 }
                 
                 // Show results in modal
