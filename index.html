@@ -670,27 +670,21 @@
                         CLIENT_SECRET = data.clientSecret;
                         log('✓ Credentials loaded from secure encrypted storage');
                     } else {
-                        // No credentials in Firebase - clear any old localStorage data
+                        // No credentials in Firebase
                         CLIENT_ID = '';
                         CLIENT_SECRET = '';
-                        localStorage.removeItem('APS_CLIENT_ID');
-                        localStorage.removeItem('APS_CLIENT_SECRET');
                         log('ℹ No credentials saved yet - please enter them');
                     }
                 } else {
-                    // Clear localStorage on error
+                    // Clear credentials on error
                     CLIENT_ID = '';
                     CLIENT_SECRET = '';
-                    localStorage.removeItem('APS_CLIENT_ID');
-                    localStorage.removeItem('APS_CLIENT_SECRET');
                 }
             } catch (error) {
                 console.error('Error loading encrypted credentials:', error);
-                // Clear localStorage on error
+                // Clear credentials on error
                 CLIENT_ID = '';
                 CLIENT_SECRET = '';
-                localStorage.removeItem('APS_CLIENT_ID');
-                localStorage.removeItem('APS_CLIENT_SECRET');
             }
         }
         
@@ -754,29 +748,6 @@
         // Use dynamic redirect URI based on current location (works on localhost and cloud)
         const REDIRECT_URI = `${window.location.origin}/index.html`;
 
-        // Legacy function - now loads from encrypted storage instead of localStorage
-        function loadCredentials() {
-            // This will be called by loadEncryptedCredentials() automatically
-            // Keep for backwards compatibility but functionality moved to Firebase
-            return;
-            try {
-                const storedClientId = localStorage.getItem('APS_CLIENT_ID');
-                const storedClientSecret = localStorage.getItem('APS_CLIENT_SECRET');
-                
-                if (storedClientId && storedClientSecret) {
-                    CLIENT_ID = storedClientId;
-                    CLIENT_SECRET = storedClientSecret;
-                    log('Credentials loaded from browser storage');
-                } else {
-                    console.warn('No credentials found in browser storage');
-                }
-            } catch (error) {
-                console.error('Error loading credentials:', error);
-                CLIENT_ID = '';
-                CLIENT_SECRET = '';
-            }
-        }
-        
         // Authentication URLs
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
         const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
