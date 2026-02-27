@@ -43,6 +43,25 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
 }
 console.log('✅ Encryption key loaded successfully');
 
+// ============================================================================
+// Error Sanitization Utility
+// ============================================================================
+// Prevents information disclosure by hiding implementation details in production
+const isProduction = envVars.NODE_ENV === 'production';
+
+function sanitizeError(error, userMessage = 'An error occurred') {
+    // Always log the full error server-side for debugging
+    console.error('Error details:', error);
+    
+    // In production, return generic message
+    // In development, return detailed error for debugging
+    return {
+        message: isProduction ? userMessage : error.message,
+        // Only include stack trace in development
+        ...((!isProduction && error.stack) && { stack: error.stack })
+    };
+}
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -386,11 +405,11 @@ app.post('/save-credentials', authenticateUser, async (req, res) => {
         
         res.json({ success: true, message: 'Credentials saved successfully' });
     } catch (error) {
-        console.error('Error saving credentials:', error);
+        const sanitized = sanitizeError(error, 'Failed to save credentials');
         res.status(500).json({ 
             success: false, 
             message: 'Error saving credentials', 
-            error: error.message 
+            ...sanitized
         });
     }
 });
@@ -442,11 +461,11 @@ app.get('/load-credentials', authenticateUser, async (req, res) => {
             clientSecret: clientSecret
         });
     } catch (error) {
-        console.error('Error loading credentials:', error);
+        const sanitized = sanitizeError(error, 'Failed to load credentials');
         res.status(500).json({ 
             success: false, 
             message: 'Error loading credentials', 
-            error: error.message 
+            ...sanitized
         });
     }
 });
@@ -490,8 +509,8 @@ app.post('/save', authenticateUser, async (req, res) => {
         
         res.json({ success: true, message: 'Users main list saved successfully (encrypted)' });
     } catch (error) {
-        console.error('Error saving users main list:', error);
-        res.status(500).json({ success: false, message: 'Error saving users main list', error: error.message });
+        const sanitized = sanitizeError(error, 'Failed to save user list');
+        res.status(500).json({ success: false, message: 'Error saving users main list', ...sanitized });
     }
 });
 
@@ -550,8 +569,8 @@ app.get('/load', authenticateUser, async (req, res) => {
             res.json({ users: [] });
         }
     } catch (error) {
-        console.error('Error loading users main list:', error);
-        res.status(500).json({ success: false, message: 'Error loading users main list', error: error.message });
+        const sanitized = sanitizeError(error, 'Failed to load user list');
+        res.status(500).json({ success: false, message: 'Error loading users main list', ...sanitized });
     }
 });
 
@@ -600,8 +619,8 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         console.log(`✅ Project users list saved successfully for project: ${projectId}`);
         res.json({ success: true, message: 'Project users list saved successfully (encrypted)' });
     } catch (error) {
-        console.error('Error saving project users list:', error);
-        res.status(500).json({ success: false, message: 'Error saving project users list', error: error.message });
+        const sanitized = sanitizeError(error, 'Failed to save project users');
+        res.status(500).json({ success: false, message: 'Error saving project users list', ...sanitized });
     }
 });
 
@@ -644,8 +663,8 @@ app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => 
             res.json({ users: [] });
         }
     } catch (error) {
-        console.error('Error loading project users list:', error);
-        res.status(500).json({ success: false, message: 'Error loading project users list', error: error.message });
+        const sanitized = sanitizeError(error, 'Failed to load project users');
+        res.status(500).json({ success: false, message: 'Error loading project users list', ...sanitized });
     }
 });
 
@@ -709,11 +728,11 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
             permissionKey: permissionKey
         });
     } catch (error) {
-        console.error('Error saving folder permissions:', error);
+        const sanitized = sanitizeError(error, 'Failed to save folder permissions');
         res.status(500).json({ 
             success: false, 
             message: 'Error saving folder permissions', 
-            error: error.message 
+            ...sanitized
         });
     }
 });
@@ -767,11 +786,11 @@ app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (r
             });
         }
     } catch (error) {
-        console.error('Error loading folder permissions:', error);
+        const sanitized = sanitizeError(error, 'Failed to load folder permissions');
         res.status(500).json({ 
             success: false, 
             message: 'Error loading folder permissions', 
-            error: error.message 
+            ...sanitized
         });
     }
 });
@@ -796,8 +815,8 @@ app.get('/check-folder-permissions/:hubId/:projectId', authenticateUser, async (
             permissionKey: permissionKey
         });
     } catch (error) {
-        console.error('Error checking folder permissions:', error);
-        res.json({ exists: false, error: error.message });
+        const sanitized = sanitizeError(error, 'Failed to check permissions');
+        res.json({ exists: false, ...sanitized });
     }
 });
 
@@ -873,8 +892,8 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
         
         res.json({ success: true, users });
     } catch (error) {
-        console.error('Error fetching users:', error);
-        res.status(500).json({ error: 'Failed to fetch users' });
+        const sanitized = sanitizeError(error, 'Failed to fetch users');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -900,8 +919,8 @@ app.get('/api/admin/licenses', authenticateAdmin, async (req, res) => {
         
         res.json({ success: true, licenses });
     } catch (error) {
-        console.error('Error fetching licenses:', error);
-        res.status(500).json({ error: 'Failed to fetch licenses' });
+        const sanitized = sanitizeError(error, 'Failed to fetch licenses');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -932,8 +951,8 @@ app.get('/api/admin/analytics', authenticateAdmin, async (req, res) => {
         
         res.json({ success: true, analytics });
     } catch (error) {
-        console.error('Error fetching analytics:', error);
-        res.status(500).json({ error: 'Failed to fetch analytics' });
+        const sanitized = sanitizeError(error, 'Failed to fetch analytics');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -1033,8 +1052,8 @@ app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
             expiryDate: expiryDate.toISOString()
         });
     } catch (error) {
-        console.error('Error activating license:', error);
-        res.status(500).json({ error: 'Failed to activate license: ' + error.message });
+        const sanitized = sanitizeError(error, 'Failed to activate license');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -1076,8 +1095,8 @@ app.post('/api/admin/deactivate-license', authenticateAdmin, async (req, res) =>
             message: 'License deactivated successfully'
         });
     } catch (error) {
-        console.error('Error deactivating license:', error);
-        res.status(500).json({ error: 'Failed to deactivate license: ' + error.message });
+        const sanitized = sanitizeError(error, 'Failed to deactivate license');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -1154,7 +1173,10 @@ app.post('/api/admin/delete-users', authenticateUser, async (req, res) => {
                 
             } catch (userError) {
                 console.error(`Error deleting user ${userId}:`, userError);
-                errors.push({ userId, error: userError.message });
+                errors.push({ 
+                    userId, 
+                    error: isProduction ? 'Failed to delete user' : userError.message 
+                });
             }
         }
         
@@ -1173,8 +1195,8 @@ app.post('/api/admin/delete-users', authenticateUser, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Error deleting users:', error);
-        res.status(500).json({ error: 'Failed to delete users: ' + error.message });
+        const sanitized = sanitizeError(error, 'Failed to delete users');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
