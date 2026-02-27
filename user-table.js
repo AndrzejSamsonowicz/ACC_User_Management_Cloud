@@ -2476,6 +2476,24 @@ class UserTableManager {
             return;
         }
         
+        // Run account update BEFORE saving to JSON (if not skipped)
+        if (!skipAccountUpdate && this.modalHubId) {
+            try {
+                log('🔄 Starting account update before save...');
+                const accountId = this.modalHubId; // Hub ID is the account ID
+                await this.updateAccountUsersBeforeSave(accountId);
+                log('✅ Account update completed successfully');
+                
+                // Continue at 60% progress after account update
+                this.showSaveProgress('Saving to database...', 60);
+            } catch (error) {
+                console.error('❌ Account update failed:', error);
+                // Show error to user
+                this.showSaveError(`Account update failed: ${error.message}\n\nData was NOT saved to prevent inconsistency.`);
+                return; // Stop save operation if account update fails
+            }
+        }
+        
         // Save to server (project-specific users list in Firestore)
         try {
             // Get auth token from global scope (set by Firebase auth in index.html)
@@ -2500,17 +2518,19 @@ class UserTableManager {
             if (data.success) {
                 log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
                 
-                // DISABLED: Account update feature (Autodesk API sync)
-                // To re-enable, change skipAccountUpdate to false when calling saveTableToJson
-                log('ℹ️ Account update disabled - data saved to Firebase only');
+                // Account update was already performed above (if not skipped)
+                const statusMessage = skipAccountUpdate 
+                    ? '✓ Saved to database' 
+                    : '✓ Account updated & saved';
                 
                 this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                    '✓ Saved successfully');
+                    statusMessage);
                 
-                // Show brief success message
+                // Show final success message
+                this.showSaveProgress('Complete!', 100);
                 setTimeout(() => {
                     this.hideSaveProgress();
-                }, 1000);
+                }, 1500);
             } else {
                 console.error('❌ Error saving to server:', data.message);
                 this.hideSaveProgress();
