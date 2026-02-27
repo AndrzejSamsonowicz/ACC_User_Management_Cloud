@@ -6,6 +6,14 @@
 (function() {
     'use strict';
 
+    // Security: HTML escape function to prevent XSS
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     /**
      * Show folder sync modal with progress
      */
@@ -125,7 +133,7 @@
                 <div style="margin-bottom: 15px;">
                     <strong>Users don't exist in the project:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
-                        ${allMissingUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${u}</div>`).join('')}
+                        ${allMissingUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${escapeHtml(u)}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -136,7 +144,7 @@
                 <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;">
                     <strong style="color: #856404;">Errors (${summary.errors.length}):</strong><br>
                     <div style="max-height: 100px; overflow-y: auto; margin-top: 5px; font-size: 12px; color: #856404;">
-                        ${summary.errors.map(e => `<div>• ${e}</div>`).join('')}
+                        ${summary.errors.map(e => `<div>• ${escapeHtml(e)}</div>`).join('')}
                     </div>
                 </div>
             `;

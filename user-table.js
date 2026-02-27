@@ -3,6 +3,14 @@ log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
 log('🎯🎯🎯 VERSION: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM 🎯🎯🎯');
 log('🎯🎯🎯 ADMINISTRATOR AUTO-UPGRADE FUNCTIONALITY 🎯🎯🎯');
 
+// Security: HTML escape function to prevent XSS
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Global variable to hold the user table manager instance
 let userTableManager = null;
 
@@ -2242,7 +2250,7 @@ class UserTableManager {
                 ❌ Save Failed
             </div>
             <div style="margin-bottom: 20px; font-size: 14px; color: #666;">
-                ${errorMessage}
+                ${escapeHtml(errorMessage)}
             </div>
             <button onclick="this.parentElement.remove()" style="
                 background: #d32f2f;
