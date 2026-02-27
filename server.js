@@ -267,10 +267,11 @@ app.post('/save-credentials', authenticateUser, async (req, res) => {
             });
         }
 
-        // Encrypt credentials (simple encryption - you may want to use a stronger method)
+        // Encrypt credentials with unique salt per user
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(userId, 'salt', 32);
+        const salt = crypto.randomBytes(16);
+        const key = crypto.scryptSync(userId, salt, 32);
         const iv = crypto.randomBytes(16);
         
         const cipherClientId = crypto.createCipheriv(algorithm, key, iv);
@@ -285,6 +286,7 @@ app.post('/save-credentials', authenticateUser, async (req, res) => {
         await db.collection('users').doc(userId).update({
             clientId: encryptedClientId,
             clientSecret: encryptedSecret,
+            credentialsSalt: salt.toString('hex'),
             encryptionIV: iv.toString('hex'),
             credentialsUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
@@ -318,7 +320,7 @@ app.get('/load-credentials', authenticateUser, async (req, res) => {
         
         const userData = userDoc.data();
         
-        if (!userData.clientId || !userData.clientSecret || !userData.encryptionIV) {
+        if (!userData.clientId || !userData.clientSecret || !userData.encryptionIV || !userData.credentialsSalt) {
             return res.json({
                 success: true,
                 clientId: '',
@@ -326,10 +328,11 @@ app.get('/load-credentials', authenticateUser, async (req, res) => {
             });
         }
         
-        // Decrypt credentials
+        // Decrypt credentials using stored salt
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(userId, 'salt', 32);
+        const salt = Buffer.from(userData.credentialsSalt, 'hex');
+        const key = crypto.scryptSync(userId, salt, 32);
         const iv = Buffer.from(userData.encryptionIV, 'hex');
         
         const decipherClientId = crypto.createDecipheriv(algorithm, key, iv);
@@ -364,19 +367,22 @@ app.post('/save', authenticateUser, async (req, res) => {
         // Encrypt the users data
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(userId, 'salt', 32);
         
-        // Check if user already has an IV for users_main_list, if not create one
+        // Check if user already has salt and IV for users_main_list, if not create new ones
         const userDoc = await db.collection('users').doc(userId).get();
-        let iv;
+        let salt, key, iv;
         
-        if (userDoc.exists && userDoc.data().usersMainListIV) {
-            // Use existing IV
+        if (userDoc.exists && userDoc.data().usersMainListIV && userDoc.data().usersMainListSalt) {
+            // Use existing salt and IV
+            salt = Buffer.from(userDoc.data().usersMainListSalt, 'hex');
             iv = Buffer.from(userDoc.data().usersMainListIV, 'hex');
         } else {
-            // Create new IV
+            // Create new salt and IV
+            salt = crypto.randomBytes(16);
             iv = crypto.randomBytes(16);
         }
+        
+        key = crypto.scryptSync(userId, salt, 32);
         
         const cipher = crypto.createCipheriv(algorithm, key, iv);
         let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
@@ -385,6 +391,7 @@ app.post('/save', authenticateUser, async (req, res) => {
         // Save encrypted data to Firestore
         await db.collection('users').doc(userId).set({
             users_main_list_encrypted: encryptedData,
+            usersMainListSalt: salt.toString('hex'),
             usersMainListIV: iv.toString('hex')
         }, { merge: true });
         
@@ -410,11 +417,12 @@ app.get('/load', authenticateUser, async (req, res) => {
         const userData = userDoc.data();
         
         // Check for encrypted data first
-        if (userData.users_main_list_encrypted && userData.usersMainListIV) {
-            // Decrypt the data
+        if (userData.users_main_list_encrypted && userData.usersMainListIV && userData.usersMainListSalt) {
+            // Decrypt the data using stored salt
             const crypto = require('crypto');
             const algorithm = 'aes-256-cbc';
-            const key = crypto.scryptSync(userId, 'salt', 32);
+            const salt = Buffer.from(userData.usersMainListSalt, 'hex');
+            const key = crypto.scryptSync(userId, salt, 32);
             const iv = Buffer.from(userData.usersMainListIV, 'hex');
             
             const decipher = crypto.createDecipheriv(algorithm, key, iv);
@@ -426,10 +434,11 @@ app.get('/load', authenticateUser, async (req, res) => {
             // Legacy: unencrypted data (auto-migrate to encrypted)
             console.log('Migrating unencrypted users_main_list to encrypted format for user:', userId);
             
-            // Encrypt and save
+            // Encrypt and save with new salt
             const crypto = require('crypto');
             const algorithm = 'aes-256-cbc';
-            const key = crypto.scryptSync(userId, 'salt', 32);
+            const salt = crypto.randomBytes(16);
+            const key = crypto.scryptSync(userId, salt, 32);
             const iv = crypto.randomBytes(16);
             
             const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -438,6 +447,7 @@ app.get('/load', authenticateUser, async (req, res) => {
             
             await db.collection('users').doc(userId).set({
                 users_main_list_encrypted: encryptedData,
+                usersMainListSalt: salt.toString('hex'),
                 usersMainListIV: iv.toString('hex'),
                 users_main_list: admin.firestore.FieldValue.delete() // Remove old unencrypted data
             }, { merge: true });
@@ -464,20 +474,23 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         // Encrypt the users data
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(userId + projectId, 'salt', 32);
         
-        // Check if project doc already has an IV, if not create one
+        // Check if project doc already has salt and IV, if not create new ones
         const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
         const projectDoc = await projectRef.get();
-        let iv;
+        let salt, key, iv;
         
-        if (projectDoc.exists && projectDoc.data().usersListIV) {
-            // Use existing IV
+        if (projectDoc.exists && projectDoc.data().usersListIV && projectDoc.data().usersListSalt) {
+            // Use existing salt and IV
+            salt = Buffer.from(projectDoc.data().usersListSalt, 'hex');
             iv = Buffer.from(projectDoc.data().usersListIV, 'hex');
         } else {
-            // Create new IV
+            // Create new salt and IV
+            salt = crypto.randomBytes(16);
             iv = crypto.randomBytes(16);
         }
+        
+        key = crypto.scryptSync(userId + projectId, salt, 32);
         
         const cipher = crypto.createCipheriv(algorithm, key, iv);
         let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
@@ -486,6 +499,7 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         // Save encrypted data to Firestore subcollection
         await projectRef.set({
             usersList_encrypted: encryptedData,
+            usersListSalt: salt.toString('hex'),
             usersListIV: iv.toString('hex'),
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
@@ -518,11 +532,12 @@ app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => 
         const projectData = projectDoc.data();
         
         // Check for encrypted data
-        if (projectData.usersList_encrypted && projectData.usersListIV) {
-            // Decrypt the data
+        if (projectData.usersList_encrypted && projectData.usersListIV && projectData.usersListSalt) {
+            // Decrypt the data using stored salt
             const crypto = require('crypto');
             const algorithm = 'aes-256-cbc';
-            const key = crypto.scryptSync(userId + projectId, 'salt', 32);
+            const salt = Buffer.from(projectData.usersListSalt, 'hex');
+            const key = crypto.scryptSync(userId + projectId, salt, 32);
             const iv = Buffer.from(projectData.usersListIV, 'hex');
             
             const decipher = crypto.createDecipheriv(algorithm, key, iv);
@@ -558,21 +573,26 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
         // Encrypt the folder permissions data
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(userId, 'salt', 32);
         
-        // Check if user already has an IV for this project's permissions
+        // Check if user already has salt and IV for this project's permissions
         const userDoc = await db.collection('users').doc(userId).get();
-        let iv;
+        let salt, key, iv;
         const existingIVs = (userDoc.exists && userDoc.data().folderPermissionsIVs) || {};
+        const existingSalts = (userDoc.exists && userDoc.data().folderPermissionsSalts) || {};
         
-        if (existingIVs[permissionKey]) {
-            // Use existing IV for this project
+        if (existingIVs[permissionKey] && existingSalts[permissionKey]) {
+            // Use existing salt and IV for this project
+            salt = Buffer.from(existingSalts[permissionKey], 'hex');
             iv = Buffer.from(existingIVs[permissionKey], 'hex');
         } else {
-            // Create new IV for this project
+            // Create new salt and IV for this project
+            salt = crypto.randomBytes(16);
             iv = crypto.randomBytes(16);
+            existingSalts[permissionKey] = salt.toString('hex');
             existingIVs[permissionKey] = iv.toString('hex');
         }
+        
+        key = crypto.scryptSync(userId, salt, 32);
         
         const cipher = crypto.createCipheriv(algorithm, key, iv);
         let encryptedData = cipher.update(JSON.stringify(data), 'utf8', 'hex');
@@ -584,6 +604,7 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
         
         await db.collection('users').doc(userId).set({
             folderPermissions: folderPermissions,
+            folderPermissionsSalts: existingSalts,
             folderPermissionsIVs: existingIVs
         }, { merge: true });
         
@@ -625,12 +646,14 @@ app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (r
         const userData = userDoc.data();
         const folderPermissions = userData.folderPermissions || {};
         const folderPermissionsIVs = userData.folderPermissionsIVs || {};
+        const folderPermissionsSalts = userData.folderPermissionsSalts || {};
         
-        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey]) {
-            // Decrypt the data
+        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey] && folderPermissionsSalts[permissionKey]) {
+            // Decrypt the data using stored salt
             const crypto = require('crypto');
             const algorithm = 'aes-256-cbc';
-            const key = crypto.scryptSync(userId, 'salt', 32);
+            const salt = Buffer.from(folderPermissionsSalts[permissionKey], 'hex');
+            const key = crypto.scryptSync(userId, salt, 32);
             const iv = Buffer.from(folderPermissionsIVs[permissionKey], 'hex');
             
             const decipher = crypto.createDecipheriv(algorithm, key, iv);
