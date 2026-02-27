@@ -168,17 +168,62 @@ app.use((req, res, next) => {
 // Serve static files from current directory
 app.use(express.static(__dirname));
 
-// Simple rate limiting implementation
+// ============================================================================
+// Rate Limiting with Redis (shared across instances) or in-memory fallback
+// ============================================================================
+
+let redisClient = null;
+let useRedis = false;
+
+// Try to connect to Redis if available
+(async () => {
+    try {
+        const redis = require('redis');
+        const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+        
+        redisClient = redis.createClient({
+            url: redisUrl,
+            socket: {
+                connectTimeout: 5000,
+                reconnectStrategy: (retries) => {
+                    if (retries > 3) {
+                        console.log('⚠️ Redis reconnection failed after 3 attempts, using in-memory rate limiting');
+                        return false; // Stop reconnecting
+                    }
+                    return Math.min(retries * 100, 3000);
+                }
+            }
+        });
+        
+        redisClient.on('error', (err) => {
+            if (!useRedis) {
+                // Only log once during initial connection attempt
+                console.log('ℹ️ Redis not available, using in-memory rate limiting (single instance only)');
+            }
+        });
+        
+        await redisClient.connect();
+        useRedis = true;
+        console.log('✅ Redis connected - rate limiting shared across all instances');
+        
+    } catch (error) {
+        console.log('ℹ️ Redis not available, using in-memory rate limiting (single instance only)');
+        console.log('   To enable Redis: Install Redis and set REDIS_URL in .env');
+        useRedis = false;
+    }
+})();
+
+// In-memory fallback store
 const rateLimitStore = new Map();
 
-// Deterministic cleanup to prevent memory leak
-// Runs every 5 minutes to clean expired entries
+// Deterministic cleanup for in-memory store (when Redis not available)
 setInterval(() => {
+    if (useRedis) return; // Skip cleanup if using Redis
+    
     const now = Date.now();
     let cleanedCount = 0;
     
     for (const [key, record] of rateLimitStore.entries()) {
-        // Delete entries that are past their reset time
         if (now > record.resetTime) {
             rateLimitStore.delete(key);
             cleanedCount++;
@@ -186,7 +231,7 @@ setInterval(() => {
     }
     
     if (cleanedCount > 0) {
-        console.log(`🧹 Rate limiter cleanup: Removed ${cleanedCount} expired entries. Store size: ${rateLimitStore.size}`);
+        console.log(`🧹 In-memory rate limiter cleanup: Removed ${cleanedCount} expired entries. Store size: ${rateLimitStore.size}`);
     }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
@@ -195,28 +240,66 @@ function rateLimit(options = {}) {
     const maxRequests = options.max || 100; // 100 requests default
     const message = options.message || 'Too many requests, please try again later.';
     
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
-        const key = `${ip}-${options.prefix || 'global'}`;
+        const key = `ratelimit:${options.prefix || 'global'}:${ip}`;
         
-        const now = Date.now();
-        const record = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs };
-        
-        // Reset if window expired
-        if (now > record.resetTime) {
-            record.count = 0;
-            record.resetTime = now + windowMs;
+        try {
+            if (useRedis && redisClient) {
+                // Redis-based rate limiting (shares state across all instances)
+                const now = Date.now();
+                const windowStart = now - windowMs;
+                
+                // Use Redis sorted set to track requests with timestamps
+                const multi = redisClient.multi();
+                
+                // Remove old entries outside the window
+                multi.zRemRangeByScore(key, 0, windowStart);
+                
+                // Count requests in current window
+                multi.zCard(key);
+                
+                // Add current request
+                multi.zAdd(key, { score: now, value: `${now}` });
+                
+                // Set expiration on the key
+                multi.expire(key, Math.ceil(windowMs / 1000));
+                
+                const results = await multi.exec();
+                const count = results[1]; // Result of zCard
+                
+                if (count >= maxRequests) {
+                    console.log(`⚠️ Rate limit exceeded for ${ip} on ${options.prefix || 'global'} (Redis)`);
+                    return res.status(429).json({ error: message });
+                }
+                
+            } else {
+                // In-memory fallback (single instance only)
+                const now = Date.now();
+                const record = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs };
+                
+                // Reset if window expired
+                if (now > record.resetTime) {
+                    record.count = 0;
+                    record.resetTime = now + windowMs;
+                }
+                
+                record.count++;
+                rateLimitStore.set(key, record);
+                
+                if (record.count > maxRequests) {
+                    console.log(`⚠️ Rate limit exceeded for ${ip} on ${options.prefix || 'global'} (in-memory)`);
+                    return res.status(429).json({ error: message });
+                }
+            }
+            
+            next();
+            
+        } catch (error) {
+            console.error('Rate limiter error:', error);
+            // On error, allow the request through (fail open)
+            next();
         }
-        
-        record.count++;
-        rateLimitStore.set(key, record);
-        
-        if (record.count > maxRequests) {
-            console.log(`⚠️ Rate limit exceeded for ${ip} on ${options.prefix || 'global'}`);
-            return res.status(429).json({ error: message });
-        }
-        
-        next();
     };
 }
 
