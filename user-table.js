@@ -2476,21 +2476,43 @@ class UserTableManager {
             return;
         }
         
-        // Run account update BEFORE saving to JSON (if not skipped)
-        if (!skipAccountUpdate && this.modalHubId) {
+        // Run account update AND project update BEFORE saving to JSON (if not skipped)
+        if (!skipAccountUpdate && this.modalHubId && this.modalProjectId) {
             try {
-                log('🔄 Starting account update before save...');
+                // STEP 1: Update ACCOUNT users (company_id, default_role)
+                log('🔄 Step 1: Starting account user update...');
                 const accountId = this.modalHubId; // Hub ID is the account ID
                 await this.updateAccountUsersBeforeSave(accountId);
-                log('✅ Account update completed successfully');
+                log('✅ Account users updated successfully');
                 
-                // Continue at 60% progress after account update
-                this.showSaveProgress('Saving to database...', 60);
+                // Progress at 50% after account update
+                this.showSaveProgress('Updating project users...', 50);
+                
+                // STEP 2: Update PROJECT users (companyId, companyName, roleIds, products)
+                log('🔄 Step 2: Starting project user update...');
+                
+                // Check if updateProjectUsers function is available
+                if (typeof updateProjectUsers !== 'function') {
+                    throw new Error('updateProjectUsers function not available');
+                }
+                
+                // Get current access token
+                const accessToken = window.currentAccessToken || (window.getAuthToken && window.getAuthToken());
+                if (!accessToken) {
+                    throw new Error('Access token not available for project update');
+                }
+                
+                // Call project users update (this syncs company/role from account to project)
+                await updateProjectUsers(this.modalProjectId, accountId, accessToken, null);
+                log('✅ Project users updated successfully');
+                
+                // Continue at 70% progress after both updates
+                this.showSaveProgress('Saving to database...', 70);
             } catch (error) {
-                console.error('❌ Account update failed:', error);
+                console.error('❌ User update failed:', error);
                 // Show error to user
-                this.showSaveError(`Account update failed: ${error.message}\n\nData was NOT saved to prevent inconsistency.`);
-                return; // Stop save operation if account update fails
+                this.showSaveError(`User update failed: ${error.message}\n\nData was NOT saved to prevent inconsistency.`);
+                return; // Stop save operation if update fails
             }
         }
         
