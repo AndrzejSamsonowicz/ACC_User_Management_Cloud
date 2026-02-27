@@ -679,6 +679,14 @@
         // Save encrypted credentials to server
         async function saveEncryptedCredentials(clientId, clientSecret) {
             try {
+                // Validate auth token exists
+                if (!authToken) {
+                    console.error('❌ No authentication token available');
+                    alert('Authentication required. Please log in again.');
+                    return false;
+                }
+                
+                log('💾 Sending save credentials request to server...');
                 const response = await fetch(`${window.location.origin}/save-credentials`, {
                     method: 'POST',
                     headers: {
@@ -688,16 +696,28 @@
                     body: JSON.stringify({ clientId, clientSecret })
                 });
                 
+                log('💾 Server response status:', response.status, response.statusText);
+                
                 if (response.ok) {
                     log('✓ Credentials saved to secure storage');
                     return true;
                 } else {
                     const error = await response.json();
-                    console.error('Error saving credentials:', error);
+                    const errorMessage = error.error || error.message || `Server error: ${response.status}`;
+                    console.error('❌ Error saving credentials:', response.status, errorMessage);
+                    
+                    if (response.status === 401) {
+                        alert('Authentication failed. Please log in again.');
+                    } else if (response.status === 403) {
+                        alert('Permission denied. You do not have access to save credentials.');
+                    } else {
+                        alert(`Error saving credentials: ${errorMessage}`);
+                    }
                     return false;
                 }
             } catch (error) {
-                console.error('Error saving encrypted credentials:', error);
+                console.error('❌ Network error saving credentials:', error);
+                alert(`Network error: ${error.message}`);
                 return false;
             }
         }

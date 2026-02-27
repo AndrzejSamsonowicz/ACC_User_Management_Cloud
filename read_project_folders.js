@@ -1679,8 +1679,14 @@
             const token = window.getAuthToken && window.getAuthToken();
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
+            } else {
+                console.error('❌ No authentication token available');
+                const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+                showTooltip(saveBtn, '✗ Authentication required. Please log in again.');
+                return;
             }
             
+            log('💾 Sending save request to server...');
             const response = await fetch(`${window.location.origin}/save-folder-permissions`, {
                 method: 'POST',
                 headers: headers,
@@ -1692,6 +1698,26 @@
                 })
             });
 
+            log('💾 Server response status:', response.status, response.statusText);
+            
+            // Check HTTP status first
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`;
+                console.error('❌ Server returned error:', response.status, errorMessage);
+                
+                const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+                if (response.status === 401) {
+                    showTooltip(saveBtn, '✗ Authentication failed. Please log in again.');
+                } else if (response.status === 403) {
+                    showTooltip(saveBtn, '✗ Permission denied.');
+                } else {
+                    showTooltip(saveBtn, `✗ Error: ${errorMessage}`);
+                }
+                return;
+            }
+            
+            // Parse successful response
             const result = await response.json();
             
             if (result.success) {
@@ -1699,13 +1725,16 @@
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 showTooltip(saveBtn, '✓ Saved successfully');
             } else {
+                // Should not happen if response.ok is true, but handle it anyway
+                const errorMessage = result.message || 'Unknown error';
+                console.error('❌ Save failed:', errorMessage);
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
-                showTooltip(saveBtn, `✗ Error: ${result.message}`);
+                showTooltip(saveBtn, `✗ Error: ${errorMessage}`);
             }
         } catch (error) {
-            console.error('Error saving folder permissions:', error);
+            console.error('❌ Network error saving folder permissions:', error);
             const saveBtn = document.getElementById('saveFolderPermissionsBtn');
-            showTooltip(saveBtn, `✗ Error: ${error.message}`);
+            showTooltip(saveBtn, `✗ Network error: ${error.message}`);
         }
     }
 
