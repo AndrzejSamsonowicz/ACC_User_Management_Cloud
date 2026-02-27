@@ -497,11 +497,11 @@
         
         // DEMO MODE: Check if running in demo mode (for UI testing without Firebase)
         const isDemoMode = window.location.search.includes('demo=true') || 
-                          localStorage.getItem('DEMO_MODE') === 'true';
+                          sessionStorage.getItem('DEMO_MODE') === 'true';
         
         if (isDemoMode) {
             log('🎨 DEMO MODE: Authentication bypassed for UI testing');
-            localStorage.setItem('DEMO_MODE', 'true');
+            sessionStorage.setItem('DEMO_MODE', 'true');
             // Skip Firebase initialization in demo mode
             displayDemoInfo();
         } else {
@@ -646,7 +646,7 @@
                     <div style="font-weight: 600; color: #856404; margin-bottom: 5px;">🎨 DEMO MODE</div>
                     <div style="color: #856404; font-size: 11px;">Authentication bypassed for UI preview</div>
                     <div style="color: #856404; font-size: 11px; margin-top: 5px;">
-                        <a href="?demo=false" onclick="localStorage.removeItem('DEMO_MODE')" style="color: #0696D7;">Exit Demo</a>
+                        <a href="?demo=false" onclick="sessionStorage.removeItem('DEMO_MODE')" style="color: #0696D7;">Exit Demo</a>
                     </div>
                 </div>
             `;
