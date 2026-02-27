@@ -531,20 +531,10 @@
             return div.innerHTML;
         }
         
-        // Security: Token manager (reduces exposure on window object)
+        // Security: Secure token manager - NEVER expose token on window object
         window.getAuthToken = function() {
             return authToken;
         };
-        // Keep window.authToken for backward compatibility, but log warning
-        Object.defineProperty(window, 'authToken', {
-            get: function() {
-                log('⚠️ Accessing window.authToken directly - use getAuthToken() instead');
-                return authToken;
-            },
-            set: function(value) {
-                authToken = value;
-            }
-        });
         
         // Check authentication status on page load
         if (!isDemoMode) {
@@ -571,7 +561,6 @@
                 if (isAdmin) {
                     // Admin users don't need license validation
                     authToken = await user.getIdToken();
-                    window.authToken = authToken; // Expose globally for user-table.js
                     currentUser = user;
                     
                     // Load encrypted credentials from database
@@ -611,7 +600,6 @@
                     
                     // Get Firebase authentication token for API calls
                     authToken = await user.getIdToken();
-                    window.authToken = authToken; // Expose globally for user-table.js
                     currentUser = user;
                     
                     // Load encrypted credentials from database

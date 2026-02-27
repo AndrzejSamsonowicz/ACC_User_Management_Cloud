@@ -754,6 +754,11 @@
         
         const serverURL = window.location.origin;
         
+        // Security: Secure token manager - NEVER expose token on window object
+        window.getAuthToken = function() {
+            return authToken;
+        };
+        
         // Check admin authentication
         auth.onAuthStateChanged(async (user) => {
             if (!user) {

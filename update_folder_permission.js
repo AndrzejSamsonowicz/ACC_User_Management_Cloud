@@ -408,8 +408,9 @@
                 }
                 
                 const headers = {};
-                if (window.authToken) {
-                    headers['Authorization'] = `Bearer ${window.authToken}`;
+                const token = window.getAuthToken && window.getAuthToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
                 }
                 
                 const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {

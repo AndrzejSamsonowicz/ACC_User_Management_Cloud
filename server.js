@@ -3,6 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const validator = require('validator');
 
 const app = express();
 const port = 3000;
@@ -62,6 +63,73 @@ function sanitizeError(error, userMessage = 'An error occurred') {
     };
 }
 
+// ============================================================================
+// Input Validation Utilities
+// ============================================================================
+// Comprehensive input validation to prevent injection attacks and malformed data
+
+const inputValidation = {
+    // Validate string with length limits
+    validateString: (value, fieldName, minLength = 1, maxLength = 1000) => {
+        if (typeof value !== 'string') {
+            throw new Error(`${fieldName} must be a string`);
+        }
+        if (!validator.isLength(value, { min: minLength, max: maxLength })) {
+            throw new Error(`${fieldName} must be between ${minLength} and ${maxLength} characters`);
+        }
+        return validator.trim(value);
+    },
+    
+    // Validate alphanumeric with special chars (for IDs, names)
+    validateAlphanumeric: (value, fieldName, allowSpaces = true) => {
+        if (typeof value !== 'string') {
+            throw new Error(`${fieldName} must be a string`);
+        }
+        const pattern = allowSpaces ? /^[a-zA-Z0-9\s\-_\.]+$/ : /^[a-zA-Z0-9\-_\.]+$/;
+        if (!pattern.test(value)) {
+            throw new Error(`${fieldName} contains invalid characters`);
+        }
+        return validator.trim(value);
+    },
+    
+    // Validate email
+    validateEmail: (value, fieldName) => {
+        if (typeof value !== 'string' || !validator.isEmail(value)) {
+            throw new Error(`${fieldName} must be a valid email address`);
+        }
+        return validator.normalizeEmail(value);
+    },
+    
+    // Validate object/JSON structure
+    validateObject: (value, fieldName, maxDepth = 10) => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new Error(`${fieldName} must be an object`);
+        }
+        // Check for prototype pollution
+        if (value.__proto__ || value.constructor || value.prototype) {
+            throw new Error(`${fieldName} contains forbidden properties`);
+        }
+        return value;
+    },
+    
+    // Validate array with size limits
+    validateArray: (value, fieldName, maxLength = 10000) => {
+        if (!Array.isArray(value)) {
+            throw new Error(`${fieldName} must be an array`);
+        }
+        if (value.length > maxLength) {
+            throw new Error(`${fieldName} exceeds maximum length of ${maxLength}`);
+        }
+        return value;
+    },
+    
+    // Sanitize HTML/script tags
+    sanitizeHtml: (value) => {
+        if (typeof value !== 'string') return value;
+        return validator.escape(value);
+    }
+};
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -98,7 +166,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// CORS configuration - restrict to allowed origins only
+// CORS configuration - restrict to allowed origins only (HTTPS-only in production)
 app.use((req, res, next) => {
     // Determine if we're in production (HTTPS) or development
     // Force production mode if not running on localhost
@@ -106,19 +174,18 @@ app.use((req, res, next) => {
     const isProduction = !isLocalhost || req.secure || req.headers['x-forwarded-proto'] === 'https';
     
     const allowedOrigins = isProduction ? [
-        // Production: HTTPS preferred, HTTP allowed for transition
+        // Production: HTTPS-ONLY for security (except localhost for development)
+        'http://localhost:3000',     // Localhost HTTP allowed for development
+        'http://127.0.0.1:3000',     // Localhost HTTP allowed for development
+        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS) - Old
+        'https://34.65.160.116:3000', // Google Cloud VM (HTTPS) - Current
+        'https://usermgt.digibuild.ch'   // Production domain (HTTPS ONLY)
+    ] : [
+        // Development: Local only (both HTTP and HTTPS)
         'http://localhost:3000',
         'http://127.0.0.1:3000',
-        'http://34.45.169.78:3000',  // Google Cloud VM (HTTP) - Old
-        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS) - Old
-        'http://34.65.160.116:3000',  // Google Cloud VM (HTTP) - Current
-        'https://34.65.160.116:3000', // Google Cloud VM (HTTPS) - Current
-        'http://usermgt.digibuild.ch',   // Production domain (HTTP)
-        'https://usermgt.digibuild.ch'   // Production domain (HTTPS)
-    ] : [
-        // Development: Local only
-        'http://localhost:3000',
-        'http://127.0.0.1:3000'
+        'https://localhost:3000',
+        'https://127.0.0.1:3000'
     ];
     
     const origin = req.headers.origin;
@@ -372,10 +439,22 @@ app.post('/save-credentials', authenticateUser, async (req, res) => {
         const { clientId, clientSecret } = req.body;
         const userId = req.user.uid;
         
+        // Input validation
         if (!clientId || !clientSecret) {
             return res.status(400).json({ 
                 success: false, 
                 message: 'Both clientId and clientSecret are required' 
+            });
+        }
+        
+        // Validate clientId format (alphanumeric with hyphens)
+        try {
+            inputValidation.validateString(clientId, 'clientId', 1, 500);
+            inputValidation.validateString(clientSecret, 'clientSecret', 1, 500);
+        } catch (validationError) {
+            return res.status(400).json({ 
+                success: false, 
+                message: validationError.message 
             });
         }
 
@@ -581,6 +660,17 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         const projectId = req.params.projectId;
         const usersData = req.body;
         
+        // Input validation
+        try {
+            inputValidation.validateString(projectId, 'projectId', 1, 200);
+            inputValidation.validateObject(usersData, 'usersData');
+        } catch (validationError) {
+            return res.status(400).json({ 
+                success: false, 
+                message: validationError.message 
+            });
+        }
+        
         console.log(`Saving project users list for project: ${projectId}, user: ${userId}`);
         
         // Encrypt the users data
@@ -674,6 +764,21 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.uid;
         const { projectName, hubId, projectId, data } = req.body;
+        
+        // Input validation
+        try {
+            inputValidation.validateString(hubId, 'hubId', 1, 200);
+            inputValidation.validateString(projectId, 'projectId', 1, 200);
+            if (projectName) {
+                inputValidation.validateString(projectName, 'projectName', 1, 500);
+            }
+            inputValidation.validateObject(data, 'data');
+        } catch (validationError) {
+            return res.status(400).json({ 
+                success: false, 
+                message: validationError.message 
+            });
+        }
         
         if (!hubId || !projectId) {
             return res.status(400).json({ success: false, message: 'Hub ID and Project ID are required' });

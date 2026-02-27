@@ -2476,8 +2476,9 @@ class UserTableManager {
             };
             
             // Add authentication token if available (not in demo mode)
-            if (window.authToken) {
-                headers['Authorization'] = `Bearer ${window.authToken}`;
+            const token = window.getAuthToken && window.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
             
             const response = await fetch(`${window.location.origin}/save-project-users/${this.modalProjectId}`, {
@@ -2810,8 +2811,9 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         
         // Prepare headers with auth token
         const headers = {};
-        if (window.authToken) {
-            headers['Authorization'] = `Bearer ${window.authToken}`;
+        const token = window.getAuthToken && window.getAuthToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
         
         fetch(loadUrl, { headers })

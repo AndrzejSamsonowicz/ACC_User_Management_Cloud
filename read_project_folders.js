@@ -1562,9 +1562,10 @@
 
         // Check if file already exists
         try {
+            const token = window.getAuthToken && window.getAuthToken();
             const checkResponse = await fetch(`${window.location.origin}/check-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
-                headers: window.authToken ? {
-                    'Authorization': `Bearer ${window.authToken}`
+                headers: token ? {
+                    'Authorization': `Bearer ${token}`
                 } : {}
             });
             const checkData = await checkResponse.json();
@@ -1675,8 +1676,9 @@
             };
             
             // Add authentication token if available (not in demo mode)
-            if (window.authToken) {
-                headers['Authorization'] = `Bearer ${window.authToken}`;
+            const token = window.getAuthToken && window.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
             
             const response = await fetch(`${window.location.origin}/save-folder-permissions`, {
@@ -1860,8 +1862,9 @@
             
             // Prepare headers with auth token
             const headers = {};
-            if (window.authToken) {
-                headers['Authorization'] = `Bearer ${window.authToken}`;
+            const token = window.getAuthToken && window.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
             
             const response = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
