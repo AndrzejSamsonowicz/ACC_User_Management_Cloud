@@ -2527,14 +2527,41 @@ class UserTableManager {
             const token = window.getAuthToken && window.getAuthToken();
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
+            } else {
+                console.error('❌ No authentication token available');
+                this.hideSaveProgress();
+                this.showSaveError('Authentication required. Please log in again.');
+                return;
             }
             
+            log('💾 Sending save request to server...');
             const response = await fetch(`${window.location.origin}/save-project-users/${this.modalProjectId}`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(jsonData)
             });
             
+            log('💾 Server response status:', response.status, response.statusText);
+            
+            // Check HTTP status first
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`;
+                console.error('❌ Server returned error:', response.status, errorMessage);
+                this.hideSaveProgress();
+                
+                // Show specific error based on status
+                if (response.status === 401) {
+                    this.showSaveError('Authentication failed. Please log in again.');
+                } else if (response.status === 403) {
+                    this.showSaveError('Permission denied. You do not have access to save this data.');
+                } else {
+                    this.showSaveError(`Failed to save: ${errorMessage}`);
+                }
+                return;
+            }
+            
+            // Parse successful response
             const data = await response.json();
             
             if (data.success) {
@@ -2554,16 +2581,16 @@ class UserTableManager {
                     this.hideSaveProgress();
                 }, 1500);
             } else {
-                console.error('❌ Error saving to server:', data.message);
+                // Should not happen if response.ok is true, but handle it anyway
+                const errorMessage = data.message || 'Unknown error';
+                console.error('❌ Save failed:', errorMessage);
                 this.hideSaveProgress();
-                this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                    '✗ Error saving to server');
+                this.showSaveError(`Failed to save: ${errorMessage}`);
             }
         } catch (error) {
             console.error('❌ Network error saving to server:', error);
             this.hideSaveProgress();
-            this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                '✗ Network error saving to server');
+            this.showSaveError(`Network error: ${error.message}`);
         }
     }
 
