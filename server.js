@@ -368,20 +368,20 @@ app.post('/save', authenticateUser, async (req, res) => {
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
         
-        // Check if user already has salt and IV for users_main_list, if not create new ones
+        // Check if user already has salt for users_main_list, if not create new one
         const userDoc = await db.collection('users').doc(userId).get();
         let salt, key, iv;
         
-        if (userDoc.exists && userDoc.data().usersMainListIV && userDoc.data().usersMainListSalt) {
-            // Use existing salt and IV
+        if (userDoc.exists && userDoc.data().usersMainListSalt) {
+            // Use existing salt (for key derivation consistency)
             salt = Buffer.from(userDoc.data().usersMainListSalt, 'hex');
-            iv = Buffer.from(userDoc.data().usersMainListIV, 'hex');
         } else {
-            // Create new salt and IV
+            // Create new salt
             salt = crypto.randomBytes(16);
-            iv = crypto.randomBytes(16);
         }
         
+        // ALWAYS generate new IV for each encryption (security requirement)
+        iv = crypto.randomBytes(16);
         key = crypto.scryptSync(userId, salt, 32);
         
         const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -475,21 +475,21 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
         
-        // Check if project doc already has salt and IV, if not create new ones
+        // Check if project doc already has salt, if not create new one
         const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
         const projectDoc = await projectRef.get();
         let salt, key, iv;
         
-        if (projectDoc.exists && projectDoc.data().usersListIV && projectDoc.data().usersListSalt) {
-            // Use existing salt and IV
+        if (projectDoc.exists && projectDoc.data().usersListSalt) {
+            // Use existing salt (for key derivation consistency)
             salt = Buffer.from(projectDoc.data().usersListSalt, 'hex');
-            iv = Buffer.from(projectDoc.data().usersListIV, 'hex');
         } else {
-            // Create new salt and IV
+            // Create new salt
             salt = crypto.randomBytes(16);
-            iv = crypto.randomBytes(16);
         }
         
+        // ALWAYS generate new IV for each encryption (security requirement)
+        iv = crypto.randomBytes(16);
         key = crypto.scryptSync(userId + projectId, salt, 32);
         
         const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -574,23 +574,24 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
         const crypto = require('crypto');
         const algorithm = 'aes-256-cbc';
         
-        // Check if user already has salt and IV for this project's permissions
+        // Check if user already has salt for this project's permissions
         const userDoc = await db.collection('users').doc(userId).get();
         let salt, key, iv;
         const existingIVs = (userDoc.exists && userDoc.data().folderPermissionsIVs) || {};
         const existingSalts = (userDoc.exists && userDoc.data().folderPermissionsSalts) || {};
         
-        if (existingIVs[permissionKey] && existingSalts[permissionKey]) {
-            // Use existing salt and IV for this project
+        if (existingSalts[permissionKey]) {
+            // Use existing salt (for key derivation consistency)
             salt = Buffer.from(existingSalts[permissionKey], 'hex');
-            iv = Buffer.from(existingIVs[permissionKey], 'hex');
         } else {
-            // Create new salt and IV for this project
+            // Create new salt for this project
             salt = crypto.randomBytes(16);
-            iv = crypto.randomBytes(16);
             existingSalts[permissionKey] = salt.toString('hex');
-            existingIVs[permissionKey] = iv.toString('hex');
         }
+        
+        // ALWAYS generate new IV for each encryption (security requirement)
+        iv = crypto.randomBytes(16);
+        existingIVs[permissionKey] = iv.toString('hex');
         
         key = crypto.scryptSync(userId, salt, 32);
         
