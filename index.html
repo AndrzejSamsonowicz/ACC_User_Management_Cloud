@@ -463,6 +463,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js"></script>
     
     <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
@@ -510,6 +511,11 @@
                 showError('Firebase configuration not found. Please check your setup.');
             } else {
                 firebase.initializeApp(firebaseConfig);
+                
+                // Initialize App Check with reCAPTCHA v3
+                const appCheck = firebase.appCheck();
+                appCheck.activate('6Ley13ksAAAAAIiV7cKfFDe7udghxbXTYt8EkhrG', true);
+                
                 auth = firebase.auth();
                 db = firebase.firestore();
             }

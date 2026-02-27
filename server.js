@@ -131,11 +131,12 @@ app.use((req, res, next) => {
     // We've added upgrade-insecure-requests and form-action to improve security
     const cspDirectives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: https: blob:",
-        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com",
+        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net",
+        "frame-src https://www.google.com https://www.recaptcha.net",
         "frame-ancestors 'none'",
         "form-action 'self'", // Prevent forms from posting to external sites
         "base-uri 'self'",
