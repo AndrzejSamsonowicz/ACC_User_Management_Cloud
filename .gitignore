@@ -49,15 +49,25 @@ logs
 # Optional eslint cache
 .eslintcache
 
-# Firebase service account keys (CRITICAL - NEVER COMMIT!)
+# ========================================================================
+# SECURITY CRITICAL: Firebase service account keys (NEVER COMMIT THESE!)
+# ========================================================================
+# These files contain admin credentials that grant full access to Firebase
+# If exposed, attackers can read/write/delete ALL data in your Firebase project
+# ========================================================================
 *serviceAccountKey*.json
-firebase-service-account.json
+*service-account*.json
+firebase-service-account*.json
 service-account.json
-service-account-backup.json
+service-account-*.json
 *-firebase-adminsdk-*.json
+firebase-adminsdk-*.json
+serviceAccount*.json
+*ServiceAccount*.json
+*.serviceaccount.json
 
 # Note: firebase-config.js contains client-side API keys which are designed to be public
-# and protected by Firebase Security Rules, so it's not in .gitignore
+# and protected by Firebase Security Rules + App Check, so it's not in .gitignore
 
 # User data and permissions
 user_permissions_import.json
