@@ -105,8 +105,8 @@ const inputValidation = {
         if (typeof value !== 'object' || value === null || Array.isArray(value)) {
             throw new Error(`${fieldName} must be an object`);
         }
-        // Check for prototype pollution
-        if (value.__proto__ || value.constructor || value.prototype) {
+        // Check for prototype pollution - only check for explicitly defined properties (not inherited)
+        if (Object.hasOwn(value, '__proto__') || Object.hasOwn(value, 'constructor') || Object.hasOwn(value, 'prototype')) {
             throw new Error(`${fieldName} contains forbidden properties`);
         }
         return value;
