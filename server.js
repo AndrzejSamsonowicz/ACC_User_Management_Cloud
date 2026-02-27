@@ -171,6 +171,25 @@ app.use(express.static(__dirname));
 // Simple rate limiting implementation
 const rateLimitStore = new Map();
 
+// Deterministic cleanup to prevent memory leak
+// Runs every 5 minutes to clean expired entries
+setInterval(() => {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [key, record] of rateLimitStore.entries()) {
+        // Delete entries that are past their reset time
+        if (now > record.resetTime) {
+            rateLimitStore.delete(key);
+            cleanedCount++;
+        }
+    }
+    
+    if (cleanedCount > 0) {
+        console.log(`🧹 Rate limiter cleanup: Removed ${cleanedCount} expired entries. Store size: ${rateLimitStore.size}`);
+    }
+}, 5 * 60 * 1000); // Run every 5 minutes
+
 function rateLimit(options = {}) {
     const windowMs = options.windowMs || 15 * 60 * 1000; // 15 minutes default
     const maxRequests = options.max || 100; // 100 requests default
@@ -191,15 +210,6 @@ function rateLimit(options = {}) {
         
         record.count++;
         rateLimitStore.set(key, record);
-        
-        // Clean up old entries periodically
-        if (Math.random() < 0.01) { // 1% chance
-            for (const [k, v] of rateLimitStore.entries()) {
-                if (now > v.resetTime + windowMs) {
-                    rateLimitStore.delete(k);
-                }
-            }
-        }
         
         if (record.count > maxRequests) {
             console.log(`⚠️ Rate limit exceeded for ${ip} on ${options.prefix || 'global'}`);
