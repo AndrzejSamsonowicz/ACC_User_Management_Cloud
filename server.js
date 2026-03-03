@@ -221,7 +221,7 @@ app.use((req, res, next) => {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: https: blob:",
-        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net",
+        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net https://www.gstatic.com",
         "frame-src https://www.google.com https://www.recaptcha.net",
         "frame-ancestors 'none'",
         "form-action 'self'", // Prevent forms from posting to external sites

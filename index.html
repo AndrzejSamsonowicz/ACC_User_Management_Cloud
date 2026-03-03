@@ -2137,6 +2137,16 @@
                                 } catch (e) {
                                     errorData = { message: errorText || response.statusText };
                                 }
+                                
+                                // Check if error is about inactive products
+                                const errorDetail = errorData.detail || errorData.message || '';
+                                if (response.status === 400 && (errorDetail.includes('nicht aktiviert') || errorDetail.includes('not activated'))) {
+                                    console.warn(`⚠️ Product not activated for ${userToPatch.email}: ${errorDetail}`);
+                                    console.warn(`⚠️ Skipping user - project doesn't have required products activated`);
+                                    results.errors.push(`Skipped ${userToPatch.email}: ${errorDetail}`);
+                                    return { success: false, email: userToPatch.email, skipped: true, reason: 'Product not activated' };
+                                }
+                                
                                 console.error(`❌ API Error for ${userToPatch.email}:`, {
                                     status: response.status,
                                     statusText: response.statusText,
