@@ -2032,10 +2032,28 @@
                 const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
                 const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
                 
+                // Extract available product keys from existing project users
+                // This determines which products are activated for this project
+                const availableProductKeys = new Set();
+                if (projectUsers.length > 0) {
+                    projectUsers.forEach(user => {
+                        if (user.products && Array.isArray(user.products)) {
+                            user.products.forEach(product => {
+                                if (product.key) availableProductKeys.add(product.key);
+                            });
+                        }
+                    });
+                }
+                
+                // Always include projectAdministration (it's always available)
+                availableProductKeys.add('projectAdministration');
+                
+                log('Available products for this project:', Array.from(availableProductKeys));
                 log('Data loaded:', {
                     importUsers: importUsers.length,
                     accountUsers: accountUsers.length,
-                    projectUsers: projectUsers.length
+                    projectUsers: projectUsers.length,
+                    availableProducts: availableProductKeys.size
                 });
                 
                 let results = {
@@ -2094,20 +2112,28 @@
                             const projectAdmin = importUser.products.find(p => p.key === 'projectAdministration');
                             const isProjectAdmin = projectAdmin?.access === 'administrator';
                             
-                            const products = importUser.products.map(p => {
-                                const currentAccess = p.access;
-                                if (p.key === 'projectAdministration') {
-                                    return { key: p.key, access: currentAccess };
-                                }
-                                if (currentAccess === 'none') {
-                                    return { key: p.key, access: 'none' };
-                                }
-                                if (isProjectAdmin) {
-                                    return { key: p.key, access: 'administrator' };
-                                } else {
-                                    return { key: p.key, access: 'member' };
-                                }
-                            });
+                            const products = importUser.products
+                                .filter(p => availableProductKeys.has(p.key)) // Only include products available in this project
+                                .map(p => {
+                                    const currentAccess = p.access;
+                                    if (p.key === 'projectAdministration') {
+                                        return { key: p.key, access: currentAccess };
+                                    }
+                                    if (currentAccess === 'none') {
+                                        return { key: p.key, access: 'none' };
+                                    }
+                                    if (isProjectAdmin) {
+                                        return { key: p.key, access: 'administrator' };
+                                    } else {
+                                        return { key: p.key, access: 'member' };
+                                    }
+                                });
+                            
+                            // Log if any products were filtered out
+                            const filteredOut = importUser.products.filter(p => !availableProductKeys.has(p.key));
+                            if (filteredOut.length > 0) {
+                                log(`ℹ️ Filtered out unavailable products for ${userToPatch.email}:`, filteredOut.map(p => p.key));
+                            }
                             
                             const patchPayload = { products: products };
                             if (accountUser.company_id) patchPayload.companyId = accountUser.company_id;
@@ -2226,27 +2252,35 @@
                                 const projectAdmin = importUser.products.find(p => p.key === 'projectAdministration');
                                 const isProjectAdmin = projectAdmin?.access === 'administrator';
                                 
-                                const products = importUser.products.map(p => {
-                                    const currentAccess = p.access;
-                                    
-                                    // Keep projectAdministration exactly as set by user
-                                    if (p.key === 'projectAdministration') {
-                                        return { key: p.key, access: currentAccess };
-                                    }
-                                    
-                                    // Keep 'none' as is for all other products
-                                    if (currentAccess === 'none') {
-                                        return { key: p.key, access: 'none' };
-                                    }
-                                    
-                                    // If Project Admin is ON, ALL non-none products become 'administrator'
-                                    // If Project Admin is OFF, ALL non-none products become 'member'
-                                    if (isProjectAdmin) {
-                                        return { key: p.key, access: 'administrator' };
-                                    } else {
-                                        return { key: p.key, access: 'member' };
-                                    }
-                                });
+                                const products = importUser.products
+                                    .filter(p => availableProductKeys.has(p.key)) // Only include products available in this project
+                                    .map(p => {
+                                        const currentAccess = p.access;
+                                        
+                                        // Keep projectAdministration exactly as set by user
+                                        if (p.key === 'projectAdministration') {
+                                            return { key: p.key, access: currentAccess };
+                                        }
+                                        
+                                        // Keep 'none' as is for all other products
+                                        if (currentAccess === 'none') {
+                                            return { key: p.key, access: 'none' };
+                                        }
+                                        
+                                        // If Project Admin is ON, ALL non-none products become 'administrator'
+                                        // If Project Admin is OFF, ALL non-none products become 'member'
+                                        if (isProjectAdmin) {
+                                            return { key: p.key, access: 'administrator' };
+                                        } else {
+                                            return { key: p.key, access: 'member' };
+                                        }
+                                    });
+                                
+                                // Log if any products were filtered out
+                                const filteredOut = importUser.products.filter(p => !availableProductKeys.has(p.key));
+                                if (filteredOut.length > 0) {
+                                    log(`ℹ️ Filtered out unavailable products for ${userToAdd.email}:`, filteredOut.map(p => p.key));
+                                }
                                 
                                 // Build user object
                                 const userPayload = {
