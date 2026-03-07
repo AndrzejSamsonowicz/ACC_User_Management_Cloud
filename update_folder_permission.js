@@ -36,7 +36,7 @@
                             <h4 style="margin: 0 0 15px 0; font-family: 'Artifact Elements', Arial, sans-serif; color: #333;">Progress</h4>
                             <div id="folderSyncStatus" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #666; margin-bottom: 10px;">Preparing sync...</div>
                             <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
-                                <div id="folderSyncBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">0%</div>
+                                <div id="folderSyncBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s;"></div>
                             </div>
                         </div>
                         
@@ -70,7 +70,6 @@
         if (statusEl) statusEl.textContent = message;
         if (barEl) {
             barEl.style.width = `${percent}%`;
-            barEl.textContent = `${Math.round(percent)}%`;
         }
     }
 
@@ -400,40 +399,90 @@
         isSyncing = true;
         log('🔒 Sync started - button locked');
 
-        updateFolderSyncProgress('Loading permissions data from Firebase...', 0);
+        updateFolderSyncProgress('Reading permissions from table...', 0);
 
         // Start sync immediately
         (async () => {
 
-            // Load permissions data from Firebase
+            // Read permissions data directly from TABLE (not Firebase)
             try {
-                if (!currentProjectData.hubId || !currentProjectData.projectId) {
-                    updateFolderSyncProgress('Error: Missing hub or project ID', 0);
+                const table = document.querySelector('.folders-table');
+                if (!table) {
+                    updateFolderSyncProgress('Error: No table found', 0);
                     isSyncing = false;
-                    log('🔓 Sync failed (no IDs) - button unlocked');
-                    alert('Missing hub or project ID. Please reopen the folder permissions modal.');
+                    log('🔓 Sync failed (no table) - button unlocked');
+                    alert('No folder permissions table found. Please reopen the modal.');
                     return;
                 }
+
+                log('\n🔄 ========== READING FROM TABLE ==========');
                 
-                const headers = {};
-                const token = window.getAuthToken && window.getAuthToken();
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-                
-                const loadResponse = await fetch(`${window.location.origin}/load-folder-permissions/${encodeURIComponent(currentProjectData.hubId)}/${encodeURIComponent(currentProjectData.projectId)}`, {
-                    headers: headers
+                // Extract folders and permissions from table
+                const folders = [];
+                const rows = table.querySelectorAll('tbody tr');
+
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length === 0) return;
+
+                    const folderId = row.getAttribute('data-folder-id');
+                    const level1 = row.getAttribute('data-level1-name');
+                    const level2 = row.getAttribute('data-level2-name');
+                    
+                    const level2Cell = cells[0].textContent.trim();
+                    const level3Cell = cells[1].textContent.trim();
+
+                    // Build permissions object (skip inherited permissions)
+                    const permissions = {};
+                    for (let i = 2; i < cells.length; i++) {
+                        const cell = cells[i];
+                        
+                        // Skip inherited permissions (they come from parent)
+                        const isInherited = cell.getAttribute('data-is-inherited') === 'true';
+                        if (isInherited) {
+                            continue; // Don't sync inherited permissions as separate entries
+                        }
+                        
+                        const usernameSpan = cell.querySelector('.cell-username');
+                        const permissionInput = cell.querySelector('.cell-permission-level');
+                        
+                        if (usernameSpan && usernameSpan.textContent.trim() && permissionInput && permissionInput.value.trim()) {
+                            const userName = usernameSpan.textContent.trim();
+                            const permissionLevel = permissionInput.value.trim();
+                            const subjectId = cell.getAttribute('data-subject-id');
+                            const subjectType = cell.getAttribute('data-subject-type');
+                            
+                            if (subjectId && subjectType && permissionLevel) {
+                                permissions[`column${i - 1}`] = {
+                                    subjectId: subjectId,
+                                    subjectType: subjectType,
+                                    user: userName,
+                                    level: permissionLevel
+                                };
+                            }
+                        }
+                    }
+
+                    // Only add folder if it has non-inherited permissions
+                    if (Object.keys(permissions).length > 0 || level2Cell || level3Cell) {
+                        folders.push({
+                            folderId: folderId,
+                            level1: level1,
+                            level2: level2Cell || level2 || null,
+                            level3: level3Cell || null,
+                            permissions: permissions
+                        });
+                    }
                 });
-                const loadResult = await loadResponse.json();
-            
+
+                log(`📊 Extracted ${folders.length} folders from table`);
                 
-                if (!loadResult.success || !loadResult.exists || !loadResult.data) {
-                    updateFolderSyncProgress('Error: No saved permissions found', 0);
-                    isSyncing = false;
-                    log('🔓 Sync failed (no data) - button unlocked');
-                    alert('No saved folder permissions found. Please save permissions first.');
-                    return;
-                }            const jsonData = loadResult.data;
+                const jsonData = {
+                    projectName: currentProjectData.projectName,
+                    projectId: currentProjectData.projectId,
+                    hubId: currentProjectData.hubId,
+                    folders: folders
+                };
             log('\n🔄 ========== STARTING SYNC TO ACC ==========');
             log(`📁 Project: ${currentProjectData.projectName}`);
             log(`📊 Total folders in JSON: ${jsonData.folders.length}`);

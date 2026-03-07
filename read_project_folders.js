@@ -13,6 +13,7 @@
     let currentProjectUsers = null;
     let currentProjectUsersRaw = null; // Store raw API data for subjectId lookup
     let additionalColumnsCount = 10; // Start with 10 additional columns
+    let currentUserDisplayMode = 'email'; // Track current display mode (email or name)
 
     /**
      * Progress modal functions
@@ -44,7 +45,6 @@
         if (messageEl) messageEl.textContent = message;
         if (barEl) {
             barEl.style.width = `${percent}%`;
-            barEl.textContent = `${Math.round(percent)}%`;
         }
     }
 
@@ -92,7 +92,7 @@
 
         modalTitle.textContent = `Folder Structure: ${projectName}`;
         foldersModal.style.display = 'block';
-        loadingMessage.style.display = 'block';
+        loadingMessage.style.display = 'none'; // Hidden - using progress overlay instead
         tableContainer.style.display = 'none';
         userListContainer.style.display = 'none';
         errorMessage.style.display = 'none';
@@ -113,16 +113,91 @@
             displayFolderHierarchy(folderHierarchy);
             displayUserList(usersData.displayUsers);
             
-            // Try to load saved folder permissions
-            await loadFolderPermissions(projectName);
+            // Fetch and pre-populate with existing ACC folder permissions
+            // Continue with unified progress (50-100%)
+            updateLoadingProgress('Loading folder structure...', 50);
+            log('🔐 Fetching existing ACC folder permissions...');
+            await loadExistingACCPermissions(projectId, folderHierarchy, usersData.displayUsers, accessToken);
             
+            // DON'T auto-load saved JSON - it would override our fresh ACC data
+            // User can manually load saved data if needed
+            // await loadFolderPermissions(projectName);
+            
+            // Final progress update
+            updateLoadingProgress('Loading folder structure...', 100);
+            
+            // Show the table and user list FIRST (while progress is still visible)
             loadingMessage.style.display = 'none';
             tableContainer.style.display = 'block';
             userListContainer.style.display = 'block';
+            
+            // Wait for browser to actually render and paint the table
+            // Use double requestAnimationFrame to ensure painting is complete
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        // Add extra delay to ensure large tables are fully rendered
+                        setTimeout(resolve, 300);
+                    });
+                });
+            });
+            
+            hideLoadingProgress();
         } catch (error) {
             console.error('❌ Error loading folders:', error);
+            
+            // Complete progress to 100% before hiding (even on error)
+            updateLoadingProgress('Loading folder structure...', 100);
+            
+            // Show error state
             loadingMessage.style.display = 'none';
-            errorMessage.textContent = `Error loading folders: ${error.message}`;
+            
+            // Wait for browser to render error state, then hide progress
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        setTimeout(resolve, 300);
+                    });
+                });
+            });
+            
+            hideLoadingProgress();
+            
+            loadingMessage.style.display = 'none';
+            
+            // Provide user-friendly error message based on error type
+            let errorHtml = '';
+            if (error.message.includes('404')) {
+                errorHtml = `
+                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                    <h3 style="margin: 0 0 15px 0; color: #856404;">Unable to Load Folders</h3>
+                    <p style="margin: 10px 0; text-align: left; display: inline-block;">This may occur if:</p>
+                    <ul style="text-align: left; display: inline-block; margin: 10px 0;">
+                        <li>You don't have access to the Docs service in this project</li>
+                        <li>No folders exist in this project yet</li>
+                        <li>Your account lacks the necessary permissions</li>
+                    </ul>
+                    <p style="margin: 20px 0 10px 0; font-weight: bold;">Please contact your project administrator to grant you access.</p>
+                    <p style="margin: 10px 0; color: #666; font-size: 13px;">You can close this window using the <strong>×</strong> button in the top-right corner or by pressing <strong>ESC</strong>.</p>
+                `;
+            } else if (error.message.includes('403')) {
+                errorHtml = `
+                    <div style="font-size: 48px; margin-bottom: 20px;">🚫</div>
+                    <h3 style="margin: 0 0 15px 0; color: #856404;">Access Denied</h3>
+                    <p style="margin: 10px 0;">You don't have permission to view folders in this project.</p>
+                    <p style="margin: 20px 0 10px 0; font-weight: bold;">Please contact your project administrator.</p>
+                    <p style="margin: 10px 0; color: #666; font-size: 13px;">You can close this window using the <strong>×</strong> button in the top-right corner or by pressing <strong>ESC</strong>.</p>
+                `;
+            } else {
+                errorHtml = `
+                    <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                    <h3 style="margin: 0 0 15px 0; color: #856404;">Error Loading Folders</h3>
+                    <p style="margin: 10px 0;">${error.message}</p>
+                    <p style="margin: 10px 0; color: #666; font-size: 13px;">You can close this window using the <strong>×</strong> button in the top-right corner or by pressing <strong>ESC</strong>.</p>
+                `;
+            }
+            
+            errorMessage.innerHTML = errorHtml;
             errorMessage.style.display = 'block';
         }
     };
@@ -133,13 +208,14 @@
     async function fetchFolderHierarchy(hubId, projectId, accessToken) {
         log('📂 Fetching folder hierarchy...');
         
-        // Show progress modal
-        showLoadingProgress('Loading folder structure...', 0);
-        
-        // Step 1: Get top-level folders
-        const topFolders = await fetchTopFolders(hubId, projectId, accessToken);
-        log(`📂 Found ${topFolders.length} top-level folders`);
-        updateLoadingProgress('Fetching level 2 folders...', 10);
+        try {
+            // Show progress modal
+            showLoadingProgress('Loading folder structure...', 0);
+            
+            // Step 1: Get top-level folders
+            const topFolders = await fetchTopFolders(hubId, projectId, accessToken);
+            log(`📂 Found ${topFolders.length} top-level folders`);
+            updateLoadingProgress('Loading folder structure...', 5);
 
         const hierarchy = [];
         let totalFolders = topFolders.length;
@@ -151,14 +227,14 @@
             log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
             
             processedFolders++;
-            const progress = 10 + (processedFolders / totalFolders) * 40; // 10% to 50%
-            updateLoadingProgress(`Loading folders: ${processedFolders}/${totalFolders}`, progress);
+            const progress = 5 + (processedFolders / totalFolders) * 15; // 5% to 20%
+            updateLoadingProgress('Loading folder structure...', progress);
             
             return { level1Folder, level2Folders };
         });
 
         const level2Results = await Promise.all(level2Promises);
-        updateLoadingProgress('Fetching level 3 folders...', 50);
+        updateLoadingProgress('Loading folder structure...', 20);
 
         // Step 3: Fetch ALL level 3 folders in PARALLEL
         const level3Promises = [];
@@ -192,13 +268,13 @@
             level3Promises.map(async (promise) => {
                 const result = await promise;
                 processedFolders++;
-                const progress = 50 + (processedFolders / Math.max(totalFolders, 1)) * 40; // 50% to 90%
-                updateLoadingProgress(`Loading subfolders: ${processedFolders}/${totalFolders}`, progress);
+                const progress = 20 + (processedFolders / Math.max(totalFolders, 1)) * 20; // 20% to 40%
+                updateLoadingProgress('Loading folder structure...', progress);
                 return result;
             })
         );
 
-        updateLoadingProgress('Building hierarchy...', 90);
+        updateLoadingProgress('Loading folder structure...', 45);
 
         // Build final hierarchy
         for (const { level1Folder, level2Folder, level3Folders } of level3Results) {
@@ -221,13 +297,17 @@
             }
         }
 
-        updateLoadingProgress('Complete!', 100);
+        updateLoadingProgress('Loading folder structure...', 50);
         log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
         
-        // Hide progress modal after a brief delay
-        setTimeout(() => hideLoadingProgress(), 500);
-        
         return hierarchy;
+        
+        } catch (error) {
+            // Ensure loading progress is hidden on error
+            hideLoadingProgress();
+            // Re-throw the error to be handled by the caller
+            throw error;
+        }
     }
 
     /**
@@ -445,6 +525,7 @@
         
         hierarchy.forEach(row => {
             const level1Name = row.level1 ? row.level1.name : '';
+            const level1Id = row.level1 ? row.level1.id : '';
             const level2Name = row.level2 ? row.level2.name : '';
             const level2Id = row.level2 ? row.level2.id : '';
             const level3Name = row.level3 ? row.level3.name : '';
@@ -455,6 +536,7 @@
                 if (!groupedByLevel2[level2Id]) {
                     groupedByLevel2[level2Id] = {
                         level1Name: level1Name,
+                        level1Id: level1Id,
                         level2Name: level2Name,
                         level2Id: level2Id,
                         level3Folders: []
@@ -484,7 +566,7 @@
         sortedGroups.forEach(group => {
             // First row: Level 2 folder name
             tableHTML += `
-                <tr data-folder-id="${group.level2Id}" data-level1="${group.level1Name}">
+                <tr data-folder-id="${group.level2Id}" data-level1-name="${group.level1Name}" data-level1-id="${group.level1Id}">
                     <td>${group.level2Name}</td>
                     <td></td>`;
             
@@ -503,7 +585,7 @@
             // Following rows: Level 3 folders (one per row)
             sortedLevel3.forEach(level3 => {
                 tableHTML += `
-                    <tr data-folder-id="${level3.id}" data-level1="${group.level1Name}" data-level2="${group.level2Name}">
+                    <tr data-folder-id="${level3.id}" data-level1-name="${group.level1Name}" data-level1-id="${group.level1Id}" data-level2-name="${group.level2Name}" data-level2-id="${group.level2Id}">
                         <td></td>
                         <td>${level3.name}</td>`;
                 
@@ -529,6 +611,9 @@
         // Setup zoom functionality
         setupTableZoom();
     }
+
+    // Flag to prevent duplicate keyboard handler
+    let deleteKeyHandlerAdded = false;
 
     /**
      * Get background color for permission level (1-6)
@@ -616,6 +701,117 @@
     }
 
     /**
+     * Handle arrow key navigation for permission level inputs
+     * Left arrow decreases level, right arrow increases level (1-6)
+     */
+    function handlePermissionArrowKeys(event, input, callback) {
+        // Arrow Left (37) or Arrow Right (39)
+        if (event.keyCode === 37 || event.keyCode === 39) {
+            event.preventDefault();
+            
+            let currentLevel = parseInt(input.value) || 1;
+            
+            if (event.keyCode === 37) {
+                // Left arrow - decrease
+                currentLevel = Math.max(1, currentLevel - 1);
+            } else if (event.keyCode === 39) {
+                // Right arrow - increase
+                currentLevel = Math.min(6, currentLevel + 1);
+            }
+            
+            input.value = currentLevel;
+            
+            // Trigger the callback to update colors and attributes
+            if (callback) {
+                callback(currentLevel);
+            }
+            
+            return true; // Arrow key was handled
+        }
+        return false; // Not an arrow key
+    }
+
+    /**
+     * Attach arrow key navigation to all permission level inputs in the table
+     * This ensures all inputs (including pre-populated ones) have arrow key support
+     */
+    function attachArrowKeyNavigationToAllInputs() {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+        
+        const allInputs = table.querySelectorAll('.cell-permission-level:not([readonly])');
+        
+        allInputs.forEach(input => {
+            const cell = input.closest('td');
+            if (!cell) return;
+            
+            const row = cell.closest('tr');
+            if (!row) return;
+            
+            // Remove existing keydown listeners by cloning (prevents duplicates)
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            
+            // Attach arrow key handler
+            newInput.addEventListener('keydown', (event) => {
+                // Handle arrow key navigation
+                if (handlePermissionArrowKeys(event, newInput, (level) => {
+                    cell.setAttribute('data-permission-level', level);
+                    const colors = getPermissionLevelColor(level);
+                    cell.style.backgroundColor = colors.background;
+                    cell.style.color = colors.color;
+                    
+                    // AUTO-UPDATE: Check if this is a parent folder
+                    const parentFolderId = row.getAttribute('data-folder-id');
+                    const level1Id = row.getAttribute('data-level1-id');
+                    const level2Id = row.getAttribute('data-level2-id');
+                    const isLevel2Folder = level1Id && !level2Id;
+                    const userIdentifier = cell.getAttribute('data-user');
+                    
+                    if (isLevel2Folder && userIdentifier) {
+                        updateInheritedPermissions(parentFolderId, userIdentifier, level.toString());
+                    }
+                })) {
+                    return; // Arrow key was handled
+                }
+            });
+            
+            // Re-attach other event listeners that might have been lost
+            newInput.addEventListener('input', (event) => {
+                const value = event.target.value;
+                if (value && (value < '1' || value > '6' || isNaN(value))) {
+                    event.target.value = value.slice(0, -1);
+                } else if (value && value >= '1' && value <= '6') {
+                    const colors = getPermissionLevelColor(value);
+                    cell.style.backgroundColor = colors.background;
+                    cell.style.color = colors.color;
+                }
+            });
+            
+            newInput.addEventListener('change', (event) => {
+                const level = event.target.value || '6';
+                cell.setAttribute('data-permission-level', level);
+                const colors = getPermissionLevelColor(level);
+                cell.style.backgroundColor = colors.background;
+                cell.style.color = colors.color;
+                
+                // AUTO-UPDATE: Check if this is a parent folder
+                const parentFolderId = row.getAttribute('data-folder-id');
+                const level1Id = row.getAttribute('data-level1-id');
+                const level2Id = row.getAttribute('data-level2-id');
+                const isLevel2Folder = level1Id && !level2Id;
+                const userIdentifier = cell.getAttribute('data-user');
+                
+                if (isLevel2Folder && userIdentifier) {
+                    updateInheritedPermissions(parentFolderId, userIdentifier, level);
+                }
+            });
+        });
+        
+        console.log(`⌨️ Attached arrow key navigation to ${allInputs.length} permission inputs`);
+    }
+
+    /**
      * Setup drag-and-drop functionality for table cells
      */
     function setupTableDragAndDrop() {
@@ -633,19 +829,26 @@
                 return;
             }
             
+            // Remove existing event listeners by cloning and replacing the node
+            // This prevents duplicate event listeners from being attached
+            const newCell = cell.cloneNode(true);
+            cell.parentNode.replaceChild(newCell, cell);
+            
+            // Now attach event listeners to the new cell
+            
             // Make cells valid drop targets
-            cell.addEventListener('dragover', (e) => {
+            newCell.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                cell.classList.add('drag-over');
+                newCell.classList.add('drag-over');
             });
             
-            cell.addEventListener('dragleave', () => {
-                cell.classList.remove('drag-over');
+            newCell.addEventListener('dragleave', () => {
+                newCell.classList.remove('drag-over');
             });
             
-            cell.addEventListener('drop', (e) => {
+            newCell.addEventListener('drop', (e) => {
                 e.preventDefault();
-                cell.classList.remove('drag-over');
+                newCell.classList.remove('drag-over');
                 
                 // Check if multiple users are being dragged
                 const multiUserData = e.dataTransfer.getData('application/json');
@@ -670,9 +873,9 @@
                 if (usersToPlace.length === 0) return;
                 
                 // Get the row and starting cell index
-                const row = cell.parentElement;
+                const row = newCell.parentElement;
                 let cells = Array.from(row.children);
-                const startIndex = cells.indexOf(cell);
+                const startIndex = cells.indexOf(newCell);
                 
                 // Check if we need more columns
                 const requiredColumns = startIndex + usersToPlace.length;
@@ -701,6 +904,9 @@
                         
                         // Re-setup drag and drop for ALL cells (including new ones)
                         setupTableDragAndDrop();
+                        
+                        // Re-attach arrow key navigation after cloning cells
+                        attachArrowKeyNavigationToAllInputs();
                     }
                     
                     // Update cells array for current row
@@ -708,19 +914,55 @@
                 }
                 
                 // Place users horizontally starting from the drop cell
+                // Track identifiers for propagation to children
+                const userIdentifiers = [];
+                
                 usersToPlace.forEach((userName, index) => {
                     const targetIndex = startIndex + index;
                     if (targetIndex < cells.length) {
                         const targetCell = cells[targetIndex];
                         
+                        // Look up subject info first to determine identifier and type
+                        const subjectInfo = lookupSubjectInfo(userName);
+                        
+                        // Determine the identifier and display name
+                        let userIdentifier = userName;
+                        let displayName = userName;
+                        
+                        if (subjectInfo && subjectInfo.subjectType === 'USER') {
+                            // For USER type, find the actual user object to get email
+                            const userObj = currentProjectUsersRaw?.find(u => 
+                                u.email === userName || u.name === userName
+                            );
+                            
+                            if (userObj) {
+                                // Always use email as identifier for USER type
+                                userIdentifier = userObj.email;
+                                // Display based on current mode
+                                displayName = currentUserDisplayMode === 'name' 
+                                    ? (userObj.name || userObj.email) 
+                                    : userObj.email;
+                            }
+                        }
+                        
+                        // Track for child propagation
+                        userIdentifiers.push(userIdentifier);
+                        
                         // Create cell content with user name and editable permission level
                         const defaultLevel = '1';
                         targetCell.innerHTML = `
-                            <span class="cell-username">${userName}</span>
+                            <span class="cell-username">${displayName}</span>
                             <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
                         `;
-                        targetCell.setAttribute('data-user', userName);
+                        targetCell.setAttribute('data-user', userIdentifier);
                         targetCell.classList.add('has-content');
+                        
+                        // Set subject data attributes for saving
+                        if (subjectInfo && subjectInfo.subjectId && subjectInfo.subjectType) {
+                            targetCell.setAttribute('data-subject-id', subjectInfo.subjectId);
+                            targetCell.setAttribute('data-subject-type', subjectInfo.subjectType);
+                            log(`✅ Set subject attributes for dropped user: ${displayName} (${subjectInfo.subjectType}, ${subjectInfo.subjectId})`);
+                        }
                         
                         // Apply background and text color based on permission level
                         const colors = getPermissionLevelColor(defaultLevel);
@@ -742,6 +984,26 @@
                             });
                             
                             permissionInput.addEventListener('keydown', (event) => {
+                                // Handle arrow key navigation (Left/Right to decrease/increase level)
+                                if (handlePermissionArrowKeys(event, permissionInput, (level) => {
+                                    targetCell.setAttribute('data-permission-level', level);
+                                    const colors = getPermissionLevelColor(level);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
+                                    
+                                    // AUTO-PROPAGATE if parent folder
+                                    const parentFolderId = row.getAttribute('data-folder-id');
+                                    const level1Id = row.getAttribute('data-level1-id');
+                                    const level2Id = row.getAttribute('data-level2-id');
+                                    const isLevel2Folder = level1Id && !level2Id;
+                                    
+                                    if (isLevel2Folder) {
+                                        updateInheritedPermissions(parentFolderId, userName, level.toString());
+                                    }
+                                })) {
+                                    return; // Arrow key was handled
+                                }
+                                
                                 // Allow: backspace, delete, tab, escape, enter
                                 if ([8, 9, 27, 13, 46].indexOf(event.keyCode) !== -1 ||
                                     // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
@@ -764,6 +1026,16 @@
                                 const colors = getPermissionLevelColor(level);
                                 targetCell.style.backgroundColor = colors.background;
                                 targetCell.style.color = colors.color;
+                                
+                                // AUTO-PROPAGATE: Check if this is a parent folder
+                                const parentFolderId = row.getAttribute('data-folder-id');
+                                const level1Id = row.getAttribute('data-level1-id');
+                                const level2Id = row.getAttribute('data-level2-id');
+                                const isLevel2Folder = level1Id && !level2Id;
+                                
+                                if (isLevel2Folder) {
+                                    updateInheritedPermissions(parentFolderId, userName, level);
+                                }
                             });
                             
                             permissionInput.addEventListener('input', (event) => {
@@ -781,91 +1053,43 @@
                     }
                 });
                 
+                // AUTO-ADD TO CHILDREN: If dropped on parent folder, add to all children too
+                const parentFolderId = row.getAttribute('data-folder-id');
+                const level1Id = row.getAttribute('data-level1-id');
+                const level2Id = row.getAttribute('data-level2-id');
+                const isLevel2Folder = level1Id && !level2Id;
+                
+                if (isLevel2Folder) {
+                    // This is a parent folder - propagate to children using correct identifiers
+                    userIdentifiers.forEach((userIdentifier) => {
+                        addUserToChildren(parentFolderId, userIdentifier, '1');
+                    });
+                    
+                    // Re-setup drag and drop for all cells after adding to children
+                    setupTableDragAndDrop();
+                    
+                    // Re-attach arrow key navigation to all inputs after setup
+                    attachArrowKeyNavigationToAllInputs();
+                }
+                
                 // Clear user selection after drop
                 selectedUsers = [];
                 document.querySelectorAll('.user-list-item').forEach(item => {
                     item.classList.remove('user-selected');
                 });
-                
-                // For backwards compatibility, keep the original single-user logic
-                if (usersToPlace.length === 1) {
-                    const userName = usersToPlace[0];
-                    // Create cell content with user name and editable permission level
-                    const defaultLevel = '1';
-                    cell.innerHTML = `
-                        <span class="cell-username">${userName}</span>
-                        <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
-                    `;
-                    cell.setAttribute('data-user', userName);
-                    cell.classList.add('has-content');
-                    
-                    // Apply background and text color based on permission level
-                    const colors = getPermissionLevelColor(defaultLevel);
-                    cell.style.backgroundColor = colors.background;
-                    cell.style.color = colors.color;
-                    
-                    // Setup permission level input validation
-                    const permissionInput = cell.querySelector('.cell-permission-level');
-                    if (permissionInput) {
-                        // Add tooltip on hover
-                        setupPermissionTooltip(permissionInput);
-                        
-                        permissionInput.addEventListener('input', (event) => {
-                            const value = event.target.value;
-                            // Only allow numbers 1-6
-                            if (value && (value < '1' || value > '6' || isNaN(value))) {
-                                event.target.value = value.slice(0, -1); // Remove last character
-                            }
-                        });
-                        
-                        permissionInput.addEventListener('keydown', (event) => {
-                            // Allow: backspace, delete, tab, escape, enter
-                            if ([8, 9, 27, 13, 46].indexOf(event.keyCode) !== -1 ||
-                                // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                                (event.keyCode === 65 && event.ctrlKey === true) ||
-                                (event.keyCode === 67 && event.ctrlKey === true) ||
-                                (event.keyCode === 86 && event.ctrlKey === true) ||
-                                (event.keyCode === 88 && event.ctrlKey === true)) {
-                                return;
-                            }
-                            // Ensure that it's a number 1-6 and stop the keypress
-                            if ((event.shiftKey || (event.keyCode < 49 || event.keyCode > 54)) && (event.keyCode < 97 || event.keyCode > 102)) {
-                                event.preventDefault();
-                            }
-                        });
-                        
-                        // Update data attribute and background color when value changes
-                        permissionInput.addEventListener('change', (event) => {
-                            const level = event.target.value || '6';
-                            cell.setAttribute('data-permission-level', level);
-                            const colors = getPermissionLevelColor(level);
-                            cell.style.backgroundColor = colors.background;
-                            cell.style.color = colors.color;
-                        });
-                        
-                        permissionInput.addEventListener('input', (event) => {
-                            const level = event.target.value;
-                            if (level && level >= '1' && level <= '6') {
-                                const colors = getPermissionLevelColor(level);
-                                cell.style.backgroundColor = colors.background;
-                                cell.style.color = colors.color;
-                            }
-                        });
-                        
-                        // Set initial data attribute
-                        cell.setAttribute('data-permission-level', '6');
-                    }
-                }
             });
             
             // Add click handler for selection
-            cell.addEventListener('click', (e) => {
-                handleCellSelection(cell, e.shiftKey);
+            newCell.addEventListener('click', (e) => {
+                handleCellSelection(newCell, e.shiftKey);
             });
         });
         
-        // Add keyboard handler for delete
-        document.addEventListener('keydown', handleDeleteKey);
+        // Add keyboard handler for delete (only once)
+        if (!deleteKeyHandlerAdded) {
+            document.addEventListener('keydown', handleDeleteKey);
+            deleteKeyHandlerAdded = true;
+        }
     }
 
     /**
@@ -1002,12 +1226,33 @@
     function handleDeleteKey(e) {
         if (e.key === 'Delete' && selectedCells.length > 0) {
             selectedCells.forEach(cell => {
+                // AUTO-DELETE: Check if this is a parent folder cell
+                const row = cell.closest('tr');
+                if (row) {
+                    const folderId = row.getAttribute('data-folder-id');
+                    const level1Id = row.getAttribute('data-level1-id');
+                    const level2Id = row.getAttribute('data-level2-id');
+                    const isLevel2Folder = level1Id && !level2Id; // Parent folder
+                    const userIdentifier = cell.getAttribute('data-user');
+                    
+                    // If deleting from parent folder, also remove from children
+                    if (isLevel2Folder && userIdentifier) {
+                        removeUserFromChildren(folderId, userIdentifier);
+                    }
+                }
+                
+                // Clear the cell
                 cell.textContent = '';
                 cell.classList.remove('has-content');
                 cell.classList.remove('selected');
+                cell.classList.remove('inherited-permission');
                 cell.removeAttribute('data-user');
                 cell.removeAttribute('data-permission-level');
+                cell.removeAttribute('data-subject-type');
+                cell.removeAttribute('data-subject-id');
+                cell.removeAttribute('data-is-inherited');
                 cell.style.backgroundColor = '';
+                cell.style.color = '';
             });
             selectedCells = [];
             lastSelectedCell = null;
@@ -1079,6 +1324,16 @@
                                 });
                                 
                                 permissionInput.addEventListener('keydown', (event) => {
+                                    // Handle arrow key navigation (Left/Right to decrease/increase level)
+                                    if (handlePermissionArrowKeys(event, permissionInput, (level) => {
+                                        targetCell.setAttribute('data-permission-level', level);
+                                        const colors = getPermissionLevelColor(level);
+                                        targetCell.style.backgroundColor = colors.background;
+                                        targetCell.style.color = colors.color;
+                                    })) {
+                                        return; // Arrow key was handled
+                                    }
+                                    
                                     if ([8, 9, 27, 13, 46].indexOf(event.keyCode) !== -1 ||
                                         (event.keyCode === 65 && event.ctrlKey === true) ||
                                         (event.keyCode === 67 && event.ctrlKey === true) ||
@@ -1113,6 +1368,52 @@
             });
             
             log(`📌 Pasted ${copiedCells.length} cells`);
+        }
+    }
+
+    /**
+     * Update table to show users as email or name based on display mode
+     * Only affects USER type entries (not companies or roles)
+     */
+    function updateTableUserDisplay(displayMode) {
+        if (displayMode !== 'email' && displayMode !== 'name') {
+            return; // Only handle email and name modes
+        }
+        
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+        
+        // Find all cells with user data
+        const allCells = table.querySelectorAll('td[data-user]');
+        let updatedCount = 0;
+        
+        allCells.forEach(cell => {
+            const subjectType = cell.getAttribute('data-subject-type');
+            
+            // Only update USER type entries (skip COMPANY and ROLE)
+            if (subjectType === 'USER') {
+                const currentIdentifier = cell.getAttribute('data-user');
+                const usernameSpan = cell.querySelector('.cell-username');
+                
+                if (usernameSpan && currentProjectUsersRaw) {
+                    // Find user in raw data by email
+                    const user = currentProjectUsersRaw.find(u => u.email === currentIdentifier);
+                    
+                    if (user) {
+                        // Update display based on mode
+                        if (displayMode === 'email') {
+                            usernameSpan.textContent = user.email;
+                        } else if (displayMode === 'name') {
+                            usernameSpan.textContent = user.name || user.email;
+                        }
+                        updatedCount++;
+                    }
+                }
+            }
+        });
+        
+        if (updatedCount > 0) {
+            console.log(`🔄 Updated ${updatedCount} user entries to display as ${displayMode}`);
         }
     }
 
@@ -1209,7 +1510,18 @@
         const radioButtons = document.querySelectorAll('input[name="userDisplay"]');
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
-                displayUserList(currentProjectUsers, sortOrder, e.target.value);
+                const newMode = e.target.value;
+                
+                // Remember email/name choice
+                if (newMode === 'email' || newMode === 'name') {
+                    currentUserDisplayMode = newMode;
+                    // Update the table to show users in the selected format
+                    updateTableUserDisplay(newMode);
+                }
+                // For company/role, don't update table but remember last email/name choice
+                
+                // Update the user list display
+                displayUserList(currentProjectUsers, sortOrder, newMode);
             });
         });
     }
@@ -1384,6 +1696,10 @@
                     });
                 }
             }
+            
+            // Re-attach arrow key navigation after restoring cells
+            setupTableDragAndDrop();
+            attachArrowKeyNavigationToAllInputs();
         }
     }
 
@@ -1425,10 +1741,24 @@
 
         log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
 
+        // Check if it's a prefixed company or role name
+        let actualName = userName;
+        let forcedType = null;
+        
+        if (userName.startsWith('Company: ')) {
+            actualName = userName.substring('Company: '.length);
+            forcedType = 'COMPANY';
+            log(`🏢 Detected prefixed COMPANY: "${actualName}"`);
+        } else if (userName.startsWith('Role: ')) {
+            actualName = userName.substring('Role: '.length);
+            forcedType = 'ROLE';
+            log(`👤 Detected prefixed ROLE: "${actualName}"`);
+        }
+
         // Check if it's an email (USER)
-        if (userName.includes('@')) {
+        if (actualName.includes('@') && !forcedType) {
             log('✉️ Detected as EMAIL');
-            const user = currentProjectUsersRaw.find(u => u.email === userName);
+            const user = currentProjectUsersRaw.find(u => u.email === actualName);
             if (user) {
                 log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
                 const result = {
@@ -1443,54 +1773,60 @@
                 
                 return result;
             }
-            console.warn(`⚠️ Email not found: ${userName}`);
+            console.warn(`⚠️ Email not found: ${actualName}`);
         }
 
-        // Check if it's a name (USER by name)
-        const userByName = currentProjectUsersRaw.find(u => u.name === userName);
-        if (userByName) {
-            log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
-            const result = {
-                subjectId: userByName.id,
-                subjectType: 'USER',
-                email: userByName.email
-            };
-            
-            // Only add name if it exists and is different from email
-            if (userByName.name && userByName.name !== userByName.email) {
-                result.name = userByName.name;
+        // Check if it's a name (USER by name) - only if not forced as COMPANY or ROLE
+        if (!forcedType) {
+            const userByName = currentProjectUsersRaw.find(u => u.name === actualName);
+            if (userByName) {
+                log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
+                const result = {
+                    subjectId: userByName.id,
+                    subjectType: 'USER',
+                    email: userByName.email
+                };
+                
+                // Only add name if it exists and is different from email
+                if (userByName.name && userByName.name !== userByName.email) {
+                    result.name = userByName.name;
+                }
+                
+                return result;
             }
-            
-            return result;
         }
 
         // Check if it's a company name (COMPANY)
-        log('🏢 Checking as COMPANY');
-        const companyUser = currentProjectUsersRaw.find(u => u.companyName === userName);
-        if (companyUser && companyUser.companyId) {
-            log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
-            return {
-                subjectId: companyUser.companyId,
-                subjectType: 'COMPANY'
-            };
+        if (forcedType === 'COMPANY' || !forcedType) {
+            log('🏢 Checking as COMPANY');
+            const companyUser = currentProjectUsersRaw.find(u => u.companyName === actualName);
+            if (companyUser && companyUser.companyId) {
+                log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
+                return {
+                    subjectId: companyUser.companyId,
+                    subjectType: 'COMPANY'
+                };
+            }
         }
 
         // Check if it's a role name (ROLE)
-        log('👤 Checking as ROLE');
-        for (const user of currentProjectUsersRaw) {
-            if (user.roles && Array.isArray(user.roles)) {
-                const matchingRole = user.roles.find(r => r.name === userName);
-                if (matchingRole && user.roleIds && user.roleIds.length > 0) {
-                    log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
-                    return {
-                        subjectId: user.roleIds[0],
-                        subjectType: 'ROLE'
-                    };
+        if (forcedType === 'ROLE' || !forcedType) {
+            log('👤 Checking as ROLE');
+            for (const user of currentProjectUsersRaw) {
+                if (user.roles && Array.isArray(user.roles)) {
+                    const matchingRole = user.roles.find(r => r.name === actualName);
+                    if (matchingRole && user.roleIds && user.roleIds.length > 0) {
+                        log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
+                        return {
+                            subjectId: user.roleIds[0],
+                            subjectType: 'ROLE'
+                        };
+                    }
                 }
             }
         }
 
-        console.error(`❌ Could not find subject info for: "${userName}"`);
+        console.error(`❌ Could not find subject info for: "${userName}" (searching for: "${actualName}")`);
         log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
         log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
         return null;
@@ -1594,8 +1930,8 @@
             if (cells.length === 0) return;
 
             const folderId = row.getAttribute('data-folder-id');
-            const level1 = row.getAttribute('data-level1');
-            const level2 = row.getAttribute('data-level2');
+            const level1 = row.getAttribute('data-level1-name');
+            const level2 = row.getAttribute('data-level2-name');
             
             // Determine level 2 and level 3 from cell content
             const level2Cell = cells[0].textContent.trim();
@@ -1617,8 +1953,24 @@
                     
                     log(`\n📝 Processing permission for: ${userName}`);
                     
-                    // Look up subjectId and subjectType
-                    const subjectInfo = lookupSubjectInfo(userName);
+                    // First, check if cell already has subjectId and subjectType (from pre-population)
+                    const existingSubjectId = cell.getAttribute('data-subject-id');
+                    const existingSubjectType = cell.getAttribute('data-subject-type');
+                    
+                    let subjectInfo = null;
+                    
+                    if (existingSubjectId && existingSubjectType) {
+                        // Use existing data attributes (from ACC pre-population)
+                        log(`✅ Using existing data attributes: subjectId=${existingSubjectId}, subjectType=${existingSubjectType}`);
+                        subjectInfo = {
+                            subjectId: existingSubjectId,
+                            subjectType: existingSubjectType
+                        };
+                    } else {
+                        // Fallback to lookup (for manually added users)
+                        log(`🔍 No data attributes found, looking up subject info...`);
+                        subjectInfo = lookupSubjectInfo(userName);
+                    }
                     
                     if (subjectInfo) {
                         log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
@@ -1880,6 +2232,750 @@
     }
 
     /**
+     * Auto-update inherited permissions in child folders when parent permission changes
+     */
+    function updateInheritedPermissions(parentFolderId, userIdentifier, newLevel) {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+        
+        const rows = table.querySelectorAll('tbody tr');
+        let updatedCount = 0;
+        
+        rows.forEach(row => {
+            const level2Id = row.getAttribute('data-level2-id');
+            
+            // Check if this row is a child of the parent that changed
+            if (level2Id === parentFolderId) {
+                const cells = row.querySelectorAll('td');
+                
+                // Find the cell with matching user identifier
+                cells.forEach(cell => {
+                    const cellUser = cell.getAttribute('data-user');
+                    const isInherited = cell.getAttribute('data-is-inherited') === 'true';
+                    
+                    if (cellUser === userIdentifier && isInherited) {
+                        // Update the inherited permission level
+                        const permissionInput = cell.querySelector('.cell-permission-level');
+                        if (permissionInput) {
+                            permissionInput.value = newLevel;
+                            cell.setAttribute('data-permission-level', newLevel);
+                            
+                            // Update visual colors
+                            const colors = getPermissionLevelColor(newLevel);
+                            cell.style.backgroundColor = colors.background;
+                            cell.style.color = colors.color;
+                            
+                            updatedCount++;
+                        }
+                    }
+                });
+            }
+        });
+        
+        if (updatedCount > 0) {
+            const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
+            console.log(`✨ Auto-updated ${updatedCount} inherited permissions in child folders of "${folderName}"`);
+        }
+    }
+
+    /**
+     * Auto-remove user from child folders when deleted from parent folder
+     */
+    function removeUserFromChildren(parentFolderId, userIdentifier) {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+        
+        const rows = table.querySelectorAll('tbody tr');
+        let removedCount = 0;
+        
+        rows.forEach(row => {
+            const level2Id = row.getAttribute('data-level2-id');
+            
+            // Check if this row is a child of the parent where user was deleted
+            if (level2Id === parentFolderId) {
+                const cells = row.querySelectorAll('td');
+                
+                // Find the cell with matching user identifier
+                cells.forEach(cell => {
+                    const cellUser = cell.getAttribute('data-user');
+                    const isInherited = cell.getAttribute('data-is-inherited') === 'true';
+                    
+                    if (cellUser === userIdentifier && isInherited) {
+                        // Clear the inherited cell
+                        cell.textContent = '';
+                        cell.classList.remove('has-content');
+                        cell.classList.remove('inherited-permission');
+                        cell.removeAttribute('data-user');
+                        cell.removeAttribute('data-permission-level');
+                        cell.removeAttribute('data-subject-type');
+                        cell.removeAttribute('data-subject-id');
+                        cell.removeAttribute('data-is-inherited');
+                        cell.style.backgroundColor = '';
+                        cell.style.color = '';
+                        
+                        removedCount++;
+                    }
+                });
+            }
+        });
+        
+        if (removedCount > 0) {
+            const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
+            console.log(`🗑️ Auto-removed "${userIdentifier}" from ${removedCount} child folders of "${folderName}"`);
+        }
+    }
+
+    /**
+     * Auto-add user to child folders when added to parent folder
+     */
+    function addUserToChildren(parentFolderId, userIdentifier, level) {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+        
+        // First, find the parent cell to copy subject data attributes AND get column index
+        const parentRow = table.querySelector(`tr[data-folder-id="${parentFolderId}"]`);
+        let parentSubjectId = null;
+        let parentSubjectType = null;
+        let parentColumnIndex = -1; // Track which column the user is in on parent
+        
+        if (parentRow) {
+            const parentCells = parentRow.querySelectorAll('td');
+            for (let i = 2; i < parentCells.length; i++) {
+                const parentCell = parentCells[i];
+                if (parentCell.getAttribute('data-user') === userIdentifier) {
+                    parentSubjectId = parentCell.getAttribute('data-subject-id');
+                    parentSubjectType = parentCell.getAttribute('data-subject-type');
+                    parentColumnIndex = i; // Remember the column index
+                    break;
+                }
+            }
+        }
+        
+        // If we couldn't find the user in parent row, can't determine column placement
+        if (parentColumnIndex === -1) {
+            console.warn(`⚠️ Could not find "${userIdentifier}" in parent row to determine column placement`);
+            return;
+        }
+        
+        const rows = table.querySelectorAll('tbody tr');
+        let addedCount = 0;
+        
+        rows.forEach(row => {
+            const level2Id = row.getAttribute('data-level2-id');
+            
+            // Check if this row is a child of the parent where user was added
+            if (level2Id === parentFolderId) {
+                let cells = row.querySelectorAll('td');
+                
+                // Ensure child row has enough columns to match parent's column
+                if (parentColumnIndex >= cells.length) {
+                    // Add columns to reach the parent's column index
+                    const columnsToAdd = parentColumnIndex - cells.length + 1;
+                    console.log(`➕ Adding ${columnsToAdd} columns to child row to match parent column ${parentColumnIndex}`);
+                    
+                    for (let i = 0; i < columnsToAdd; i++) {
+                        const newCell = document.createElement('td');
+                        row.appendChild(newCell);
+                    }
+                    
+                    // Re-query cells after adding
+                    cells = row.querySelectorAll('td');
+                }
+                
+                const targetCell = cells[parentColumnIndex];
+                
+                // Check if this cell already has content from a different user (orphan)
+                if (targetCell.classList.contains('has-content')) {
+                    const existingUser = targetCell.getAttribute('data-user');
+                    const isInherited = targetCell.getAttribute('data-is-inherited') === 'true';
+                    
+                    // If it's already an inherited copy of this same user, skip
+                    if (existingUser === userIdentifier && isInherited) {
+                        console.log(`ℹ️ "${userIdentifier}" already inherited in this child folder`);
+                        return;
+                    }
+                    
+                    // If it's a different user (orphan), don't overwrite - skip this child
+                    console.warn(`⚠️ Column ${parentColumnIndex} in child already occupied by "${existingUser}" (orphan user). Skipping inheritance for this child.`);
+                    return;
+                }
+                
+                // Determine display name based on current mode and subject type
+                let displayName = userIdentifier;
+                
+                if (parentSubjectType === 'USER' && currentProjectUsersRaw) {
+                    const userObj = currentProjectUsersRaw.find(u => u.email === userIdentifier);
+                    if (userObj) {
+                        displayName = currentUserDisplayMode === 'name' 
+                            ? (userObj.name || userObj.email) 
+                            : userObj.email;
+                    }
+                }
+                
+                // Add the inherited user to the cell
+                targetCell.innerHTML = `
+                    <span class="cell-username">${displayName}</span>
+                    <input type="text" class="cell-permission-level" value="${level}" maxlength="1" readonly title="Inherited from parent folder (read-only)" />
+                    <span class="inherited-indicator" title="Inherited from parent folder">↓</span>
+                `;
+                targetCell.setAttribute('data-user', userIdentifier);
+                targetCell.setAttribute('data-permission-level', level);
+                targetCell.setAttribute('data-is-inherited', 'true');
+                targetCell.classList.add('has-content');
+                targetCell.classList.add('inherited-permission');
+                
+                // Copy subject data attributes from parent (if available)
+                if (parentSubjectId && parentSubjectType) {
+                    targetCell.setAttribute('data-subject-id', parentSubjectId);
+                    targetCell.setAttribute('data-subject-type', parentSubjectType);
+                }
+                
+                // Apply background and text color based on permission level
+                const colors = getPermissionLevelColor(level);
+                targetCell.style.backgroundColor = colors.background;
+                targetCell.style.color = colors.color;
+                
+                addedCount++;
+            }
+        });
+        
+        if (addedCount > 0) {
+            const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
+            console.log(`➕ Auto-added "${userIdentifier}" to ${addedCount} child folders of "${folderName}"`);
+            
+            // Ensure all rows have consistent column count
+            const allRows = table.querySelectorAll('tbody tr');
+            let maxColumns = 0;
+            allRows.forEach(r => {
+                const colCount = r.querySelectorAll('td').length;
+                if (colCount > maxColumns) maxColumns = colCount;
+            });
+            
+            allRows.forEach(r => {
+                const currentCols = r.querySelectorAll('td').length;
+                if (currentCols < maxColumns) {
+                    for (let i = currentCols; i < maxColumns; i++) {
+                        r.appendChild(document.createElement('td'));
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Load existing ACC folder permissions and pre-populate table
+     */
+    async function loadExistingACCPermissions(projectId, hierarchy, projectUsers, accessToken) {
+        try {
+            // Check if FolderPermissions module is available
+            if (!window.FolderPermissions || !window.FolderPermissions.fetchAllFolderPermissions) {
+                console.warn('⚠️ FolderPermissions module not available, skipping ACC permissions load');
+                updateLoadingProgress('Loading folder structure...', 98);
+                return;
+            }
+
+            log('🔐 Fetching existing folder permissions from ACC...');
+            updateLoadingProgress('Loading folder structure...', 55);
+            const permissionsMap = await window.FolderPermissions.fetchAllFolderPermissions(
+                projectId, 
+                hierarchy, 
+                accessToken
+            );
+
+            // Match permissions to users in the project
+            updateLoadingProgress('Loading folder structure...', 65);
+            const userPermissionsMap = window.FolderPermissions.matchPermissionsToUsers(
+                permissionsMap, 
+                projectUsers
+            );
+
+            // Additional deduplication: ensure each folder has only unique identifiers with highest levels
+            // This handles cases where ACC API returns same user multiple times
+            updateLoadingProgress('Loading folder structure...', 70);
+            for (const folderId in userPermissionsMap) {
+                const perms = userPermissionsMap[folderId];
+                
+                // Debug: log all permissions with their KEYS for this folder
+                const permEntries = Object.entries(perms);
+                if (permEntries.length > 0) {
+                    console.group(`📁 Folder ${folderId} - ${permEntries.length} entries`);
+                    permEntries.forEach(([key, p]) => {
+                        console.log(`  Key: "${key}" => Identifier: "${p.identifier}" Level: ${p.level}`);
+                    });
+                    console.groupEnd();
+                }
+                
+                const deduplicated = {};
+                
+                for (const [key, perm] of Object.entries(perms)) {
+                    const id = perm.identifier;
+                    if (!deduplicated[id] || perm.level > deduplicated[id].level) {
+                        if (deduplicated[id]) {
+                            console.log(`    🔄 Replacing ${id} L${deduplicated[id].level} with L${perm.level} (higher)`);
+                        }
+                        deduplicated[id] = perm;
+                    } else {
+                        console.log(`    ⏭️ Keeping ${id} L${deduplicated[id].level}, skipping L${perm.level} (lower)`);
+                    }
+                }
+                
+                // Only replace if deduplicated has entries  
+                if (Object.keys(deduplicated).length > 0) {
+                    userPermissionsMap[folderId] = deduplicated;
+                    
+                    const deduplicatedEntries = Object.entries(deduplicated);
+                    if (deduplicatedEntries.length !== permEntries.length) {
+                        console.log(`  ✅ AFTER dedup: ${deduplicatedEntries.map(([k, p]) => `${p.identifier}:L${p.level}`).join(', ')}`);
+                    }
+                } else {
+                    console.warn(`  ⚠️ Deduplication resulted in empty object for folder ${folderId}!`);
+                }
+            }
+            
+            // CRITICAL FIX: Remove duplicate users from child folders (keep unique orphan users)
+            // For each child folder:
+            //   - Remove users that exist in parent (they'll inherit)
+            //   - Keep users that DON'T exist in parent (orphan users unique to child)
+            let duplicateUsersRemoved = 0;
+            let orphanUsersKept = 0;
+            
+            hierarchy.forEach(row => {
+                // Level 3 folders are children (have both level2 and level3)
+                if (row.level3 && row.level3.id && row.level2 && row.level2.id) {
+                    const childId = row.level3.id;
+                    const parentId = row.level2.id;
+                    
+                    // If parent has permissions, remove duplicate users from child
+                    if (userPermissionsMap[parentId] && userPermissionsMap[childId]) {
+                        const parentUsers = new Set(Object.keys(userPermissionsMap[parentId]));
+                        const childPerms = userPermissionsMap[childId];
+                        
+                        Object.keys(childPerms).forEach(userIdentifier => {
+                            if (parentUsers.has(userIdentifier)) {
+                                // User exists in parent - remove from child (will inherit)
+                                console.log(`  🔄 Removing duplicate user "${userIdentifier}" from child ${childId} (will inherit from parent)`);
+                                delete childPerms[userIdentifier];
+                                duplicateUsersRemoved++;
+                            } else {
+                                // User ONLY in child - keep it (orphan user)
+                                console.log(`  👤 Keeping orphan user "${userIdentifier}" in child ${childId} (not in parent)`);
+                                orphanUsersKept++;
+                            }
+                        });
+                        
+                        // If child now has no permissions left, remove the folder entry
+                        if (Object.keys(childPerms).length === 0) {
+                            console.log(`  🧹 Child folder ${childId} now empty after removing duplicates`);
+                            delete userPermissionsMap[childId];
+                        }
+                    }
+                }
+            });
+            
+            console.log(`✅ Deduplication complete: Removed ${duplicateUsersRemoved} duplicate users, kept ${orphanUsersKept} orphan users`);
+
+            updateLoadingProgress('Loading folder structure...', 75);
+            const table = document.querySelector('.folders-table');
+            if (!table) {
+                console.warn('⚠️ Table not found, cannot populate permissions');
+                return;
+            }
+
+            const rows = table.querySelectorAll('tbody tr');
+            let totalPermissionsLoaded = 0;
+            let foldersWithPermissions = 0;
+            const totalRows = rows.length;
+
+            // Step 1: Build global subject-to-column mapping
+            // Step 2: Process each row and populate with permissions
+            // Use PER-ROW left-alignment (no gaps within each row)
+            // For inherited permissions, maintain same column as parent
+            
+            const parentColumnMaps = new Map(); // parentFolderId -> Map(identifier -> columnIndex)
+            let maxColumnsNeeded = 2; // Start with 2 (for folder name columns)
+            let processedRows = 0;
+            
+            rows.forEach(row => {
+                processedRows++;
+                
+                // Update progress every 10 rows or on last row
+                if (processedRows % 10 === 0 || processedRows === totalRows) {
+                    const progress = 75 + (processedRows / totalRows) * 20; // 75% to 95%
+                    updateLoadingProgress('Loading folder structure...', progress);
+                }
+                
+                const folderId = row.getAttribute('data-folder-id');
+                const level1Id = row.getAttribute('data-level1-id');
+                const level2Id = row.getAttribute('data-level2-id');
+                
+                if (!folderId) return;
+
+                // Determine folder type
+                const isLevel2Folder = level1Id && !level2Id; // Has level1 parent, no level2 - PARENT
+                const isLevel3Folder = level1Id && level2Id;  // Has both - CHILD
+                
+                const folderName = (row.querySelector('td:first-child')?.textContent || row.querySelector('td:nth-child(2)')?.textContent || 'Unknown').trim();
+
+                // Build effective permissions with inheritance
+                const effectivePermissions = new Map(); // identifier -> permission object
+                
+                if (isLevel3Folder) {
+                    // LEVEL 3 FOLDERS: Can have BOTH inherited (from parent) AND orphan users (unique to child)
+                    console.log(`👶 CHILD "${folderName}" (${folderId}) checking parent ${level2Id}`);
+                    
+                    // First: Add inherited permissions from parent (if parent has any)
+                    if (level2Id && userPermissionsMap[level2Id]) {
+                        const parentPerms = Object.values(userPermissionsMap[level2Id]);
+                        console.log(`  ✅ Inheriting ${parentPerms.length} users from parent:`, parentPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        
+                        parentPerms.forEach(perm => {
+                            effectivePermissions.set(perm.identifier, {
+                                ...perm,
+                                isInherited: true,
+                                inheritedFrom: 'level2'
+                            });
+                        });
+                    }
+                    
+                    // Second: Add orphan users (unique to child, not in parent)
+                    if (userPermissionsMap[folderId]) {
+                        const ownPerms = Object.values(userPermissionsMap[folderId]);
+                        console.log(`  👤 Adding ${ownPerms.length} orphan users (unique to child):`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        
+                        ownPerms.forEach(perm => {
+                            // Only add if not already in effective (not inherited from parent)
+                            if (!effectivePermissions.has(perm.identifier)) {
+                                effectivePermissions.set(perm.identifier, {
+                                    ...perm,
+                                    isInherited: false,
+                                    inheritedFrom: null
+                                });
+                            }
+                        });
+                    }
+                    
+                    if (effectivePermissions.size === 0) {
+                        console.log(`  ℹ️ No permissions (neither inherited nor orphan)`);
+                    }
+                } else if (isLevel2Folder) {
+                    // LEVEL 2 FOLDERS: Use their own direct permissions (editable)
+                    console.log(`👨 PARENT "${folderName}" (${folderId}) using own permissions`);
+                    
+                    if (userPermissionsMap[folderId]) {
+                        const ownPerms = Object.values(userPermissionsMap[folderId]);
+                        console.log(`  ✅ Has ${ownPerms.length} direct permissions:`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        
+                        ownPerms.forEach(perm => {
+                            effectivePermissions.set(perm.identifier, {
+                                ...perm,
+                                isInherited: false,
+                                inheritedFrom: null
+                            });
+                        });
+                    } else {
+                        console.warn(`  ❌ Own folder NOT FOUND in userPermissionsMap!`);
+                    }
+                }
+                
+                const permissionEntries = Array.from(effectivePermissions.values());
+                
+                // Sort permissions alphabetically by display name (case-insensitive)
+                permissionEntries.sort((a, b) => {
+                    const nameA = (a.displayName || '').toLowerCase();
+                    const nameB = (b.displayName || '').toLowerCase();
+                    return nameA.localeCompare(nameB);
+                });
+                
+                if (permissionEntries.length === 0) return;
+
+                foldersWithPermissions++;
+                
+                // Log inheritance for debugging
+                const inheritedCount = permissionEntries.filter(p => p.isInherited).length;
+                const directCount = permissionEntries.filter(p => !p.isInherited).length;
+                if (inheritedCount > 0) {
+                    log(`📁 "${folderName}": ${directCount} direct, ${inheritedCount} inherited permissions`);
+                }
+
+                // PER-ROW LEFT-ALIGNMENT with inheritance column consistency
+                const cells = row.querySelectorAll('td');
+                let currentColumnIndex = 2; // Start after folder name columns
+                
+                // For PARENT folders: place users left-aligned and save column map for children
+                if (isLevel2Folder) {
+                    const columnMap = new Map();
+                    
+                    permissionEntries.forEach(perm => {
+                        // Ensure enough cells exist
+                        if (currentColumnIndex >= cells.length) {
+                            const newCell = document.createElement('td');
+                            row.appendChild(newCell);
+                        }
+                        
+                        const cell = row.querySelectorAll('td')[currentColumnIndex];
+                        
+                        // Save column position for this identifier
+                        columnMap.set(perm.identifier, currentColumnIndex);
+                        
+                        // Populate cell
+                        cell.innerHTML = `
+                            <span class="cell-username">${perm.displayName}</span>
+                            <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" />
+                        `;
+                        
+                        cell.setAttribute('data-user', perm.identifier);
+                        cell.setAttribute('data-permission-level', perm.level);
+                        cell.setAttribute('data-subject-type', perm.type);
+                        cell.setAttribute('data-subject-id', perm.subjectId);
+                        cell.setAttribute('data-is-inherited', 'false');
+                        cell.classList.add('has-content');
+
+                        const colors = getPermissionLevelColor(perm.level);
+                        cell.style.backgroundColor = colors.background;
+                        cell.style.color = colors.color;
+
+                        // Setup event listeners for editable inputs
+                        const permissionInput = cell.querySelector('.cell-permission-level');
+                        if (permissionInput) {
+                            setupPermissionTooltip(permissionInput);
+                            
+                            permissionInput.addEventListener('keydown', (event) => {
+                                if (handlePermissionArrowKeys(event, permissionInput, (level) => {
+                                    cell.setAttribute('data-permission-level', level);
+                                    const colors = getPermissionLevelColor(level);
+                                    cell.style.backgroundColor = colors.background;
+                                    cell.style.color = colors.color;
+                                    
+                                    updateInheritedPermissions(folderId, perm.identifier, level.toString());
+                                })) {
+                                    return;
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('input', (event) => {
+                                const value = event.target.value;
+                                if (value && (value < '1' || value > '6' || isNaN(value))) {
+                                    event.target.value = value.slice(0, -1);
+                                } else if (value && value >= '1' && value <= '6') {
+                                    const colors = getPermissionLevelColor(value);
+                                    cell.style.backgroundColor = colors.background;
+                                    cell.style.color = colors.color;
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('change', (event) => {
+                                const level = event.target.value || '6';
+                                cell.setAttribute('data-permission-level', level);
+                                const colors = getPermissionLevelColor(level);
+                                cell.style.backgroundColor = colors.background;
+                                cell.style.color = colors.color;
+                                
+                                updateInheritedPermissions(folderId, perm.identifier, level);
+                            });
+                        }
+                        
+                        currentColumnIndex++;
+                        totalPermissionsLoaded++;
+                    });
+                    
+                    // Save column map for this parent
+                    parentColumnMaps.set(folderId, columnMap);
+                    
+                    // Track max columns
+                    if (currentColumnIndex > maxColumnsNeeded) {
+                        maxColumnsNeeded = currentColumnIndex;
+                    }
+                }
+                // For CHILD folders: place inherited in same columns, orphans in remaining
+                else if (isLevel3Folder && level2Id) {
+                    const parentColumnMap = parentColumnMaps.get(level2Id);
+                    
+                    // Separate inherited and orphan permissions
+                    const inheritedPerms = permissionEntries.filter(p => p.isInherited);
+                    const orphanPerms = permissionEntries.filter(p => !p.isInherited);
+                    
+                    // First: Place inherited users in SAME columns as parent
+                    inheritedPerms.forEach(perm => {
+                        let targetColumn = currentColumnIndex;
+                        
+                        // If parent has column map, use same column
+                        if (parentColumnMap && parentColumnMap.has(perm.identifier)) {
+                            targetColumn = parentColumnMap.get(perm.identifier);
+                        }
+                        
+                        // Ensure enough cells exist
+                        if (targetColumn >= cells.length) {
+                            const cellsToAdd = targetColumn - cells.length + 1;
+                            for (let i = 0; i < cellsToAdd; i++) {
+                                const newCell = document.createElement('td');
+                                row.appendChild(newCell);
+                            }
+                        }
+                        
+                        const cell = row.querySelectorAll('td')[targetColumn];
+                        
+                        // Populate as inherited (read-only)
+                        cell.innerHTML = `
+                            <span class="cell-username">${perm.displayName}</span>
+                            <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" readonly title="Inherited from parent folder (read-only)" />
+                            <span class="inherited-indicator" title="Inherited from parent folder">↓</span>
+                        `;
+                        
+                        cell.setAttribute('data-user', perm.identifier);
+                        cell.setAttribute('data-permission-level', perm.level);
+                        cell.setAttribute('data-subject-type', perm.type);
+                        cell.setAttribute('data-subject-id', perm.subjectId);
+                        cell.setAttribute('data-is-inherited', 'true');
+                        cell.classList.add('has-content');
+                        cell.classList.add('inherited-permission');
+
+                        const colors = getPermissionLevelColor(perm.level);
+                        cell.style.backgroundColor = colors.background;
+                        cell.style.color = colors.color;
+                        
+                        totalPermissionsLoaded++;
+                    });
+                    
+                    // Second: Place orphan users in remaining empty cells (left-aligned)
+                    orphanPerms.forEach(perm => {
+                        const allCells = row.querySelectorAll('td');
+                        
+                        // Find first empty cell starting from column 2
+                        let targetCell = null;
+                        for (let i = 2; i < allCells.length; i++) {
+                            if (!allCells[i].classList.contains('has-content')) {
+                                targetCell = allCells[i];
+                                currentColumnIndex = i;
+                                break;
+                            }
+                        }
+                        
+                        // If no empty cell, create new one
+                        if (!targetCell) {
+                            currentColumnIndex = allCells.length;
+                            targetCell = document.createElement('td');
+                            row.appendChild(targetCell);
+                        }
+                        
+                        // Populate as orphan (editable)
+                        targetCell.innerHTML = `
+                            <span class="cell-username">${perm.displayName}</span>
+                            <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" />
+                        `;
+                        
+                        targetCell.setAttribute('data-user', perm.identifier);
+                        targetCell.setAttribute('data-permission-level', perm.level);
+                        targetCell.setAttribute('data-subject-type', perm.type);
+                        targetCell.setAttribute('data-subject-id', perm.subjectId);
+                        targetCell.setAttribute('data-is-inherited', 'false');
+                        targetCell.classList.add('has-content');
+
+                        const colors = getPermissionLevelColor(perm.level);
+                        targetCell.style.backgroundColor = colors.background;
+                        targetCell.style.color = colors.color;
+
+                        // Setup event listeners for orphan (editable)
+                        const permissionInput = targetCell.querySelector('.cell-permission-level');
+                        if (permissionInput) {
+                            setupPermissionTooltip(permissionInput);
+                            
+                            permissionInput.addEventListener('keydown', (event) => {
+                                if (handlePermissionArrowKeys(event, permissionInput, (level) => {
+                                    targetCell.setAttribute('data-permission-level', level);
+                                    const colors = getPermissionLevelColor(level);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
+                                })) {
+                                    return;
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('input', (event) => {
+                                const value = event.target.value;
+                                if (value && (value < '1' || value > '6' || isNaN(value))) {
+                                    event.target.value = value.slice(0, -1);
+                                } else if (value && value >= '1' && value <= '6') {
+                                    const colors = getPermissionLevelColor(value);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('change', (event) => {
+                                const level = event.target.value || '6';
+                                targetCell.setAttribute('data-permission-level', level);
+                                const colors = getPermissionLevelColor(level);
+                                targetCell.style.backgroundColor = colors.background;
+                                targetCell.style.color = colors.color;
+                            });
+                        }
+                        
+                        totalPermissionsLoaded++;
+                    });
+                    
+                    // Track max columns
+                    const finalCells = row.querySelectorAll('td').length;
+                    if (finalCells > maxColumnsNeeded) {
+                        maxColumnsNeeded = finalCells;
+                    }
+                }
+            });
+            
+            // Ensure all rows have same number of columns
+            const allRows = table.querySelectorAll('tbody tr');
+            allRows.forEach(tableRow => {
+                const currentCells = tableRow.querySelectorAll('td').length;
+                if (currentCells < maxColumnsNeeded) {
+                    for (let i = currentCells; i < maxColumnsNeeded; i++) {
+                        const newCell = document.createElement('td');
+                        tableRow.appendChild(newCell);
+                    }
+                }
+            });
+            additionalColumnsCount = maxColumnsNeeded - 2;
+
+            // Re-setup drag and drop for new cells
+            setupTableDragAndDrop();
+            
+            // Attach arrow key navigation to all existing permission inputs
+            attachArrowKeyNavigationToAllInputs();
+
+            updateLoadingProgress('Loading folder structure...', 95);
+
+            if (totalPermissionsLoaded > 0) {
+                log(`✅ Pre-populated table with ${totalPermissionsLoaded} permissions from ${foldersWithPermissions} folders`);
+                log(`📊 Total columns: ${additionalColumnsCount + 2} (${additionalColumnsCount} for users + 2 for folder names)`);
+                
+                // Count inherited vs direct permissions
+                const stats = Object.values(userPermissionsMap)
+                    .flatMap(folder => Object.values(folder))
+                    .reduce((acc, perm) => {
+                        acc[perm.type] = (acc[perm.type] || 0) + 1;
+                        if (perm.isInherited) {
+                            acc.inherited = (acc.inherited || 0) + 1;
+                        } else {
+                            acc.direct = (acc.direct || 0) + 1;
+                        }
+                        return acc;
+                    }, {});
+                    
+                log(`📋 Breakdown:`, stats);
+                log(`🔗 Inherited: ${stats.inherited || 0} | Direct: ${stats.direct || 0}`);
+            } else {
+                log('ℹ️ No existing ACC permissions found to pre-populate');
+            }
+
+            updateLoadingProgress('Loading folder structure...', 98);
+
+        } catch (error) {
+            console.error('❌ Error loading existing ACC permissions:', error);
+            log('⚠️ Could not load existing ACC permissions, table will be empty');
+            // Ensure progress reaches 98% even on error
+            updateLoadingProgress('Loading folder structure...', 98);
+        }
+    }
+
+    /**
      * Load folder permissions from JSON file
      */
     async function loadFolderPermissions(projectName) {
@@ -1969,6 +3065,18 @@
                                 // Add tooltip on hover
                                 setupPermissionTooltip(permissionInput);
                                 
+                                permissionInput.addEventListener('keydown', (event) => {
+                                    // Handle arrow key navigation (Left/Right to decrease/increase level)
+                                    if (handlePermissionArrowKeys(event, permissionInput, (level) => {
+                                        cells[columnIndex].setAttribute('data-permission-level', level);
+                                        const colors = getPermissionLevelColor(level);
+                                        cells[columnIndex].style.backgroundColor = colors.background;
+                                        cells[columnIndex].style.color = colors.color;
+                                    })) {
+                                        return; // Arrow key was handled
+                                    }
+                                });
+                                
                                 permissionInput.addEventListener('input', (event) => {
                                     const value = event.target.value;
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
@@ -1996,6 +3104,9 @@
                     }
                 });
             });
+
+            // Re-attach arrow key navigation to all inputs after loading
+            attachArrowKeyNavigationToAllInputs();
 
             log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
         } catch (error) {
@@ -2070,6 +3181,42 @@
     }
 
     /**
+     * Search for users in the table and highlight matching cells
+     */
+    function searchAndHighlightUsers(searchTerm) {
+        const table = document.querySelector('.folders-table');
+        if (!table) return;
+
+        // Remove all existing highlights
+        const allCells = table.querySelectorAll('td');
+        allCells.forEach(cell => {
+            cell.classList.remove('search-highlight');
+        });
+
+        // If search term is empty, just clear highlights and return
+        if (!searchTerm || searchTerm.trim() === '') {
+            return;
+        }
+
+        const searchLower = searchTerm.toLowerCase().trim();
+        let matchCount = 0;
+
+        // Search through all cells with user data
+        allCells.forEach(cell => {
+            const usernameSpan = cell.querySelector('.cell-username');
+            if (usernameSpan) {
+                const username = usernameSpan.textContent.toLowerCase();
+                if (username.includes(searchLower)) {
+                    cell.classList.add('search-highlight');
+                    matchCount++;
+                }
+            }
+        });
+
+        log(`🔍 Search for "${searchTerm}": ${matchCount} matches found`);
+    }
+
+    /**
      * Create the folders modal
      */
     function createFoldersModal() {
@@ -2080,17 +3227,18 @@
                 <div class="folders-modal-content">
                     <div class="folders-modal-header">
                         <h3 id="foldersModalTitle">Folder Structure</h3>
+                        <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search users..." />
                         <button id="cleanTableBtn" class="clean-table-btn">Clean Table</button>
                         <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
-                        <button id="saveFolderPermissionsBtn" class="save-btn">Save folders permissions</button>
-                        <button id="syncToACCBtn" class="sync-btn">Update to the project</button>
+                        <!-- <button id="saveFolderPermissionsBtn" class="save-btn">Save folders permissions</button> -->
+                        <button id="syncToACCBtn" class="sync-btn">Sync with the project</button>
                         <span class="folders-modal-close">&times;</span>
                     </div>
                     <div class="folders-modal-body">
                         <div id="foldersLoadingMessage" style="text-align: center; padding: 40px; color: #666;">
                             Loading folder structure...
                         </div>
-                        <div id="foldersErrorMessage" style="display: none; padding: 20px; background-color: #ffebee; color: #d32f2f; border-radius: 4px; margin-bottom: 20px;">
+                        <div id="foldersErrorMessage" style="display: none; padding: 30px; background-color: #fff3cd; color: #856404; border: 2px solid #ffc107; border-radius: 8px; margin: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         </div>
                         <div id="syncProgressContainer" style="display: none; padding: 20px; background-color: #f8f9fa; border-radius: 4px; margin: 20px;">
                             <h4 id="syncProgressTitle" style="margin: 0 0 15px 0; color: #333;">Syncing to ACC...</h4>
@@ -2162,6 +3310,27 @@
                     color: #333;
                     font-family: 'Artifact Elements', Arial, sans-serif;
                     flex: 1;
+                }
+
+                .user-search-input {
+                    padding: 8px 12px;
+                    border: 2px solid #ccc;
+                    border-radius: 4px;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-size: 14px;
+                    min-width: 200px;
+                    transition: border-color 0.2s;
+                }
+
+                .user-search-input:focus {
+                    outline: none;
+                    border-color: #007bff;
+                }
+
+                .search-highlight {
+                    background-color: #ff4444 !important;
+                    color: white !important;
+                    box-shadow: 0 0 8px rgba(255, 68, 68, 0.6) !important;
                 }
 
                 .clean-table-btn {
@@ -2248,16 +3417,19 @@
                 }
 
                 .folders-modal-close {
-                    color: #aaa;
-                    font-size: 28px;
+                    color: #666;
+                    font-size: 32px;
                     font-weight: bold;
                     cursor: pointer;
                     line-height: 1;
+                    padding: 5px 10px;
+                    transition: all 0.2s ease;
                 }
 
                 .folders-modal-close:hover,
                 .folders-modal-close:focus {
-                    color: #000;
+                    color: #ff6b00;
+                    transform: scale(1.2);
                 }
 
                 .folders-modal-body {
@@ -2432,6 +3604,26 @@
                     outline: none;
                     border-color: #0056b3;
                     background-color: #bbdefb;
+                }
+
+                .cell-permission-level[readonly] {
+                    cursor: not-allowed;
+                    opacity: 0.7;
+                    border-color: #999;
+                    background-color: #f5f5f5;
+                }
+
+                .inherited-indicator {
+                    display: inline-block;
+                    margin-left: 4px;
+                    color: #666;
+                    font-size: 14px;
+                    font-weight: bold;
+                    cursor: help;
+                }
+
+                .inherited-permission {
+                    opacity: 0.85;
                 }
 
                 .permission-tooltip {
@@ -2655,7 +3847,8 @@
         const closeBtn = document.querySelector('.folders-modal-close');
         const cleanTableBtn = document.getElementById('cleanTableBtn');
         const addColumnsBtn = document.getElementById('addColumnsBtn');
-        const saveBtn = document.getElementById('saveFolderPermissionsBtn');
+        const searchInput = document.getElementById('userSearchInput');
+        // const saveBtn = document.getElementById('saveFolderPermissionsBtn'); // Removed - no longer saving to Firebase
         const syncBtn = document.getElementById('syncToACCBtn');
 
         closeBtn.addEventListener('click', () => {
@@ -2670,9 +3863,16 @@
             addColumns();
         });
 
-        saveBtn.addEventListener('click', () => {
-            saveFolderPermissions();
-        });
+        // Search functionality
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                searchAndHighlightUsers(e.target.value);
+            });
+        }
+
+        // saveBtn.addEventListener('click', () => {
+        //     saveFolderPermissions();
+        // }); // Removed - no longer saving to Firebase
 
         syncBtn.addEventListener('click', () => {
             handleSyncPermissions();
