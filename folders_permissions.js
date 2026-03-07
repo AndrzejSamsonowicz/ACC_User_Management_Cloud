@@ -217,7 +217,7 @@
                     if (!subjectPermissions[roleKey] || level > subjectPermissions[roleKey].level) {
                         subjectPermissions[roleKey] = {
                             identifier: roleKey,
-                            displayName: `Role: ${perm.name}`,
+                            displayName: perm.name,
                             type: 'ROLE',
                             level: level,
                             isInherited: isInherited,
@@ -237,7 +237,7 @@
                     if (!subjectPermissions[companyKey] || level > subjectPermissions[companyKey].level) {
                         subjectPermissions[companyKey] = {
                             identifier: companyKey,
-                            displayName: `Company: ${perm.name}`,
+                            displayName: perm.name,
                             type: 'COMPANY',
                             level: level,
                             isInherited: isInherited,

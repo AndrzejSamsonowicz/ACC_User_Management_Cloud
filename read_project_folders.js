@@ -612,8 +612,9 @@
         setupTableZoom();
     }
 
-    // Flag to prevent duplicate keyboard handler
+    // Flags to prevent duplicate event handlers
     let deleteKeyHandlerAdded = false;
+    let clickHandlerAdded = false;
 
     /**
      * Get background color for permission level (1-6)
@@ -642,6 +643,60 @@
         const textColor = levelNum >= 4 ? 'white' : 'black';
         
         return { background: `rgb(${r}, ${g}, ${b})`, color: textColor };
+    }
+
+    /**
+     * Get color based on subject type and permission level
+     * Applies gradient from light (level 1) to dark (level 6) for each subject type
+     */
+    function getSubjectColor(subjectType, level) {
+        const levelNum = parseInt(level);
+        if (isNaN(levelNum) || levelNum < 1 || levelNum > 6) {
+            return { background: '#e3f2fd', color: 'black' }; // Default to USER level 1
+        }
+        
+        let colorStart, colorEnd;
+        
+        if (subjectType === 'ROLE') {
+            // Green gradient for roles
+            const colors = [
+                { r: 232, g: 245, b: 233 }, // Level 1: #e8f5e9
+                { r: 200, g: 230, b: 201 }, // Level 2: #c8e6c9
+                { r: 165, g: 214, b: 167 }, // Level 3: #a5d6a7
+                { r: 129, g: 199, b: 132 }, // Level 4: #81c784
+                { r: 102, g: 187, b: 106 }, // Level 5: #66bb6a
+                { r: 76, g: 175, b: 80 }    // Level 6: #4caf50
+            ];
+            const color = colors[levelNum - 1];
+            const textColor = levelNum >= 5 ? 'white' : 'black';
+            return { background: `rgb(${color.r}, ${color.g}, ${color.b})`, color: textColor };
+        } else if (subjectType === 'COMPANY') {
+            // Orange gradient for companies
+            const colors = [
+                { r: 255, g: 243, b: 224 }, // Level 1: #fff3e0
+                { r: 255, g: 224, b: 178 }, // Level 2: #ffe0b2
+                { r: 255, g: 204, b: 128 }, // Level 3: #ffcc80
+                { r: 255, g: 183, b: 77 },  // Level 4: #ffb74d
+                { r: 255, g: 167, b: 38 },  // Level 5: #ffa726
+                { r: 255, g: 152, b: 0 }    // Level 6: #ff9800
+            ];
+            const color = colors[levelNum - 1];
+            const textColor = levelNum >= 5 ? 'white' : 'black';
+            return { background: `rgb(${color.r}, ${color.g}, ${color.b})`, color: textColor };
+        } else {
+            // Blue gradient for users (default)
+            const colors = [
+                { r: 227, g: 242, b: 253 }, // Level 1: #e3f2fd
+                { r: 187, g: 222, b: 251 }, // Level 2: #bbdefb
+                { r: 144, g: 202, b: 249 }, // Level 3: #90caf9
+                { r: 100, g: 181, b: 246 }, // Level 4: #64b5f6
+                { r: 66, g: 165, b: 245 },  // Level 5: #42a5f5
+                { r: 33, g: 150, b: 243 }   // Level 6: #2196f3
+            ];
+            const color = colors[levelNum - 1];
+            const textColor = levelNum >= 4 ? 'white' : 'black';
+            return { background: `rgb(${color.r}, ${color.g}, ${color.b})`, color: textColor };
+        }
     }
 
     /**
@@ -757,7 +812,8 @@
                 // Handle arrow key navigation
                 if (handlePermissionArrowKeys(event, newInput, (level) => {
                     cell.setAttribute('data-permission-level', level);
-                    const colors = getPermissionLevelColor(level);
+                    const subjectType = cell.getAttribute('data-subject-type');
+                    const colors = subjectType ? getSubjectColor(subjectType, level) : getPermissionLevelColor(level);
                     cell.style.backgroundColor = colors.background;
                     cell.style.color = colors.color;
                     
@@ -782,7 +838,8 @@
                 if (value && (value < '1' || value > '6' || isNaN(value))) {
                     event.target.value = value.slice(0, -1);
                 } else if (value && value >= '1' && value <= '6') {
-                    const colors = getPermissionLevelColor(value);
+                    const subjectType = cell.getAttribute('data-subject-type');
+                    const colors = subjectType ? getSubjectColor(subjectType, value) : getPermissionLevelColor(value);
                     cell.style.backgroundColor = colors.background;
                     cell.style.color = colors.color;
                 }
@@ -791,7 +848,8 @@
             newInput.addEventListener('change', (event) => {
                 const level = event.target.value || '6';
                 cell.setAttribute('data-permission-level', level);
-                const colors = getPermissionLevelColor(level);
+                const subjectType = cell.getAttribute('data-subject-type');
+                const colors = subjectType ? getSubjectColor(subjectType, level) : getPermissionLevelColor(level);
                 cell.style.backgroundColor = colors.background;
                 cell.style.color = colors.color;
                 
@@ -824,8 +882,9 @@
         cells.forEach((cell, index) => {
             const cellIndex = Array.from(cell.parentElement.children).indexOf(cell);
             
-            // Skip first two columns (Level 2 and Level 3 folder names)
-            if (cellIndex < 2) {
+            // Skip only the second column (Level 3 folder names)
+            // Allow first column for bulk assignment to all parent folders
+            if (cellIndex === 1) {
                 return;
             }
             
@@ -840,16 +899,188 @@
             newCell.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 newCell.classList.add('drag-over');
+                
+                // If dragging over first column, highlight entire column
+                const dragCellIndex = Array.from(newCell.parentElement.children).indexOf(newCell);
+                if (dragCellIndex === 0) {
+                    const allFirstColumnCells = table.querySelectorAll('td:first-child');
+                    allFirstColumnCells.forEach(c => c.classList.add('column-hover'));
+                }
             });
             
             newCell.addEventListener('dragleave', () => {
                 newCell.classList.remove('drag-over');
+                
+                // If leaving first column, remove column-wide highlight
+                const dragCellIndex = Array.from(newCell.parentElement.children).indexOf(newCell);
+                if (dragCellIndex === 0) {
+                    const allFirstColumnCells = table.querySelectorAll('td:first-child');
+                    allFirstColumnCells.forEach(c => c.classList.remove('column-hover'));
+                }
             });
             
             newCell.addEventListener('drop', (e) => {
                 e.preventDefault();
                 newCell.classList.remove('drag-over');
                 
+                // Remove column-wide highlight on drop
+                const allFirstColumnCells = table.querySelectorAll('td:first-child');
+                allFirstColumnCells.forEach(c => c.classList.remove('column-hover'));
+                
+                // SPECIAL HANDLING: If dropped on first column, assign to ALL parent folders
+                const row = newCell.parentElement;
+                const dropCellIndex = Array.from(row.children).indexOf(newCell);
+                
+                if (dropCellIndex === 0) {
+                    // Dropped on first column (parent folder names) -> assign to ALL parent folders
+                    const multiUserData = e.dataTransfer.getData('application/json');
+                    let usersToAssign = [];
+                    
+                    if (multiUserData) {
+                        try {
+                            usersToAssign = JSON.parse(multiUserData);
+                        } catch (err) {
+                            usersToAssign = [e.dataTransfer.getData('text/plain')];
+                        }
+                    } else {
+                        const userName = e.dataTransfer.getData('text/plain');
+                        if (userName) {
+                            usersToAssign = [userName];
+                        }
+                    }
+                    
+                    if (usersToAssign.length === 0) return;
+                    
+                    // Get all parent folder rows (rows where first column has text)
+                    const allRows = table.querySelectorAll('tbody tr');
+                    const parentRows = Array.from(allRows).filter(r => {
+                        const level1Id = r.getAttribute('data-level1-id');
+                        const level2Id = r.getAttribute('data-level2-id');
+                        return level1Id && !level2Id; // Parent folders have level1 but no level2
+                    });
+                    
+                    console.log(`📋 Bulk assignment: Assigning ${usersToAssign.length} user(s) to ${parentRows.length} parent folders`);
+                    
+                    // For each parent folder, assign all users
+                    parentRows.forEach(parentRow => {
+                        const cells = Array.from(parentRow.children);
+                        const parentFolderId = parentRow.getAttribute('data-folder-id');
+                        
+                        usersToAssign.forEach((userName, userIndex) => {
+                            // Find first empty cell starting from column 2
+                            let targetCell = null;
+                            let targetIndex = -1;
+                            
+                            for (let i = 2; i < cells.length; i++) {
+                                if (!cells[i].classList.contains('has-content')) {
+                                    targetCell = cells[i];
+                                    targetIndex = i;
+                                    break;
+                                }
+                            }
+                            
+                            // If no empty cell, create new one
+                            if (!targetCell) {
+                                targetCell = document.createElement('td');
+                                parentRow.appendChild(targetCell);
+                                targetIndex = cells.length;
+                            }
+                            
+                            // Look up subject info
+                            const subjectInfo = lookupSubjectInfo(userName);
+                            
+                            // Determine identifier and display name
+                            let userIdentifier = userName;
+                            let displayName = userName;
+                            
+                            if (subjectInfo && subjectInfo.subjectType === 'USER') {
+                                const userObj = currentProjectUsersRaw?.find(u => 
+                                    u.email === userName || u.name === userName
+                                );
+                                
+                                if (userObj) {
+                                    userIdentifier = userObj.email;
+                                    displayName = currentUserDisplayMode === 'name' 
+                                        ? (userObj.name || userObj.email) 
+                                        : userObj.email;
+                                }
+                        }
+                        // No prefix for ROLE or COMPANY - use color coding instead
+                        
+                        // Create cell content
+                        const defaultLevel = '1';
+                        targetCell.innerHTML = `
+                            <span class="cell-username">${displayName}</span>
+                            <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
+                        `;
+                        targetCell.setAttribute('data-user', userIdentifier);
+                        targetCell.setAttribute('data-permission-level', defaultLevel);
+                        targetCell.classList.add('has-content');
+                        
+                        // Set subject data attributes
+                        if (subjectInfo && subjectInfo.subjectId && subjectInfo.subjectType) {
+                            targetCell.setAttribute('data-subject-id', subjectInfo.subjectId);
+                            targetCell.setAttribute('data-subject-type', subjectInfo.subjectType);
+                        }
+                        
+                        // Apply subject type color with gradient based on level
+                        const colors = subjectInfo ? getSubjectColor(subjectInfo.subjectType, defaultLevel) : getPermissionLevelColor(defaultLevel);
+                        targetCell.style.backgroundColor = colors.background;
+                        targetCell.style.color = colors.color;
+                        
+                        // Setup permission level input event listeners
+                        const permissionInput = targetCell.querySelector('.cell-permission-level');
+                        if (permissionInput) {
+                            permissionInput.addEventListener('input', (event) => {
+                                const value = event.target.value;
+                                if (value && (value < '1' || value > '6' || isNaN(value))) {
+                                    event.target.value = value.slice(0, -1);
+                                } else if (value && value >= '1' && value <= '6') {
+                                    const colors = getPermissionLevelColor(value);
+                                    targetCell.style.backgroundColor = colors.background;
+                                    targetCell.style.color = colors.color;
+                                }
+                            });
+                            
+                            permissionInput.addEventListener('change', (event) => {
+                                const level = event.target.value || '1';
+                                targetCell.setAttribute('data-permission-level', level);
+                                const colors = getPermissionLevelColor(level);
+                                targetCell.style.backgroundColor = colors.background;
+                                targetCell.style.color = colors.color;
+                                updateInheritedPermissions(parentFolderId, userIdentifier, level);
+                            });
+                        }
+                        
+                        // Add user to children folders with inheritance
+                        addUserToChildren(parentFolderId, userIdentifier, defaultLevel);
+                        });
+                    });
+                    
+                    // Ensure all rows have consistent column count
+                    const maxCols = Math.max(...Array.from(allRows).map(r => r.children.length));
+                    allRows.forEach(r => {
+                        while (r.children.length < maxCols) {
+                            r.appendChild(document.createElement('td'));
+                        }
+                    });
+                    
+                    // Update column count and re-setup
+                    additionalColumnsCount = maxCols - 2;
+                    setupTableDragAndDrop();
+                    attachArrowKeyNavigationToAllInputs();
+                    
+                    // Clear user selection
+                    selectedUsers = [];
+                    document.querySelectorAll('.user-list-item').forEach(item => {
+                        item.classList.remove('user-selected');
+                    });
+                    
+                    console.log(`✅ Bulk assignment complete: ${usersToAssign.length} user(s) added to all ${parentRows.length} parent folders with inheritance`);
+                    return; // Exit early, don't process normal drop
+                }
+                
+                // NORMAL HANDLING: Drop on regular cells (column 2+)
                 // Check if multiple users are being dragged
                 const multiUserData = e.dataTransfer.getData('application/json');
                 let usersToPlace = [];
@@ -872,8 +1103,7 @@
                 
                 if (usersToPlace.length === 0) return;
                 
-                // Get the row and starting cell index
-                const row = newCell.parentElement;
+                // Get the starting cell index (row already declared above)
                 let cells = Array.from(row.children);
                 const startIndex = cells.indexOf(newCell);
                 
@@ -944,6 +1174,7 @@
                                     : userObj.email;
                             }
                         }
+                        // No prefix for ROLE or COMPANY - use color coding instead
                         
                         // Track for child propagation
                         userIdentifiers.push(userIdentifier);
@@ -964,8 +1195,8 @@
                             log(`✅ Set subject attributes for dropped user: ${displayName} (${subjectInfo.subjectType}, ${subjectInfo.subjectId})`);
                         }
                         
-                        // Apply background and text color based on permission level
-                        const colors = getPermissionLevelColor(defaultLevel);
+                        // Apply subject type color with gradient based on level
+                        const colors = subjectInfo ? getSubjectColor(subjectInfo.subjectType, defaultLevel) : getPermissionLevelColor(defaultLevel);
                         targetCell.style.backgroundColor = colors.background;
                         targetCell.style.color = colors.color;
                         
@@ -987,7 +1218,7 @@
                                 // Handle arrow key navigation (Left/Right to decrease/increase level)
                                 if (handlePermissionArrowKeys(event, permissionInput, (level) => {
                                     targetCell.setAttribute('data-permission-level', level);
-                                    const colors = getPermissionLevelColor(level);
+                                    const colors = subjectInfo ? getSubjectColor(subjectInfo.subjectType, level) : getPermissionLevelColor(level);
                                     targetCell.style.backgroundColor = colors.background;
                                     targetCell.style.color = colors.color;
                                     
@@ -1023,7 +1254,7 @@
                             permissionInput.addEventListener('change', (event) => {
                                 const level = event.target.value || '6';
                                 targetCell.setAttribute('data-permission-level', level);
-                                const colors = getPermissionLevelColor(level);
+                                const colors = subjectInfo ? getSubjectColor(subjectInfo.subjectType, level) : getPermissionLevelColor(level);
                                 targetCell.style.backgroundColor = colors.background;
                                 targetCell.style.color = colors.color;
                                 
@@ -1041,7 +1272,7 @@
                             permissionInput.addEventListener('input', (event) => {
                                 const level = event.target.value;
                                 if (level && level >= '1' && level <= '6') {
-                                    const colors = getPermissionLevelColor(level);
+                                    const colors = subjectInfo ? getSubjectColor(subjectInfo.subjectType, level) : getPermissionLevelColor(level);
                                     targetCell.style.backgroundColor = colors.background;
                                     targetCell.style.color = colors.color;
                                 }
@@ -1081,7 +1312,7 @@
             
             // Add click handler for selection
             newCell.addEventListener('click', (e) => {
-                handleCellSelection(newCell, e.shiftKey);
+                handleCellSelection(newCell, e.shiftKey, e.ctrlKey);
             });
         });
         
@@ -1090,6 +1321,26 @@
             document.addEventListener('keydown', handleDeleteKey);
             deleteKeyHandlerAdded = true;
         }
+        
+        // Add click handler to deselect cells when clicking outside table (only once)
+        if (!clickHandlerAdded) {
+            document.addEventListener('click', (e) => {
+                // Check if click is outside table cells
+                const clickedCell = e.target.closest('.folders-table td');
+                const clickedInput = e.target.closest('.cell-permission-level');
+                
+                // If clicked outside table cells (but not on permission inputs), clear selection
+                if (!clickedCell && !clickedInput && selectedCells.length > 0) {
+                    selectedCells.forEach(c => c.classList.remove('selected'));
+                    selectedCells = [];
+                    lastSelectedCell = null;
+                }
+            });
+            clickHandlerAdded = true;
+        }
+        
+        // Note: Column-wide hover effect is now handled in dragover/dragleave events above
+        // This ensures highlighting only happens during drag operations, not normal hover
     }
 
     /**
@@ -1145,15 +1396,20 @@
     /**
      * Handle cell selection with shift key support
      */
-    function handleCellSelection(cell, shiftPressed) {
+    function handleCellSelection(cell, shiftPressed, ctrlPressed) {
         const cellIndex = Array.from(cell.parentElement.children).indexOf(cell);
         
-        // Skip first two columns
+        // If clicking on first two columns (folder names), just clear selection and return
         if (cellIndex < 2) {
+            if (!shiftPressed && !ctrlPressed && selectedCells.length > 0) {
+                selectedCells.forEach(c => c.classList.remove('selected'));
+                selectedCells = [];
+                lastSelectedCell = null;
+            }
             return;
         }
 
-        if (!shiftPressed) {
+        if (!shiftPressed && !ctrlPressed) {
             // Clear previous selections
             selectedCells.forEach(c => c.classList.remove('selected'));
             selectedCells = [];
@@ -1162,7 +1418,45 @@
             cell.classList.add('selected');
             selectedCells.push(cell);
             lastSelectedCell = cell;
-        } else {
+        } else if (ctrlPressed && !shiftPressed) {
+            // CTRL pressed: Toggle individual cell selection
+            if (selectedCells.includes(cell)) {
+                // Cell is already selected - deselect it
+                cell.classList.remove('selected');
+                selectedCells = selectedCells.filter(c => c !== cell);
+                // Update lastSelectedCell if we deselected it
+                if (lastSelectedCell === cell) {
+                    lastSelectedCell = selectedCells.length > 0 ? selectedCells[selectedCells.length - 1] : null;
+                }
+            } else {
+                // Cell is not selected - add it to selection
+                cell.classList.add('selected');
+                selectedCells.push(cell);
+                lastSelectedCell = cell;
+                
+                // Apply permission level from first selected cell if current cell has content
+                if (selectedCells.length > 1 && cell.classList.contains('has-content')) {
+                    const firstCell = selectedCells[0];
+                    const sourcePermissionInput = firstCell.querySelector('.cell-permission-level');
+                    const sourcePermissionLevel = sourcePermissionInput ? sourcePermissionInput.value : null;
+                    
+                    if (sourcePermissionLevel) {
+                        const targetPermissionInput = cell.querySelector('.cell-permission-level');
+                        if (targetPermissionInput) {
+                            targetPermissionInput.value = sourcePermissionLevel;
+                            cell.setAttribute('data-permission-level', sourcePermissionLevel);
+                            
+                            const subjectType = cell.getAttribute('data-subject-type');
+                            const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
+                            cell.style.backgroundColor = colors.background;
+                            cell.style.color = colors.color;
+                            
+                            log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                        }
+                    }
+                }
+            }
+        } else if (shiftPressed) {
             // Shift is pressed - toggle selection or select range
             if (selectedCells.includes(cell)) {
                 // Cell is already selected - deselect it
@@ -1174,39 +1468,119 @@
                 }
             } else if (lastSelectedCell) {
                 // Select range between last selected and current
-                const allCells = Array.from(document.querySelectorAll('.folders-table td'));
-                const startIndex = allCells.indexOf(lastSelectedCell);
-                const endIndex = allCells.indexOf(cell);
+                // Determine if selection is horizontal (same row), vertical (same column), or rectangular
+                const lastRow = lastSelectedCell.parentElement;
+                const currentRow = cell.parentElement;
                 
-                const start = Math.min(startIndex, endIndex);
-                const end = Math.max(startIndex, endIndex);
+                const lastCellIndex = Array.from(lastRow.children).indexOf(lastSelectedCell);
+                const currentCellIndex = Array.from(currentRow.children).indexOf(cell);
+                
+                const lastRowIndex = Array.from(lastRow.parentElement.children).indexOf(lastRow);
+                const currentRowIndex = Array.from(currentRow.parentElement.children).indexOf(currentRow);
                 
                 // Get the permission level from the first selected cell (lastSelectedCell)
                 const sourcePermissionInput = lastSelectedCell.querySelector('.cell-permission-level');
                 const sourcePermissionLevel = sourcePermissionInput ? sourcePermissionInput.value : null;
                 
-                for (let i = start; i <= end; i++) {
-                    const targetCell = allCells[i];
-                    const targetCellIndex = Array.from(targetCell.parentElement.children).indexOf(targetCell);
+                if (lastRowIndex === currentRowIndex) {
+                    // HORIZONTAL selection (same row)
+                    const startCol = Math.min(lastCellIndex, currentCellIndex);
+                    const endCol = Math.max(lastCellIndex, currentCellIndex);
                     
-                    // Skip first two columns
-                    if (targetCellIndex >= 2 && !selectedCells.includes(targetCell)) {
-                        targetCell.classList.add('selected');
-                        selectedCells.push(targetCell);
-                        
-                        // Apply the source permission level to this cell if it has content
-                        if (sourcePermissionLevel && targetCell.classList.contains('has-content')) {
-                            const targetPermissionInput = targetCell.querySelector('.cell-permission-level');
-                            if (targetPermissionInput) {
-                                targetPermissionInput.value = sourcePermissionLevel;
-                                targetCell.setAttribute('data-permission-level', sourcePermissionLevel);
+                    for (let col = startCol; col <= endCol; col++) {
+                        if (col >= 2) { // Skip first two columns
+                            const targetCell = currentRow.children[col];
+                            if (targetCell && !selectedCells.includes(targetCell)) {
+                                targetCell.classList.add('selected');
+                                selectedCells.push(targetCell);
                                 
-                                // Update background color
-                                const colors = getPermissionLevelColor(sourcePermissionLevel);
-                                targetCell.style.backgroundColor = colors.background;
-                                targetCell.style.color = colors.color;
+                                // Apply permission level if applicable
+                                if (sourcePermissionLevel && targetCell.classList.contains('has-content')) {
+                                    const targetPermissionInput = targetCell.querySelector('.cell-permission-level');
+                                    if (targetPermissionInput) {
+                                        targetPermissionInput.value = sourcePermissionLevel;
+                                        targetCell.setAttribute('data-permission-level', sourcePermissionLevel);
+                                        
+                                        const subjectType = targetCell.getAttribute('data-subject-type');
+                                        const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
+                                        targetCell.style.backgroundColor = colors.background;
+                                        targetCell.style.color = colors.color;
+                                        
+                                        log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (lastCellIndex === currentCellIndex) {
+                    // VERTICAL selection (same column)
+                    const startRow = Math.min(lastRowIndex, currentRowIndex);
+                    const endRow = Math.max(lastRowIndex, currentRowIndex);
+                    
+                    const allRows = Array.from(currentRow.parentElement.children);
+                    
+                    for (let row = startRow; row <= endRow; row++) {
+                        const targetRow = allRows[row];
+                        if (targetRow && currentCellIndex < targetRow.children.length) {
+                            const targetCell = targetRow.children[currentCellIndex];
+                            if (targetCell && !selectedCells.includes(targetCell)) {
+                                targetCell.classList.add('selected');
+                                selectedCells.push(targetCell);
                                 
-                                log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                // Apply permission level if applicable
+                                if (sourcePermissionLevel && targetCell.classList.contains('has-content')) {
+                                    const targetPermissionInput = targetCell.querySelector('.cell-permission-level');
+                                    if (targetPermissionInput) {
+                                        targetPermissionInput.value = sourcePermissionLevel;
+                                        targetCell.setAttribute('data-permission-level', sourcePermissionLevel);
+                                        
+                                        const subjectType = targetCell.getAttribute('data-subject-type');
+                                        const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
+                                        targetCell.style.backgroundColor = colors.background;
+                                        targetCell.style.color = colors.color;
+                                        
+                                        log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // RECTANGULAR selection (different row AND different column)
+                    const startRow = Math.min(lastRowIndex, currentRowIndex);
+                    const endRow = Math.max(lastRowIndex, currentRowIndex);
+                    const startCol = Math.min(lastCellIndex, currentCellIndex);
+                    const endCol = Math.max(lastCellIndex, currentCellIndex);
+                    
+                    const allRows = Array.from(currentRow.parentElement.children);
+                    
+                    for (let row = startRow; row <= endRow; row++) {
+                        const targetRow = allRows[row];
+                        if (targetRow) {
+                            for (let col = startCol; col <= endCol; col++) {
+                                if (col >= 2 && col < targetRow.children.length) { // Skip first two columns
+                                    const targetCell = targetRow.children[col];
+                                    if (targetCell && !selectedCells.includes(targetCell)) {
+                                        targetCell.classList.add('selected');
+                                        selectedCells.push(targetCell);
+                                        
+                                        // Apply permission level if applicable
+                                        if (sourcePermissionLevel && targetCell.classList.contains('has-content')) {
+                                            const targetPermissionInput = targetCell.querySelector('.cell-permission-level');
+                                            if (targetPermissionInput) {
+                                                targetPermissionInput.value = sourcePermissionLevel;
+                                                targetCell.setAttribute('data-permission-level', sourcePermissionLevel);
+                                                
+                                                const subjectType = targetCell.getAttribute('data-subject-type');
+                                                const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
+                                                targetCell.style.backgroundColor = colors.background;
+                                                targetCell.style.color = colors.color;
+                                                
+                                                log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1265,10 +1639,14 @@
                 const userName = cell.getAttribute('data-user');
                 const permissionInput = cell.querySelector('.cell-permission-level');
                 const permissionLevel = permissionInput ? permissionInput.value : null;
+                const subjectType = cell.getAttribute('data-subject-type');
+                const subjectId = cell.getAttribute('data-subject-id');
                 
                 return {
                     userName: userName,
                     permissionLevel: permissionLevel,
+                    subjectType: subjectType,
+                    subjectId: subjectId,
                     hasContent: cell.classList.contains('has-content')
                 };
             });
@@ -1299,10 +1677,18 @@
                             `;
                             targetCell.setAttribute('data-user', copiedData.userName);
                             targetCell.setAttribute('data-permission-level', copiedData.permissionLevel);
+                            if (copiedData.subjectType) {
+                                targetCell.setAttribute('data-subject-type', copiedData.subjectType);
+                            }
+                            if (copiedData.subjectId) {
+                                targetCell.setAttribute('data-subject-id', copiedData.subjectId);
+                            }
                             targetCell.classList.add('has-content');
                             
-                            // Apply background and text color based on permission level
-                            const colors = getPermissionLevelColor(copiedData.permissionLevel);
+                            // Apply background and text color with gradient
+                            const colors = copiedData.subjectType ? 
+                                getSubjectColor(copiedData.subjectType, copiedData.permissionLevel) : 
+                                getPermissionLevelColor(copiedData.permissionLevel);
                             targetCell.style.backgroundColor = colors.background;
                             targetCell.style.color = colors.color;
                             
@@ -1317,7 +1703,10 @@
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
                                         event.target.value = value.slice(0, -1);
                                     } else if (value && value >= '1' && value <= '6') {
-                                        const colors = getPermissionLevelColor(value);
+                                        const subjectType = targetCell.getAttribute('data-subject-type');
+                                        const colors = subjectType ? 
+                                            getSubjectColor(subjectType, value) : 
+                                            getPermissionLevelColor(value);
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
                                     }
@@ -1327,7 +1716,10 @@
                                     // Handle arrow key navigation (Left/Right to decrease/increase level)
                                     if (handlePermissionArrowKeys(event, permissionInput, (level) => {
                                         targetCell.setAttribute('data-permission-level', level);
-                                        const colors = getPermissionLevelColor(level);
+                                        const subjectType = targetCell.getAttribute('data-subject-type');
+                                        const colors = subjectType ? 
+                                            getSubjectColor(subjectType, level) : 
+                                            getPermissionLevelColor(level);
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
                                     })) {
@@ -1349,7 +1741,10 @@
                                 permissionInput.addEventListener('change', (event) => {
                                     const level = event.target.value || '1';
                                     targetCell.setAttribute('data-permission-level', level);
-                                    const colors = getPermissionLevelColor(level);
+                                    const subjectType = targetCell.getAttribute('data-subject-type');
+                                    const colors = subjectType ? 
+                                        getSubjectColor(subjectType, level) : 
+                                        getPermissionLevelColor(level);
                                     targetCell.style.backgroundColor = colors.background;
                                     targetCell.style.color = colors.color;
                                 });
@@ -1477,6 +1872,8 @@
             </div>
             <div class="user-list-instructions">
                 Drag and drop users to the table on the left.<br>
+                <strong>💡 Tip:</strong> Drop on parent folder name (first column) to assign to <strong>ALL parent folders</strong> with inheritance.<br>
+                <br>
                 Access levels:<br>
                 1 - View Only<br>
                 2 - View/Download<br>
@@ -1620,10 +2017,14 @@
                         if (index >= 2 && cell.classList.contains('has-content')) {
                             const userName = cell.getAttribute('data-user');
                             const permissionLevel = cell.getAttribute('data-permission-level');
+                            const subjectType = cell.getAttribute('data-subject-type');
+                            const subjectId = cell.getAttribute('data-subject-id');
                             if (userName && permissionLevel) {
                                 savedCellData[folderId][`column${index - 1}`] = {
                                     user: userName,
-                                    level: permissionLevel
+                                    level: permissionLevel,
+                                    subjectType: subjectType,
+                                    subjectId: subjectId
                                 };
                             }
                         }
@@ -1658,10 +2059,18 @@
                                     `;
                                     cells[columnIndex].setAttribute('data-user', permissionData.user);
                                     cells[columnIndex].setAttribute('data-permission-level', permissionData.level);
+                                    if (permissionData.subjectType) {
+                                        cells[columnIndex].setAttribute('data-subject-type', permissionData.subjectType);
+                                    }
+                                    if (permissionData.subjectId) {
+                                        cells[columnIndex].setAttribute('data-subject-id', permissionData.subjectId);
+                                    }
                                     cells[columnIndex].classList.add('has-content');
                                     
-                                    // Apply colors
-                                    const colors = getPermissionLevelColor(permissionData.level);
+                                    // Apply colors with gradient
+                                    const colors = permissionData.subjectType ? 
+                                        getSubjectColor(permissionData.subjectType, permissionData.level) : 
+                                        getPermissionLevelColor(permissionData.level);
                                     cells[columnIndex].style.backgroundColor = colors.background;
                                     cells[columnIndex].style.color = colors.color;
                                     
@@ -1676,7 +2085,10 @@
                                             if (value && (value < '1' || value > '6' || isNaN(value))) {
                                                 event.target.value = value.slice(0, -1);
                                             } else if (value && value >= '1' && value <= '6') {
-                                                const colors = getPermissionLevelColor(value);
+                                                const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                                                const colors = subjectType ? 
+                                                    getSubjectColor(subjectType, value) : 
+                                                    getPermissionLevelColor(value);
                                                 cells[columnIndex].style.backgroundColor = colors.background;
                                                 cells[columnIndex].style.color = colors.color;
                                             }
@@ -1685,7 +2097,10 @@
                                         permissionInput.addEventListener('change', (event) => {
                                             const level = event.target.value || '6';
                                             cells[columnIndex].setAttribute('data-permission-level', level);
-                                            const colors = getPermissionLevelColor(level);
+                                            const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                                            const colors = subjectType ? 
+                                                getSubjectColor(subjectType, level) : 
+                                                getPermissionLevelColor(level);
                                             cells[columnIndex].style.backgroundColor = colors.background;
                                             cells[columnIndex].style.color = colors.color;
                                         });
@@ -2260,8 +2675,11 @@
                             permissionInput.value = newLevel;
                             cell.setAttribute('data-permission-level', newLevel);
                             
-                            // Update visual colors
-                            const colors = getPermissionLevelColor(newLevel);
+                            // Update visual colors with gradient
+                            const subjectType = cell.getAttribute('data-subject-type');
+                            const colors = subjectType ? 
+                                getSubjectColor(subjectType, newLevel) : 
+                                getPermissionLevelColor(newLevel);
                             cell.style.backgroundColor = colors.background;
                             cell.style.color = colors.color;
                             
@@ -2411,6 +2829,7 @@
                             : userObj.email;
                     }
                 }
+                // No prefix for ROLE or COMPANY - use color coding instead
                 
                 // Add the inherited user to the cell
                 targetCell.innerHTML = `
@@ -2430,8 +2849,8 @@
                     targetCell.setAttribute('data-subject-type', parentSubjectType);
                 }
                 
-                // Apply background and text color based on permission level
-                const colors = getPermissionLevelColor(level);
+                // Apply subject type color with gradient based on level
+                const colors = parentSubjectType ? getSubjectColor(parentSubjectType, level) : getPermissionLevelColor(level);
                 targetCell.style.backgroundColor = colors.background;
                 targetCell.style.color = colors.color;
                 
@@ -2730,7 +3149,7 @@
                         cell.setAttribute('data-is-inherited', 'false');
                         cell.classList.add('has-content');
 
-                        const colors = getPermissionLevelColor(perm.level);
+                        const colors = getSubjectColor(perm.type, perm.level);
                         cell.style.backgroundColor = colors.background;
                         cell.style.color = colors.color;
 
@@ -2742,7 +3161,8 @@
                             permissionInput.addEventListener('keydown', (event) => {
                                 if (handlePermissionArrowKeys(event, permissionInput, (level) => {
                                     cell.setAttribute('data-permission-level', level);
-                                    const colors = getPermissionLevelColor(level);
+                                    const subjectType = cell.getAttribute('data-subject-type');
+                                    const colors = getSubjectColor(subjectType, level);
                                     cell.style.backgroundColor = colors.background;
                                     cell.style.color = colors.color;
                                     
@@ -2757,7 +3177,8 @@
                                 if (value && (value < '1' || value > '6' || isNaN(value))) {
                                     event.target.value = value.slice(0, -1);
                                 } else if (value && value >= '1' && value <= '6') {
-                                    const colors = getPermissionLevelColor(value);
+                                    const subjectType = cell.getAttribute('data-subject-type');
+                                    const colors = getSubjectColor(subjectType, value);
                                     cell.style.backgroundColor = colors.background;
                                     cell.style.color = colors.color;
                                 }
@@ -2766,7 +3187,8 @@
                             permissionInput.addEventListener('change', (event) => {
                                 const level = event.target.value || '6';
                                 cell.setAttribute('data-permission-level', level);
-                                const colors = getPermissionLevelColor(level);
+                                const subjectType = cell.getAttribute('data-subject-type');
+                                const colors = getSubjectColor(subjectType, level);
                                 cell.style.backgroundColor = colors.background;
                                 cell.style.color = colors.color;
                                 
@@ -2829,7 +3251,7 @@
                         cell.classList.add('has-content');
                         cell.classList.add('inherited-permission');
 
-                        const colors = getPermissionLevelColor(perm.level);
+                        const colors = getSubjectColor(perm.type, perm.level);
                         cell.style.backgroundColor = colors.background;
                         cell.style.color = colors.color;
                         
@@ -2870,10 +3292,10 @@
                         targetCell.setAttribute('data-is-inherited', 'false');
                         targetCell.classList.add('has-content');
 
-                        const colors = getPermissionLevelColor(perm.level);
+                        const colors = getSubjectColor(perm.type, perm.level);
                         targetCell.style.backgroundColor = colors.background;
                         targetCell.style.color = colors.color;
-
+                        
                         // Setup event listeners for orphan (editable)
                         const permissionInput = targetCell.querySelector('.cell-permission-level');
                         if (permissionInput) {
@@ -2882,7 +3304,8 @@
                             permissionInput.addEventListener('keydown', (event) => {
                                 if (handlePermissionArrowKeys(event, permissionInput, (level) => {
                                     targetCell.setAttribute('data-permission-level', level);
-                                    const colors = getPermissionLevelColor(level);
+                                    const subjectType = targetCell.getAttribute('data-subject-type');
+                                    const colors = getSubjectColor(subjectType, level);
                                     targetCell.style.backgroundColor = colors.background;
                                     targetCell.style.color = colors.color;
                                 })) {
@@ -2895,7 +3318,8 @@
                                 if (value && (value < '1' || value > '6' || isNaN(value))) {
                                     event.target.value = value.slice(0, -1);
                                 } else if (value && value >= '1' && value <= '6') {
-                                    const colors = getPermissionLevelColor(value);
+                                    const subjectType = targetCell.getAttribute('data-subject-type');
+                                    const colors = getSubjectColor(subjectType, value);
                                     targetCell.style.backgroundColor = colors.background;
                                     targetCell.style.color = colors.color;
                                 }
@@ -2904,7 +3328,8 @@
                             permissionInput.addEventListener('change', (event) => {
                                 const level = event.target.value || '6';
                                 targetCell.setAttribute('data-permission-level', level);
-                                const colors = getPermissionLevelColor(level);
+                                const subjectType = targetCell.getAttribute('data-subject-type');
+                                const colors = getSubjectColor(subjectType, level);
                                 targetCell.style.backgroundColor = colors.background;
                                 targetCell.style.color = colors.color;
                             });
@@ -3054,8 +3479,11 @@
                             cells[columnIndex].setAttribute('data-user', permissionData.user);
                             cells[columnIndex].setAttribute('data-permission-level', permissionData.level);
                             
-                            // Apply background and text color based on permission level
-                            const colors = getPermissionLevelColor(permissionData.level);
+                            // Apply background and text color with gradient (check for subject type)
+                            const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                            const colors = subjectType ? 
+                                getSubjectColor(subjectType, permissionData.level) : 
+                                getPermissionLevelColor(permissionData.level);
                             cells[columnIndex].style.backgroundColor = colors.background;
                             cells[columnIndex].style.color = colors.color;
                             
@@ -3069,7 +3497,10 @@
                                     // Handle arrow key navigation (Left/Right to decrease/increase level)
                                     if (handlePermissionArrowKeys(event, permissionInput, (level) => {
                                         cells[columnIndex].setAttribute('data-permission-level', level);
-                                        const colors = getPermissionLevelColor(level);
+                                        const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                                        const colors = subjectType ? 
+                                            getSubjectColor(subjectType, level) : 
+                                            getPermissionLevelColor(level);
                                         cells[columnIndex].style.backgroundColor = colors.background;
                                         cells[columnIndex].style.color = colors.color;
                                     })) {
@@ -3082,7 +3513,10 @@
                                     if (value && (value < '1' || value > '6' || isNaN(value))) {
                                         event.target.value = value.slice(0, -1);
                                     } else if (value && value >= '1' && value <= '6') {
-                                        const colors = getPermissionLevelColor(value);
+                                        const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                                        const colors = subjectType ? 
+                                            getSubjectColor(subjectType, value) : 
+                                            getPermissionLevelColor(value);
                                         cells[columnIndex].style.backgroundColor = colors.background;
                                         cells[columnIndex].style.color = colors.color;
                                     }
@@ -3091,7 +3525,10 @@
                                 permissionInput.addEventListener('change', (event) => {
                                     const level = event.target.value || '6';
                                     cells[columnIndex].setAttribute('data-permission-level', level);
-                                    const colors = getPermissionLevelColor(level);
+                                    const subjectType = cells[columnIndex].getAttribute('data-subject-type');
+                                    const colors = subjectType ? 
+                                        getSubjectColor(subjectType, level) : 
+                                        getPermissionLevelColor(level);
                                     cells[columnIndex].style.backgroundColor = colors.background;
                                     cells[columnIndex].style.color = colors.color;
                                 });
@@ -3616,14 +4053,16 @@
                 .inherited-indicator {
                     display: inline-block;
                     margin-left: 4px;
-                    color: #666;
+                    color: #444;
                     font-size: 14px;
                     font-weight: bold;
                     cursor: help;
                 }
 
                 .inherited-permission {
-                    opacity: 0.85;
+                    background-color: #f0f0f0 !important;
+                    color: #555 !important;
+                    opacity: 1;
                 }
 
                 .permission-tooltip {
@@ -3720,6 +4159,43 @@
 
                 .folders-table td:nth-child(n+3):hover:not(.has-content) {
                     background-color: #f5f5f5;
+                }
+
+                /* First column (parent folders) - bulk assignment drop zone */
+                .folders-table td:first-child {
+                    cursor: copy;
+                    position: relative;
+                    transition: background-color 0.2s, border 0.2s;
+                }
+
+                .folders-table td:first-child.drag-over {
+                    /* No individual cell styling - column-wide effect handles the visual feedback */
+                    background-color: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                }
+
+                /* CRITICAL: Column-wide hover effect - MUST come last to override all row states */
+                /* All cells in column: left and right borders */
+                .folders-table tbody tr td:first-child.column-hover,
+                .folders-table tbody tr:hover td:first-child.column-hover,
+                .folders-table tbody tr:nth-child(even) td:first-child.column-hover,
+                .folders-table tbody tr:nth-child(odd) td:first-child.column-hover,
+                .folders-table tbody tr:nth-child(even):hover td:first-child.column-hover,
+                .folders-table tbody tr:nth-child(odd):hover td:first-child.column-hover {
+                    background-color: #fff3cd !important;
+                    border-left: 3px solid #ffc107 !important;
+                    border-right: 3px solid #ffc107 !important;
+                }
+                
+                /* First cell in column: add top border */
+                .folders-table tbody tr:first-child td:first-child.column-hover {
+                    border-top: 3px solid #ffc107 !important;
+                }
+                
+                /* Last cell in column: add bottom border */
+                .folders-table tbody tr:last-child td:first-child.column-hover {
+                    border-bottom: 3px solid #ffc107 !important;
                 }
 
                 /* Confirmation Modal Styles */
