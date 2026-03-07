@@ -122,20 +122,23 @@
 
     /**
      * Convert ACC actions array to permission level (1-6)
-     * @param {Array<string>} actions - Array of permission actions
+     * Uses the HIGHER of direct actions or inheritActions
+     * @param {Array<string>} actions - Array of direct permission actions
+     * @param {Array<string>} inheritActions - Array of inherited permission actions
      * @returns {number} Permission level (1-6)
      */
-    function actionsToPermissionLevel(actions) {
-        if (!actions || actions.length === 0) return 1;
+    function actionsToPermissionLevel(actions, inheritActions) {
+        // Combine both direct and inherited actions to get effective permissions
+        const allActions = new Set([...(actions || []), ...(inheritActions || [])]);
         
-        const actionsSet = new Set(actions);
+        if (allActions.size === 0) return 1;
         
         // Check from highest to lowest permission level
-        if (actionsSet.has('CONTROL')) return 6;
-        if (actionsSet.has('EDIT')) return 5;
-        if (actionsSet.has('PUBLISH')) return 4;
-        if (actionsSet.has('PUBLISH_MARKUP')) return 3;
-        if (actionsSet.has('DOWNLOAD')) return 2;
+        if (allActions.has('CONTROL')) return 6;
+        if (allActions.has('EDIT')) return 5;
+        if (allActions.has('PUBLISH')) return 4;
+        if (allActions.has('PUBLISH_MARKUP')) return 3;
+        if (allActions.has('DOWNLOAD')) return 2;
         return 1; // Default to View Only
     }
 
@@ -162,28 +165,94 @@
         
         Object.keys(permissionsMap).forEach(folderId => {
             const permissions = permissionsMap[folderId];
-            const userPermissions = {};
+            const subjectPermissions = {};
             
             permissions.forEach(perm => {
-                // Only process USER type permissions
+                const level = actionsToPermissionLevel(perm.actions, perm.inheritActions);
+                const isInherited = (perm.inheritActions && perm.inheritActions.length > 0);
+                
+                // Process USER type permissions
                 if (perm.subjectType === 'USER' && perm.email) {
+                    // Filter out Project Admins - they have automatic full access in ACC
+                    if (perm.userType === 'PROJECT_ADMIN') {
+                        return; // Skip this permission
+                    }
+                    
                     const user = findUserByEmail(perm.email, projectUsers);
                     if (user) {
-                        const level = actionsToPermissionLevel(perm.actions);
-                        userPermissions[perm.email] = {
-                            user: perm.email,
+                        const identifier = perm.email;
+                        
+                        // Handle duplicates: keep the highest permission level
+                        if (!subjectPermissions[identifier] || level > subjectPermissions[identifier].level) {
+                            if (subjectPermissions[identifier]) {
+                                console.warn(`🔄 DUPLICATE in source: ${identifier} L${subjectPermissions[identifier].level} -> L${level} (keeping higher)`);
+                            }
+                            subjectPermissions[identifier] = {
+                                identifier: perm.email,
+                                displayName: perm.email,
+                                type: 'USER',
+                                level: level,
+                                isInherited: isInherited,
+                                name: perm.name,
+                                subjectId: perm.subjectId,
+                                autodeskId: perm.autodeskId,
+                                userType: perm.userType,
+                                actions: perm.actions,
+                                inheritActions: perm.inheritActions
+                            };
+                        } else {
+                            console.warn(`⏭️ SKIPPING duplicate: ${identifier} keeping L${subjectPermissions[identifier].level}, ignoring L${level}`);
+                        }
+                    }
+                }
+                // Process ROLE type permissions (skip Administrator role)
+                else if (perm.subjectType === 'ROLE' && perm.name) {
+                    // Filter out Administrator role - it's automatically assigned in ACC
+                    if (perm.name.toLowerCase() === 'administrator') {
+                        return; // Skip this permission
+                    }
+                    const roleKey = `role_${perm.subjectId}`;
+                    
+                    // Handle duplicates: keep the highest permission level
+                    if (!subjectPermissions[roleKey] || level > subjectPermissions[roleKey].level) {
+                        subjectPermissions[roleKey] = {
+                            identifier: roleKey,
+                            displayName: `Role: ${perm.name}`,
+                            type: 'ROLE',
                             level: level,
+                            isInherited: isInherited,
                             name: perm.name,
                             subjectId: perm.subjectId,
                             autodeskId: perm.autodeskId,
-                            actions: perm.actions
+                            actions: perm.actions,
+                            inheritActions: perm.inheritActions
+                        };
+                    }
+                }
+                // Process COMPANY type permissions
+                else if (perm.subjectType === 'COMPANY' && perm.name) {
+                    const companyKey = `company_${perm.subjectId}`;
+                    
+                    // Handle duplicates: keep the highest permission level
+                    if (!subjectPermissions[companyKey] || level > subjectPermissions[companyKey].level) {
+                        subjectPermissions[companyKey] = {
+                            identifier: companyKey,
+                            displayName: `Company: ${perm.name}`,
+                            type: 'COMPANY',
+                            level: level,
+                            isInherited: isInherited,
+                            name: perm.name,
+                            subjectId: perm.subjectId,
+                            autodeskId: perm.autodeskId,
+                            actions: perm.actions,
+                            inheritActions: perm.inheritActions
                         };
                     }
                 }
             });
             
-            if (Object.keys(userPermissions).length > 0) {
-                userPermissionsMap[folderId] = userPermissions;
+            if (Object.keys(subjectPermissions).length > 0) {
+                userPermissionsMap[folderId] = subjectPermissions;
             }
         });
         
