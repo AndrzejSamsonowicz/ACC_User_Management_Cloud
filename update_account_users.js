@@ -237,7 +237,7 @@ async function importUsers(accountId, token, usersArray) {
         batches.push(usersArray.slice(i, i + BATCH_SIZE));
     }
     
-    log(`📦 Splitting ${usersArray.length} users into ${batches.length} batches of ${BATCH_SIZE}`);
+    console.log(`📦 Splitting ${usersArray.length} users into ${batches.length} batches of ${BATCH_SIZE}`);
     
     // Accumulate results from all batches
     const aggregatedResults = {
@@ -250,7 +250,7 @@ async function importUsers(accountId, token, usersArray) {
     // Process each batch sequentially with delays
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
-        log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
+        console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} users)`);
         
         // Format users according to HQ API specification from documentation
         const payload = batch.map(user => {
@@ -267,7 +267,7 @@ async function importUsers(accountId, token, usersArray) {
             if (user.nickname) formattedUser.nickname = user.nickname;
             if (user.company) formattedUser.company = user.company;
             
-            log(`📤 API Payload for ${user.email}:`, JSON.stringify(formattedUser, null, 2));
+            console.log(`📤 API Payload for ${user.email}:`, JSON.stringify(formattedUser, null, 2));
             return formattedUser;
         });
         
@@ -391,8 +391,10 @@ async function importUsers(accountId, token, usersArray) {
 }
 
 // Main function - compute lists and (optionally) perform operations
-async function updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null) {
-    log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, options);
+// If importUsersList is provided, use that instead of loading from server
+async function updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null, importUsersList = null) {
+    console.log('🚨🚨🚨 UPDATE_ACCOUNT_USERS.JS VERSION v=2026030821 LOADED 🚨🚨🚨');
+    log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, 'userDataProvided:', !!importUsersList, options);
 
     try {
         // Validate inputs first
@@ -462,16 +464,23 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         userToken = hqApiToken;
         log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
-        // Load import JSON from local server endpoint (project-specific)
-        log(`📥 Loading project-specific user list for project: ${projectId}`);
-        const importData = await fetchJSON(`${window.location.origin}/load-project-users/${projectId}`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
-        const importUsersList = importData.users || []; // Renamed to avoid conflict with function
-        log(`Loaded ${importUsersList.length} users from project-specific import file (project: ${projectId})`);
-        log('📋 Sample user data from load:', JSON.stringify(importUsersList[0], null, 2));
+        // Load import JSON - either from parameter or from server
+        let usersData;
+        if (importUsersList) {
+            log('📥 Using provided user data (fresh from table), NOT loading from server');
+            usersData = importUsersList;
+        } else {
+            // Load import JSON from local server endpoint (project-specific)
+            log(`📥 Loading project-specific user list for project: ${projectId}`);
+            const importData = await fetchJSON(`${window.location.origin}/load-project-users/${projectId}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            usersData = importData.users || [];
+        }
+        log(`Loaded ${usersData.length} users`);
+        log('📋 Sample user data from load:', JSON.stringify(usersData[0], null, 2));
 
         // Fetch account users (may need 2-legged token for reading)
         let accountUsers;
@@ -511,14 +520,16 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         const toAdd = [];   // new users to POST
         const companiesToCreate = new Map(); // name -> {name, trade}
 
+        console.log('📊 Processing users from JSON...');
+
         // Build lists
-        importUsersList.forEach(user => {
+        usersData.forEach(user => {
             const email = user.email;
             if (!email) return;
             const companyName = (user.metadata && user.metadata.company) ? user.metadata.company.trim() : '';
             const role = (user.metadata && user.metadata.role) ? user.metadata.role.trim() : '';
             
-            log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
+            console.log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
 
             const accountUser = accountByEmail.get(email);
             if (accountUser) {
@@ -536,17 +547,26 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                 const desiredCompanyId = companyId || '';
                 
                 // Only add to patch list if something changed
-                const roleChanged = currentRole !== desiredRole;
+                // IMPORTANT: If desiredRole is empty, don't try to update role (can't clear roles via API)
+                const roleChanged = desiredRole && (currentRole !== desiredRole); // Only update if new role is non-empty
                 const companyChanged = currentCompanyId !== desiredCompanyId;
                 
                 if (roleChanged || companyChanged) {
-                    toPatch.push({
+                    const patchItem = {
                         email,
                         userId: accountUser.id,
                         companyName,
-                        companyId, // may be null for now
-                        default_role: role
-                    });
+                        companyId // may be null for now
+                    };
+                    
+                    // Only include role if it's non-empty (can't clear roles via API)
+                    if (role) {
+                        patchItem.default_role = role;
+                    }
+                    
+                    toPatch.push(patchItem);
+                    
+                    log(`🔄 Will patch ${email}: role=${roleChanged ? `"${currentRole}" → "${desiredRole}"` : 'unchanged'}, company=${companyChanged ? `"${currentCompanyId}" → "${desiredCompanyId}"` : 'unchanged'}`);
                 }
             } else {
                 // goes to add
@@ -555,30 +575,38 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     companiesToCreate.set(companyName, { name: companyName, trade: companyName });
                 }
                 
-                toAdd.push({
+                const newUser = {
                     email,
                     first_name: user.first_name || user.email.split('@')[0] || 'User',
                     last_name: user.last_name || '',
                     companyName,
                     companyId, // may be null
-                    default_role: role || 'Team Member', // Default to Team Member if empty
-                    job_title: role || 'Team Member',
                     nickname: user.nickname || user.first_name || user.email.split('@')[0],
                     company: companyName || ''
-                });
-                log(`➕ Added to ADD list: ${email} with company_id="${companyId}", default_role="${role || 'Team Member'}"`);
+                };
+                
+                // Only include role fields if role is non-empty (don't force a default)
+                if (role) {
+                    newUser.default_role = role;
+                    newUser.job_title = role;
+                }
+                
+                toAdd.push(newUser);
+                console.log(`➕ Added to ADD list: ${email} with company="${companyName}", companyId="${companyId}", default_role="${role || '(empty)'}"`);
             }
         });
 
-        log(`To PATCH: ${toPatch.length}, To ADD: ${toAdd.length}, Companies to create: ${companiesToCreate.size}`);
+        console.log(`📊 To PATCH: ${toPatch.length}, To ADD: ${toAdd.length}, Companies to create: ${companiesToCreate.size}`);
 
         // Create missing companies if any (and then re-fetch companies map)
         if (companiesToCreate.size > 0) {
+            console.log('🏢 Creating', companiesToCreate.size, 'missing companies...');
             const createList = Array.from(companiesToCreate.values());
-            log('Creating companies:', createList);
+            log('🏢 Creating companies:', createList.map(c => c.name).join(', '));
             // Use 2-legged token with account:write scope for company creation
             log('🔑 Using 2-legged token with account:write scope for company creation');
-            await createCompanies(accountId, hqApiToken, createList);
+            const createdCompanies = await createCompanies(accountId, hqApiToken, createList);
+            log(`🏢 Successfully created ${createdCompanies.length} out of ${createList.length} companies`);
 
             // Re-fetch companies
             companies = await fetchAllCompanies(accountId, twoLeggedToken);
@@ -587,18 +615,32 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                 if (c.name) companyMap.set(c.name.trim().toLowerCase(), c.id);
             });
             log('Re-fetched companies after creation, total:', companies.length);
+            log('🏢 Company map now contains:', Array.from(companyMap.keys()).join(', '));
 
             // Update companyIds in toPatch/toAdd
             toPatch.forEach(item => {
-                if (item.companyName) item.companyId = companyMap.get(item.companyName.trim().toLowerCase()) || null;
+                if (item.companyName) {
+                    const oldId = item.companyId;
+                    item.companyId = companyMap.get(item.companyName.trim().toLowerCase()) || null;
+                    if (oldId !== item.companyId) {
+                        log(`🔄 Updated companyId for ${item.email}: "${oldId}" → "${item.companyId}"`);
+                    }
+                }
             });
             toAdd.forEach(item => {
-                if (item.companyName) item.companyId = companyMap.get(item.companyName.trim().toLowerCase()) || null;
+                if (item.companyName) {
+                    const oldId = item.companyId;
+                    item.companyId = companyMap.get(item.companyName.trim().toLowerCase()) || null;
+                    if (oldId !== item.companyId) {
+                        log(`🔄 Updated companyId for ${item.email}: "${oldId}" → "${item.companyId}"`);
+                    }
+                }
             });
         }
 
         // If performOps is false, return lists for review
         if (!options.performOps) {
+            console.log('⏹️ EARLY RETURN: performOps is false, returning without operations');
             return { toPatch, toAdd };
         }
 
@@ -684,14 +726,54 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                                     success = true; // Don't retry, just switch to simulation
                                     
                                 } else if (patchError.message.includes('404') && patchError.message.includes("this default_role doesn't exist")) {
-                                    // Invalid role - skip this user
-                                    const role = item.default_role || 'unknown';
-                                    console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
+                                    // Invalid role - retry WITHOUT the role field but keep company
+                                    const role = item.default_role || body.default_role || 'unknown';
+                                    console.warn(`⚠️ Invalid role "${role}" for ${item.email} - retrying without role field`);
+                                    
+                                    // Track invalid role for warning
                                     if (!results.invalidRoles.has(role)) {
                                         results.invalidRoles.set(role, []);
                                     }
                                     results.invalidRoles.get(role).push(item.email);
-                                    success = true; // Don't retry for invalid roles
+                                    
+                                    // Retry PATCH without the role field - PRESERVE company_id from original body
+                                    try {
+                                        const bodyWithoutRole = {};
+                                        // Use company_id from original body object instead of item.companyId
+                                        if (body.company_id !== undefined) {
+                                            bodyWithoutRole.company_id = body.company_id;
+                                        }
+                                        
+                                        // Only retry if there's something to update (company)
+                                        if (Object.keys(bodyWithoutRole).length > 0) {
+                                            console.log(`🔄 Retrying PATCH for ${item.email} without role, updating:`, bodyWithoutRole);
+                                            const retryResult = await patchUser(accountId, item.userId, userToken, bodyWithoutRole);
+                                            results.patched.push({ 
+                                                email: item.email, 
+                                                changes: bodyWithoutRole,
+                                                note: `Updated company - invalid role "${role}" was skipped`
+                                            });
+                                            console.log(`✅ Successfully updated ${item.email} without role:`, bodyWithoutRole);
+                                            console.log(`✅ Retry result:`, JSON.stringify(retryResult));
+                                        } else {
+                                            // No company to update - user was only being updated for invalid role
+                                            console.log(`⚠️ No changes for ${item.email} - only invalid role was being updated`);
+                                            results.patched.push({ 
+                                                email: item.email, 
+                                                changes: {},
+                                                note: `No changes - only invalid role "${role}" was specified`
+                                            });
+                                        }
+                                    } catch (retryError) {
+                                        console.error(`❌ Retry without role failed for ${item.email}:`, retryError.message);
+                                        results.errors.push({ 
+                                            email: item.email, 
+                                            operation: 'PATCH_RETRY', 
+                                            error: retryError.message 
+                                        });
+                                    }
+                                    
+                                    success = true; // Don't retry again - we already tried without role
                                     
                                 } else if (patchError.message.includes('429') || patchError.message.includes('Too Many Requests') || patchError.message.includes('rate limit')) {
                                     // Rate limit hit - wait and retry
@@ -734,8 +816,10 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
         }
 
         // POST new users in batches (API takes an array)
+        console.log('📍 REACHED POST SECTION - about to add', toAdd.length, 'users');
         try {
             if (toAdd.length > 0) {
+                console.log('🚀 Starting import of', toAdd.length, 'users...');
                 log('About to call importUsers with:', toAdd.length, 'users');
                 log('typeof importUsers:', typeof importUsers);
                 
@@ -774,26 +858,112 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                         
                         // Track any failures from batches
                         if (importResult.failure_items && importResult.failure_items.length > 0) {
+                            // Separate invalid role failures for retry
+                            const invalidRoleUsers = [];
+                            const otherFailures = [];
+                            
                             importResult.failure_items.forEach(item => {
                                 // Check if error is due to invalid role
                                 const errorMsg = item.error || item.details || '';
                                 if (errorMsg.includes("this default_role doesn't exist") || (item.details && item.details.includes("this default_role doesn't exist"))) {
-                                    // Extract role from the user data
-                                    const failedUser = toAdd.find(u => u.email === item.email);
-                                    const role = failedUser?.default_role || 'unknown';
-                                    console.warn(`⚠️ SKIPPING ${item.email} - role "${role}" doesn't exist in account`);
-                                    if (!results.invalidRoles.has(role)) {
-                                        results.invalidRoles.set(role, []);
-                                    }
-                                    results.invalidRoles.get(role).push(item.email);
+                                    invalidRoleUsers.push(item);
                                 } else {
-                                    // Other errors
-                                    results.errors.push({ 
-                                        operation: 'IMPORT', 
-                                        email: item.email,
-                                        error: item.error || 'Import failed'
-                                    });
+                                    otherFailures.push(item);
                                 }
+                            });
+                            
+                            // Handle invalid role users - RETRY without role field
+                            if (invalidRoleUsers.length > 0) {
+                                console.log(`🔄 Retrying ${invalidRoleUsers.length} users with invalid roles (without role field)...`);
+                                console.log(`🔍 invalidRoleUsers =`, JSON.stringify(invalidRoleUsers, null, 2));
+                                console.log(`🔍 toAdd array length:`, toAdd.length);
+                                console.log(`🔍 toAdd emails:`, toAdd.map(u => u.email));
+                                
+                                for (const item of invalidRoleUsers) {
+                                    console.log(`🔍 Loop iteration - processing item:`, JSON.stringify(item));
+                                    // API returns failures as {item: {...}, error: "..."}  so access item.item.email
+                                    const failedUser = toAdd.find(u => u.email === item.item.email);
+                                    console.log(`🔍 failedUser lookup result:`, failedUser ? 'FOUND' : 'NOT FOUND');
+                                    if (!failedUser) {
+                                        console.log(`⚠️ Skipping ${item.item?.email || 'unknown'} - not found in toAdd array`);
+                                        continue;
+                                    }
+                                    
+                                    const invalidRole = failedUser.default_role || 'unknown';
+                                    console.warn(`⚠️ Retrying ${item.item.email} WITHOUT invalid role "${invalidRole}"`);
+                                    
+                                    // Track invalid role for warning
+                                    if (!results.invalidRoles.has(invalidRole)) {
+                                        results.invalidRoles.set(invalidRole, []);
+                                    }
+                                    results.invalidRoles.get(invalidRole).push(item.email);
+                                    
+                                    // Retry adding user WITHOUT the role field
+                                    try {
+                                        const userWithoutRole = {
+                                            email: failedUser.email,
+                                            first_name: failedUser.first_name,
+                                            last_name: failedUser.last_name,
+                                            nickname: failedUser.nickname
+                                        };
+                                        
+                                        // Add company fields if available
+                                        if (failedUser.company) {
+                                            userWithoutRole.company = failedUser.company;
+                                        }
+                                        if (failedUser.companyName) {
+                                            userWithoutRole.companyName = failedUser.companyName;
+                                        }
+                                        if (failedUser.companyId) {
+                                            userWithoutRole.companyId = failedUser.companyId;
+                                        }
+                                        
+                                        console.log(`🔄 Retrying user without role:`, JSON.stringify(userWithoutRole));
+                                        console.log(`🔍 User has companyId: "${userWithoutRole.companyId || '(none)'}"`);
+                                        
+                                        // Retry with single user import
+                                        const retryResult = await importUsersFunction(accountId, userToken, [userWithoutRole]);
+                                        
+                                        console.log(`📋 Retry result:`, JSON.stringify(retryResult));
+                                        
+                                        if (retryResult.success > 0) {
+                                            results.added.push({ 
+                                                email: failedUser.email, 
+                                                id: retryResult.success_items?.[0]?.id,
+                                                note: `Added without invalid role "${invalidRole}"`
+                                            });
+                                            console.log(`✅ Successfully added ${failedUser.email} without role`);
+                                        } else {
+                                            // Retry also failed for other reasons
+                                            results.errors.push({ 
+                                                operation: 'IMPORT_RETRY', 
+                                                email: failedUser.email,
+                                                error: `Failed to add even without role: ${retryResult.failure_items?.[0]?.error || 'Unknown error'}`
+                                            });
+                                            console.log(`❌ Failed to add ${failedUser.email} even without role`);
+                                        }
+                                        
+                                        // Small delay between retries
+                                        await new Promise(resolve => setTimeout(resolve, 200));
+                                        
+                                    } catch (retryError) {
+                                        console.error(`❌ Error retrying ${item.item.email}:`, retryError);
+                                        results.errors.push({ 
+                                            operation: 'IMPORT_RETRY', 
+                                            email: item.item.email,
+                                            error: retryError.message
+                                        });
+                                    }
+                                }
+                            }
+                            
+                            // Handle other failures (not role-related)
+                            otherFailures.forEach(item => {
+                                results.errors.push({ 
+                                    operation: 'IMPORT', 
+                                    email: item.email,
+                                    error: item.error || 'Import failed'
+                                });
                             });
                         }
                         
@@ -1060,6 +1230,25 @@ function showResultsInModal(results) {
     }
     
     html += `• ${results.errors.length} errors<br><br>`;
+    
+    // Show invalid roles warning
+    const invalidRoleCount = results.invalidRoles?.size || 0;
+    if (invalidRoleCount > 0) {
+        html += '<strong style="color: #d32f2f;">⚠️ INVALID ROLES - Users SKIPPED:</strong><br>';
+        html += '<div style="background: #fff3cd; border-left: 3px solid #ffc107; padding: 10px; margin: 10px 0;">';
+        for (const [role, emails] of results.invalidRoles) {
+            html += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account:</strong><br>`;
+            html += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => {
+                html += `<li>${email}</li>`;
+            });
+            html += '</ul>';
+        }
+        html += '<div style="margin-top: 10px; padding: 8px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+        html += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the JSON file with valid roles.';
+        html += '</div>';
+        html += '</div><br>';
+    }
     
     // Show simulated operations
     const simulatedOps = [...results.patched.filter(p => p.simulated), ...results.added.filter(a => a.simulated)];

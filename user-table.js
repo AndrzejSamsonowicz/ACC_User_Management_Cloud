@@ -1997,34 +1997,45 @@ class UserTableManager {
                 throw new Error('updateAccountUsersForAccount function not available');
             }
             
-            // Run the update silently (no preview, no confirmation) with projectId
+            // Get fresh user data from the table that was just collected in saveTableToJson
+            // This ensures we use the latest edited data, not stale data from server
+            const userDataFromTable = this.lastCollectedUserData || null;
+            
+            // Run the update silently (no preview, no confirmation) with projectId and fresh data
             this.showSaveProgress('Analyzing users...', 20);
-            const results = await updateAccountUsersForAccount(accountId, { performOps: true }, this.modalProjectId);
+            const results = await updateAccountUsersForAccount(accountId, { performOps: true }, this.modalProjectId, userDataFromTable);
             
             log('✅ Account update results:', results);
             
-            // Check for invalid roles - users were SKIPPED
+            // Check for invalid roles - users were processed without invalid roles
             const invalidRoleCount = results.invalidRoles?.size || 0;
             if (invalidRoleCount > 0) {
-                console.warn('⚠️ Invalid roles detected - users were SKIPPED:', results.invalidRoles);
+                console.warn('⚠️ Invalid roles detected - users were processed without roles:', results.invalidRoles);
                 
                 // Build error message HTML
-                let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #d32f2f;">⚠️ Invalid roles found - users were SKIPPED:</div>';
+                let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
                 for (const [role, emails] of results.invalidRoles) {
                     errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
                     errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
                     errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
                     emails.forEach(email => {
-                        errorHTML += `<li>${email}, this role doesn't exist: Provide the valid user role</li>`;
+                        errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
                     });
                     errorHTML += '</ul></div>';
                 }
                 errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-                errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the JSON file with valid roles.';
+                errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
                 errorHTML += '</div>';
                 
                 // Show error below progress bar
                 this.showInvalidRolesWarning(errorHTML);
+            } else {
+                // No invalid roles - clear any existing warning from previous save
+                const existingWarning = document.getElementById('invalidRolesWarning');
+                if (existingWarning) {
+                    existingWarning.remove();
+                    log('✅ Cleared previous invalid roles warning (all roles are now valid)');
+                }
             }
             
             // Update progress based on results
@@ -2454,6 +2465,9 @@ class UserTableManager {
                 users.push(user);
             }
         });
+        
+        // Store the collected user data so updateAccountUsersBeforeSave can use fresh data
+        this.lastCollectedUserData = users;
         
         const jsonData = {
             users: users,

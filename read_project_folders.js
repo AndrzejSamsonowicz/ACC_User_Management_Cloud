@@ -61,16 +61,16 @@
      * Initialize the folders permissions module
      */
     window.initFoldersPermissions = function() {
-        log('📁 Folders Permissions module initialized');
+        // log('📁 Folders Permissions module initialized');
     };
 
     /**
      * Show the folders management modal for a project
      */
     window.showFoldersModal = async function(projectId, projectName, hubId, accessToken) {
-        log('📁 Opening folders modal for project:', projectName);
-        log('📁 Project ID:', projectId);
-        log('📁 Hub ID:', hubId);
+        // log('📁 Opening folders modal for project:', projectName);
+        // log('📁 Project ID:', projectId);
+        // log('📁 Hub ID:', hubId);
 
         // Store current project data
         currentProjectData = {
@@ -116,7 +116,7 @@
             // Fetch and pre-populate with existing ACC folder permissions
             // Continue with unified progress (50-100%)
             updateLoadingProgress('Loading folder structure...', 50);
-            log('🔐 Fetching existing ACC folder permissions...');
+            // log('🔐 Fetching existing ACC folder permissions...');
             await loadExistingACCPermissions(projectId, folderHierarchy, usersData.displayUsers, accessToken);
             
             // DON'T auto-load saved JSON - it would override our fresh ACC data
@@ -144,7 +144,7 @@
             
             hideLoadingProgress();
         } catch (error) {
-            console.error('❌ Error loading folders:', error);
+            // console.error('❌ Error loading folders:', error);
             
             // Complete progress to 100% before hiding (even on error)
             updateLoadingProgress('Loading folder structure...', 100);
@@ -206,7 +206,7 @@
      * Fetch complete folder hierarchy (3 levels) with parallel API calls
      */
     async function fetchFolderHierarchy(hubId, projectId, accessToken) {
-        log('📂 Fetching folder hierarchy...');
+        // log('📂 Fetching folder hierarchy...');
         
         try {
             // Show progress modal
@@ -214,7 +214,7 @@
             
             // Step 1: Get top-level folders
             const topFolders = await fetchTopFolders(hubId, projectId, accessToken);
-            log(`📂 Found ${topFolders.length} top-level folders`);
+            // log(`📂 Found ${topFolders.length} top-level folders`);
             updateLoadingProgress('Loading folder structure...', 5);
 
         const hierarchy = [];
@@ -224,7 +224,7 @@
         // Step 2: Fetch ALL level 2 folders in PARALLEL
         const level2Promises = topFolders.map(async (level1Folder) => {
             const level2Folders = await fetchFolderContents(projectId, level1Folder.id, accessToken);
-            log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
+            // log(`📂 Folder "${level1Folder.name}" has ${level2Folders.length} children`);
             
             processedFolders++;
             const progress = 5 + (processedFolders / totalFolders) * 15; // 5% to 20%
@@ -278,7 +278,7 @@
 
         // Build final hierarchy
         for (const { level1Folder, level2Folder, level3Folders } of level3Results) {
-            log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
+            // log(`📂 Folder "${level2Folder.name}" has ${level3Folders.length} children`);
             
             if (level3Folders.length === 0) {
                 hierarchy.push({
@@ -298,7 +298,7 @@
         }
 
         updateLoadingProgress('Loading folder structure...', 50);
-        log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
+        // log(`✅ Complete hierarchy built: ${hierarchy.length} rows`);
         
         return hierarchy;
         
@@ -318,7 +318,7 @@
         const formattedProjectId = projectId.startsWith('b.') ? projectId : `b.${projectId}`;
         const url = `https://developer.api.autodesk.com/project/v1/hubs/${hubId}/projects/${formattedProjectId}/topFolders`;
         
-        log('📡 Fetching top folders from:', url);
+        // log('📡 Fetching top folders from:', url);
 
         const response = await fetch(url, {
             headers: {
@@ -355,7 +355,7 @@
         const encodedFolderId = encodeURIComponent(folderId);
         const url = `https://developer.api.autodesk.com/data/v1/projects/${formattedProjectId}/folders/${encodedFolderId}/contents?filter[type]=folders`;
         
-        log('📡 Fetching folder contents from:', url);
+        // log('📡 Fetching folder contents from:', url);
 
         const response = await fetch(url, {
             headers: {
@@ -365,7 +365,7 @@
         });
 
         if (!response.ok) {
-            console.warn(`⚠️ Failed to fetch contents for folder ${folderId}: ${response.status}`);
+            // console.warn(`⚠️ Failed to fetch contents for folder ${folderId}: ${response.status}`);
             return []; // Return empty array if folder has no accessible contents
         }
 
@@ -389,7 +389,7 @@
      * Fetch project users
      */
     async function fetchProjectUsers(hubId, projectId, accessToken) {
-        log('👥 Fetching project users...');
+        // log('👥 Fetching project users...');
         
         let allUsers = [];
         let offset = 0;
@@ -419,14 +419,14 @@
             
             // Log first response to see structure
             if (offset === 0 && usersData.results && usersData.results.length > 0) {
-                log('Sample API user response:', usersData.results[0]);
-                log('Available keys:', Object.keys(usersData.results[0]));
-                log('Role field check:', {
-                    default_role: usersData.results[0].default_role,
-                    role: usersData.results[0].role,
-                    role_name: usersData.results[0].role_name,
-                    roleName: usersData.results[0].roleName
-                });
+                // log('Sample API user response:', usersData.results[0]);
+                // log('Available keys:', Object.keys(usersData.results[0]));
+                // log('Role field check:', {
+                //     default_role: usersData.results[0].default_role,
+                //     role: usersData.results[0].role,
+                //     role_name: usersData.results[0].role_name,
+                //     roleName: usersData.results[0].roleName
+                // });
             }
             
             if (usersData.results && usersData.results.length > 0) {
@@ -473,15 +473,15 @@
             
             // Debug: log if role is missing
             if (userData.default_role === 'No Role') {
-                log('User without role:', user);
+                // log('User without role:', user);
             }
             
             return userData;
         });
         
-        log(`✅ Fetched ${displayUsers.length} project users`);
-        log('Sample display user:', displayUsers[0]);
-        log('Sample raw user:', rawUsers[0]);
+        // log(`✅ Fetched ${displayUsers.length} project users`);
+        // log('Sample display user:', displayUsers[0]);
+        // log('Sample raw user:', rawUsers[0]);
         
         return {
             displayUsers: displayUsers,
@@ -866,7 +866,7 @@
             });
         });
         
-        console.log(`⌨️ Attached arrow key navigation to ${allInputs.length} permission inputs`);
+        // console.log(`⌨️ Attached arrow key navigation to ${allInputs.length} permission inputs`);
     }
 
     /**
@@ -959,7 +959,7 @@
                         return level1Id && !level2Id; // Parent folders have level1 but no level2
                     });
                     
-                    console.log(`📋 Bulk assignment: Assigning ${usersToAssign.length} user(s) to ${parentRows.length} parent folders`);
+                    // console.log(`📋 Bulk assignment: Assigning ${usersToAssign.length} user(s) to ${parentRows.length} parent folders`);
                     
                     // For each parent folder, assign all users
                     parentRows.forEach(parentRow => {
@@ -1076,7 +1076,7 @@
                         item.classList.remove('user-selected');
                     });
                     
-                    console.log(`✅ Bulk assignment complete: ${usersToAssign.length} user(s) added to all ${parentRows.length} parent folders with inheritance`);
+                    // console.log(`✅ Bulk assignment complete: ${usersToAssign.length} user(s) added to all ${parentRows.length} parent folders with inheritance`);
                     return; // Exit early, don't process normal drop
                 }
                 
@@ -1090,7 +1090,7 @@
                     try {
                         usersToPlace = JSON.parse(multiUserData);
                     } catch (err) {
-                        console.error('Failed to parse multi-user data:', err);
+                        // console.error('Failed to parse multi-user data:', err);
                         usersToPlace = [e.dataTransfer.getData('text/plain')];
                     }
                 } else {
@@ -1114,7 +1114,7 @@
                 if (requiredColumns > currentColumns) {
                     // Need to add more columns to all rows
                     const columnsToAdd = requiredColumns - currentColumns;
-                    log(`📊 Need to add ${columnsToAdd} columns (current: ${currentColumns}, required: ${requiredColumns})`);
+                    // log(`📊 Need to add ${columnsToAdd} columns (current: ${currentColumns}, required: ${requiredColumns})`);
                     
                     // Add columns to the entire table
                     const table = document.querySelector('.folders-table');
@@ -1130,7 +1130,7 @@
                         
                         // Update additionalColumnsCount
                         additionalColumnsCount += columnsToAdd;
-                        log(`📊 Added ${columnsToAdd} columns, total additional columns: ${additionalColumnsCount}`);
+                        // log(`📊 Added ${columnsToAdd} columns, total additional columns: ${additionalColumnsCount}`);
                         
                         // Re-setup drag and drop for ALL cells (including new ones)
                         setupTableDragAndDrop();
@@ -1192,7 +1192,7 @@
                         if (subjectInfo && subjectInfo.subjectId && subjectInfo.subjectType) {
                             targetCell.setAttribute('data-subject-id', subjectInfo.subjectId);
                             targetCell.setAttribute('data-subject-type', subjectInfo.subjectType);
-                            log(`✅ Set subject attributes for dropped user: ${displayName} (${subjectInfo.subjectType}, ${subjectInfo.subjectId})`);
+                            // log(`✅ Set subject attributes for dropped user: ${displayName} (${subjectInfo.subjectType}, ${subjectInfo.subjectId})`);
                         }
                         
                         // Apply subject type color with gradient based on level
@@ -1379,7 +1379,7 @@
                     tableContainer.style.width = `${100 / currentZoom}%`;
                 }
                 
-                log(`🔍 Table zoom: ${Math.round(currentZoom * 100)}%`);
+                // log(`🔍 Table zoom: ${Math.round(currentZoom * 100)}%`);
             }
         }, { passive: false });
     }
@@ -1451,7 +1451,7 @@
                             cell.style.backgroundColor = colors.background;
                             cell.style.color = colors.color;
                             
-                            log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                            // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                         }
                     }
                 }
@@ -1506,7 +1506,7 @@
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
                                         
-                                        log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                        // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                     }
                                 }
                             }
@@ -1539,7 +1539,7 @@
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
                                         
-                                        log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                        // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                     }
                                 }
                             }
@@ -1576,7 +1576,7 @@
                                                 targetCell.style.backgroundColor = colors.background;
                                                 targetCell.style.color = colors.color;
                                                 
-                                                log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
+                                                // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                             }
                                         }
                                     }
@@ -1650,7 +1650,7 @@
                     hasContent: cell.classList.contains('has-content')
                 };
             });
-            log(`📋 Copied ${copiedCells.length} cells`);
+            // log(`📋 Copied ${copiedCells.length} cells`);
         }
         
         // Handle Ctrl+V (Paste)
@@ -1762,7 +1762,7 @@
                 }
             });
             
-            log(`📌 Pasted ${copiedCells.length} cells`);
+            // log(`📌 Pasted ${copiedCells.length} cells`);
         }
     }
 
@@ -1808,7 +1808,7 @@
         });
         
         if (updatedCount > 0) {
-            console.log(`🔄 Updated ${updatedCount} user entries to display as ${displayMode}`);
+            // console.log(`🔄 Updated ${updatedCount} user entries to display as ${displayMode}`);
         }
     }
 
@@ -1873,6 +1873,9 @@
             <div class="user-list-instructions">
                 Drag and drop users to the table on the left.<br>
                 <strong>💡 Tip:</strong> Drop on parent folder name (first column) to assign to <strong>ALL parent folders</strong> with inheritance.<br>
+                <strong>💡 Tip:</strong> Press <strong>Shift</strong> to select a range of cells.<br>
+                <strong>💡 Tip:</strong> Press <strong>Ctrl</strong> to toggle individual cell selection.<br>
+                <strong>💡 Tip:</strong> Press <strong>Ctrl</strong> and <strong>scroll</strong> the mouse wheel to zoom in and zoom out.<br>
                 <br>
                 Access levels:<br>
                 1 - View Only<br>
@@ -2139,22 +2142,22 @@
             });
         });
 
-        log('🧹 Table cleaned - all users removed from display');
+        // log('🧹 Table cleaned - all users removed from display');
     }
 
     /**
      * Lookup subjectId and subjectType for a user/company/role name
      */
     function lookupSubjectInfo(userName) {
-        log(`🔍 Looking up subject info for: "${userName}"`);
+        // log(`🔍 Looking up subject info for: "${userName}"`);
         
         if (!currentProjectUsersRaw || currentProjectUsersRaw.length === 0) {
-            console.error('❌ No raw user data available for lookup!');
-            log('currentProjectUsersRaw:', currentProjectUsersRaw);
+            // console.error('❌ No raw user data available for lookup!');
+            // log('currentProjectUsersRaw:', currentProjectUsersRaw);
             return null;
         }
 
-        log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
+        // log(`📊 Raw user data available: ${currentProjectUsersRaw.length} users`);
 
         // Check if it's a prefixed company or role name
         let actualName = userName;
@@ -2163,19 +2166,19 @@
         if (userName.startsWith('Company: ')) {
             actualName = userName.substring('Company: '.length);
             forcedType = 'COMPANY';
-            log(`🏢 Detected prefixed COMPANY: "${actualName}"`);
+            // log(`🏢 Detected prefixed COMPANY: "${actualName}"`);
         } else if (userName.startsWith('Role: ')) {
             actualName = userName.substring('Role: '.length);
             forcedType = 'ROLE';
-            log(`👤 Detected prefixed ROLE: "${actualName}"`);
+            // log(`👤 Detected prefixed ROLE: "${actualName}"`);
         }
 
         // Check if it's an email (USER)
         if (actualName.includes('@') && !forcedType) {
-            log('✉️ Detected as EMAIL');
+            // log('✉️ Detected as EMAIL');
             const user = currentProjectUsersRaw.find(u => u.email === actualName);
             if (user) {
-                log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
+                // log(`✅ Found USER - ID: ${user.id}, Name: ${user.name || 'No name'}`);
                 const result = {
                     subjectId: user.id,
                     subjectType: 'USER'
@@ -2188,14 +2191,14 @@
                 
                 return result;
             }
-            console.warn(`⚠️ Email not found: ${actualName}`);
+            // console.warn(`⚠️ Email not found: ${actualName}`);
         }
 
         // Check if it's a name (USER by name) - only if not forced as COMPANY or ROLE
         if (!forcedType) {
             const userByName = currentProjectUsersRaw.find(u => u.name === actualName);
             if (userByName) {
-                log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
+                // log(`✅ Found USER by name - ID: ${userByName.id}, Email: ${userByName.email}`);
                 const result = {
                     subjectId: userByName.id,
                     subjectType: 'USER',
@@ -2213,10 +2216,10 @@
 
         // Check if it's a company name (COMPANY)
         if (forcedType === 'COMPANY' || !forcedType) {
-            log('🏢 Checking as COMPANY');
+            // log('🏢 Checking as COMPANY');
             const companyUser = currentProjectUsersRaw.find(u => u.companyName === actualName);
             if (companyUser && companyUser.companyId) {
-                log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
+                // log(`✅ Found COMPANY - ID: ${companyUser.companyId}`);
                 return {
                     subjectId: companyUser.companyId,
                     subjectType: 'COMPANY'
@@ -2226,12 +2229,12 @@
 
         // Check if it's a role name (ROLE)
         if (forcedType === 'ROLE' || !forcedType) {
-            log('👤 Checking as ROLE');
+            // log('👤 Checking as ROLE');
             for (const user of currentProjectUsersRaw) {
                 if (user.roles && Array.isArray(user.roles)) {
                     const matchingRole = user.roles.find(r => r.name === actualName);
                     if (matchingRole && user.roleIds && user.roleIds.length > 0) {
-                        log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
+                        // log(`✅ Found ROLE - ID: ${user.roleIds[0]}`);
                         return {
                             subjectId: user.roleIds[0],
                             subjectType: 'ROLE'
@@ -2241,9 +2244,9 @@
             }
         }
 
-        console.error(`❌ Could not find subject info for: "${userName}" (searching for: "${actualName}")`);
-        log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
-        log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
+        // console.error(`❌ Could not find subject info for: "${userName}" (searching for: "${actualName}")`);
+        // log('Available companies:', currentProjectUsersRaw.map(u => u.companyName).filter((v, i, a) => a.indexOf(v) === i));
+        // log('Available roles:', currentProjectUsersRaw.flatMap(u => u.roles ? u.roles.map(r => r.name) : []).filter((v, i, a) => a.indexOf(v) === i));
         return null;
     }
 
@@ -2291,7 +2294,7 @@
         if (typeof window.syncPermissionsToACC === 'function') {
             await window.syncPermissionsToACC(currentProjectData, currentProjectUsersRaw);
         } else {
-            console.error('❌ Sync module not loaded!');
+            // console.error('❌ Sync module not loaded!');
             alert('Sync module not loaded. Please refresh the page.');
         }
     }
@@ -2331,14 +2334,14 @@
                 }
             }
         } catch (error) {
-            console.error('Error checking file existence:', error);
+            // console.error('Error checking file existence:', error);
         }
 
         const folders = [];
         const rows = table.querySelectorAll('tbody tr');
 
-        log('💾 Starting save operation...');
-        log(`📊 Current raw users available: ${currentProjectUsersRaw ? currentProjectUsersRaw.length : 0}`);
+        // log('💾 Starting save operation...');
+        // log(`📊 Current raw users available: ${currentProjectUsersRaw ? currentProjectUsersRaw.length : 0}`);
 
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
@@ -2366,7 +2369,7 @@
                     const userName = usernameSpan.textContent.trim();
                     const permissionLevel = permissionInput.value.trim();
                     
-                    log(`\n📝 Processing permission for: ${userName}`);
+                    // log(`\n📝 Processing permission for: ${userName}`);
                     
                     // First, check if cell already has subjectId and subjectType (from pre-population)
                     const existingSubjectId = cell.getAttribute('data-subject-id');
@@ -2376,19 +2379,19 @@
                     
                     if (existingSubjectId && existingSubjectType) {
                         // Use existing data attributes (from ACC pre-population)
-                        log(`✅ Using existing data attributes: subjectId=${existingSubjectId}, subjectType=${existingSubjectType}`);
+                        // log(`✅ Using existing data attributes: subjectId=${existingSubjectId}, subjectType=${existingSubjectType}`);
                         subjectInfo = {
                             subjectId: existingSubjectId,
                             subjectType: existingSubjectType
                         };
                     } else {
                         // Fallback to lookup (for manually added users)
-                        log(`🔍 No data attributes found, looking up subject info...`);
+                        // log(`🔍 No data attributes found, looking up subject info...`);
                         subjectInfo = lookupSubjectInfo(userName);
                     }
                     
                     if (subjectInfo) {
-                        log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
+                        // log(`✅ Saving with subjectId: ${subjectInfo.subjectId}, subjectType: ${subjectInfo.subjectType}`);
                         const permissionData = {
                             subjectId: subjectInfo.subjectId,
                             subjectType: subjectInfo.subjectType,
@@ -2404,7 +2407,7 @@
                         permissions[`column${i - 1}`] = permissionData;
                     } else {
                         // Fallback: save without subjectId if lookup fails
-                        console.error(`❌ LOOKUP FAILED for: ${userName} - Saving without subjectId`);
+                        // console.error(`❌ LOOKUP FAILED for: ${userName} - Saving without subjectId`);
                         permissions[`column${i - 1}`] = {
                             user: userName,
                             level: permissionLevel
@@ -2447,13 +2450,13 @@
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             } else {
-                console.error('❌ No authentication token available');
+                // console.error('❌ No authentication token available');
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 showTooltip(saveBtn, '✗ Authentication required. Please log in again.');
                 return;
             }
             
-            log('💾 Sending save request to server...');
+            // log('💾 Sending save request to server...');
             const response = await fetch(`${window.location.origin}/save-folder-permissions`, {
                 method: 'POST',
                 headers: headers,
@@ -2465,13 +2468,13 @@
                 })
             });
 
-            log('💾 Server response status:', response.status, response.statusText);
+            // log('💾 Server response status:', response.status, response.statusText);
             
             // Check HTTP status first
             if (!response.ok) {
                 const errorData = await response.json();
                 const errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`;
-                console.error('❌ Server returned error:', response.status, errorMessage);
+                // console.error('❌ Server returned error:', response.status, errorMessage);
                 
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 if (response.status === 401) {
@@ -2488,18 +2491,18 @@
             const result = await response.json();
             
             if (result.success) {
-                log(`💾 Saved folder permissions to Firebase for project: ${currentProjectData.projectName}`);
+                // log(`💾 Saved folder permissions to Firebase for project: ${currentProjectData.projectName}`);
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 showTooltip(saveBtn, '✓ Saved successfully');
             } else {
                 // Should not happen if response.ok is true, but handle it anyway
                 const errorMessage = result.message || 'Unknown error';
-                console.error('❌ Save failed:', errorMessage);
+                // console.error('❌ Save failed:', errorMessage);
                 const saveBtn = document.getElementById('saveFolderPermissionsBtn');
                 showTooltip(saveBtn, `✗ Error: ${errorMessage}`);
             }
         } catch (error) {
-            console.error('❌ Network error saving folder permissions:', error);
+            // console.error('❌ Network error saving folder permissions:', error);
             const saveBtn = document.getElementById('saveFolderPermissionsBtn');
             showTooltip(saveBtn, `✗ Network error: ${error.message}`);
         }
@@ -2514,7 +2517,7 @@
         // Create a set of current user emails from the display users
         const currentUserEmails = new Set(currentProjectUsers.map(u => u.email));
         
-        log('🔍 Current project user emails:', Array.from(currentUserEmails));
+        // log('🔍 Current project user emails:', Array.from(currentUserEmails));
         
         // Extract all unique users from saved permissions
         const savedUsers = new Set();
@@ -2530,27 +2533,27 @@
             }
         });
 
-        log('🔍 Saved users from JSON:', Array.from(savedUsers));
+        // log('🔍 Saved users from JSON:', Array.from(savedUsers));
 
         // Check which saved users don't exist in current project users
         // Only include regular user emails (skip companies and roles)
         savedUsers.forEach(user => {
             // Skip if not an email (companies and roles don't have @)
             if (!user.includes('@')) {
-                log(`  ⏭️ Skipping non-email: ${user}`);
+                // log(`  ⏭️ Skipping non-email: ${user}`);
                 return;
             }
             
             // Only add if user email doesn't exist in current project
             if (!currentUserEmails.has(user)) {
-                log(`  ❌ Deleted user found: ${user}`);
+                // log(`  ❌ Deleted user found: ${user}`);
                 deletedUsers.push(user);
             } else {
-                log(`  ✅ User still exists: ${user}`);
+                // log(`  ✅ User still exists: ${user}`);
             }
         });
 
-        log('🔍 Deleted users (emails only) found:', deletedUsers);
+        // log('🔍 Deleted users (emails only) found:', deletedUsers);
         return deletedUsers;
     }
 
@@ -2639,7 +2642,7 @@
                     
                     if (deletedSet.has(userName)) {
                         delete folder.permissions[columnKey];
-                        log(`🗑️ Removed ${userName} from folder ${folder.level1}`);
+                        // log(`🗑️ Removed ${userName} from folder ${folder.level1}`);
                     }
                 });
             }
@@ -2692,7 +2695,7 @@
         
         if (updatedCount > 0) {
             const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
-            console.log(`✨ Auto-updated ${updatedCount} inherited permissions in child folders of "${folderName}"`);
+            // console.log(`✨ Auto-updated ${updatedCount} inherited permissions in child folders of "${folderName}"`);
         }
     }
 
@@ -2739,7 +2742,7 @@
         
         if (removedCount > 0) {
             const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
-            console.log(`🗑️ Auto-removed "${userIdentifier}" from ${removedCount} child folders of "${folderName}"`);
+            // console.log(`🗑️ Auto-removed "${userIdentifier}" from ${removedCount} child folders of "${folderName}"`);
         }
     }
 
@@ -2771,7 +2774,7 @@
         
         // If we couldn't find the user in parent row, can't determine column placement
         if (parentColumnIndex === -1) {
-            console.warn(`⚠️ Could not find "${userIdentifier}" in parent row to determine column placement`);
+            // console.warn(`⚠️ Could not find "${userIdentifier}" in parent row to determine column placement`);
             return;
         }
         
@@ -2789,7 +2792,7 @@
                 if (parentColumnIndex >= cells.length) {
                     // Add columns to reach the parent's column index
                     const columnsToAdd = parentColumnIndex - cells.length + 1;
-                    console.log(`➕ Adding ${columnsToAdd} columns to child row to match parent column ${parentColumnIndex}`);
+                    // console.log(`➕ Adding ${columnsToAdd} columns to child row to match parent column ${parentColumnIndex}`);
                     
                     for (let i = 0; i < columnsToAdd; i++) {
                         const newCell = document.createElement('td');
@@ -2809,12 +2812,12 @@
                     
                     // If it's already an inherited copy of this same user, skip
                     if (existingUser === userIdentifier && isInherited) {
-                        console.log(`ℹ️ "${userIdentifier}" already inherited in this child folder`);
+                        // console.log(`ℹ️ "${userIdentifier}" already inherited in this child folder`);
                         return;
                     }
                     
                     // If it's a different user (orphan), don't overwrite - skip this child
-                    console.warn(`⚠️ Column ${parentColumnIndex} in child already occupied by "${existingUser}" (orphan user). Skipping inheritance for this child.`);
+                    // console.warn(`⚠️ Column ${parentColumnIndex} in child already occupied by "${existingUser}" (orphan user). Skipping inheritance for this child.`);
                     return;
                 }
                 
@@ -2860,7 +2863,7 @@
         
         if (addedCount > 0) {
             const folderName = document.querySelector(`tr[data-folder-id="${parentFolderId}"] td:first-child`)?.textContent.trim() || 'parent';
-            console.log(`➕ Auto-added "${userIdentifier}" to ${addedCount} child folders of "${folderName}"`);
+            // console.log(`➕ Auto-added "${userIdentifier}" to ${addedCount} child folders of "${folderName}"`);
             
             // Ensure all rows have consistent column count
             const allRows = table.querySelectorAll('tbody tr');
@@ -2888,12 +2891,12 @@
         try {
             // Check if FolderPermissions module is available
             if (!window.FolderPermissions || !window.FolderPermissions.fetchAllFolderPermissions) {
-                console.warn('⚠️ FolderPermissions module not available, skipping ACC permissions load');
+                // console.warn('⚠️ FolderPermissions module not available, skipping ACC permissions load');
                 updateLoadingProgress('Loading folder structure...', 98);
                 return;
             }
 
-            log('🔐 Fetching existing folder permissions from ACC...');
+            // log('🔐 Fetching existing folder permissions from ACC...');
             updateLoadingProgress('Loading folder structure...', 55);
             const permissionsMap = await window.FolderPermissions.fetchAllFolderPermissions(
                 projectId, 
@@ -2917,11 +2920,11 @@
                 // Debug: log all permissions with their KEYS for this folder
                 const permEntries = Object.entries(perms);
                 if (permEntries.length > 0) {
-                    console.group(`📁 Folder ${folderId} - ${permEntries.length} entries`);
+                    // console.group(`📁 Folder ${folderId} - ${permEntries.length} entries`);
                     permEntries.forEach(([key, p]) => {
-                        console.log(`  Key: "${key}" => Identifier: "${p.identifier}" Level: ${p.level}`);
+                        // console.log(`  Key: "${key}" => Identifier: "${p.identifier}" Level: ${p.level}`);
                     });
-                    console.groupEnd();
+                    // console.groupEnd();
                 }
                 
                 const deduplicated = {};
@@ -2930,11 +2933,11 @@
                     const id = perm.identifier;
                     if (!deduplicated[id] || perm.level > deduplicated[id].level) {
                         if (deduplicated[id]) {
-                            console.log(`    🔄 Replacing ${id} L${deduplicated[id].level} with L${perm.level} (higher)`);
+                            // console.log(`    🔄 Replacing ${id} L${deduplicated[id].level} with L${perm.level} (higher)`);
                         }
                         deduplicated[id] = perm;
                     } else {
-                        console.log(`    ⏭️ Keeping ${id} L${deduplicated[id].level}, skipping L${perm.level} (lower)`);
+                        // console.log(`    ⏭️ Keeping ${id} L${deduplicated[id].level}, skipping L${perm.level} (lower)`);
                     }
                 }
                 
@@ -2944,10 +2947,10 @@
                     
                     const deduplicatedEntries = Object.entries(deduplicated);
                     if (deduplicatedEntries.length !== permEntries.length) {
-                        console.log(`  ✅ AFTER dedup: ${deduplicatedEntries.map(([k, p]) => `${p.identifier}:L${p.level}`).join(', ')}`);
+                        // console.log(`  ✅ AFTER dedup: ${deduplicatedEntries.map(([k, p]) => `${p.identifier}:L${p.level}`).join(', ')}`);
                     }
                 } else {
-                    console.warn(`  ⚠️ Deduplication resulted in empty object for folder ${folderId}!`);
+                    // console.warn(`  ⚠️ Deduplication resulted in empty object for folder ${folderId}!`);
                 }
             }
             
@@ -2972,31 +2975,31 @@
                         Object.keys(childPerms).forEach(userIdentifier => {
                             if (parentUsers.has(userIdentifier)) {
                                 // User exists in parent - remove from child (will inherit)
-                                console.log(`  🔄 Removing duplicate user "${userIdentifier}" from child ${childId} (will inherit from parent)`);
+                                // console.log(`  🔄 Removing duplicate user "${userIdentifier}" from child ${childId} (will inherit from parent)`);
                                 delete childPerms[userIdentifier];
                                 duplicateUsersRemoved++;
                             } else {
                                 // User ONLY in child - keep it (orphan user)
-                                console.log(`  👤 Keeping orphan user "${userIdentifier}" in child ${childId} (not in parent)`);
+                                // console.log(`  👤 Keeping orphan user "${userIdentifier}" in child ${childId} (not in parent)`);
                                 orphanUsersKept++;
                             }
                         });
                         
                         // If child now has no permissions left, remove the folder entry
                         if (Object.keys(childPerms).length === 0) {
-                            console.log(`  🧹 Child folder ${childId} now empty after removing duplicates`);
+                            // console.log(`  🧹 Child folder ${childId} now empty after removing duplicates`);
                             delete userPermissionsMap[childId];
                         }
                     }
                 }
             });
             
-            console.log(`✅ Deduplication complete: Removed ${duplicateUsersRemoved} duplicate users, kept ${orphanUsersKept} orphan users`);
+            // console.log(`✅ Deduplication complete: Removed ${duplicateUsersRemoved} duplicate users, kept ${orphanUsersKept} orphan users`);
 
             updateLoadingProgress('Loading folder structure...', 75);
             const table = document.querySelector('.folders-table');
             if (!table) {
-                console.warn('⚠️ Table not found, cannot populate permissions');
+                // console.warn('⚠️ Table not found, cannot populate permissions');
                 return;
             }
 
@@ -3040,12 +3043,12 @@
                 
                 if (isLevel3Folder) {
                     // LEVEL 3 FOLDERS: Can have BOTH inherited (from parent) AND orphan users (unique to child)
-                    console.log(`👶 CHILD "${folderName}" (${folderId}) checking parent ${level2Id}`);
+                    // console.log(`👶 CHILD "${folderName}" (${folderId}) checking parent ${level2Id}`);
                     
                     // First: Add inherited permissions from parent (if parent has any)
                     if (level2Id && userPermissionsMap[level2Id]) {
                         const parentPerms = Object.values(userPermissionsMap[level2Id]);
-                        console.log(`  ✅ Inheriting ${parentPerms.length} users from parent:`, parentPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        // console.log(`  ✅ Inheriting ${parentPerms.length} users from parent:`, parentPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
                         
                         parentPerms.forEach(perm => {
                             effectivePermissions.set(perm.identifier, {
@@ -3059,7 +3062,7 @@
                     // Second: Add orphan users (unique to child, not in parent)
                     if (userPermissionsMap[folderId]) {
                         const ownPerms = Object.values(userPermissionsMap[folderId]);
-                        console.log(`  👤 Adding ${ownPerms.length} orphan users (unique to child):`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        // console.log(`  👤 Adding ${ownPerms.length} orphan users (unique to child):`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
                         
                         ownPerms.forEach(perm => {
                             // Only add if not already in effective (not inherited from parent)
@@ -3074,15 +3077,15 @@
                     }
                     
                     if (effectivePermissions.size === 0) {
-                        console.log(`  ℹ️ No permissions (neither inherited nor orphan)`);
+                        // console.log(`  ℹ️ No permissions (neither inherited nor orphan)`);
                     }
                 } else if (isLevel2Folder) {
                     // LEVEL 2 FOLDERS: Use their own direct permissions (editable)
-                    console.log(`👨 PARENT "${folderName}" (${folderId}) using own permissions`);
+                    // console.log(`👨 PARENT "${folderName}" (${folderId}) using own permissions`);
                     
                     if (userPermissionsMap[folderId]) {
                         const ownPerms = Object.values(userPermissionsMap[folderId]);
-                        console.log(`  ✅ Has ${ownPerms.length} direct permissions:`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
+                        // console.log(`  ✅ Has ${ownPerms.length} direct permissions:`, ownPerms.map(p => `${p.identifier}:L${p.level}`).join(', '));
                         
                         ownPerms.forEach(perm => {
                             effectivePermissions.set(perm.identifier, {
@@ -3092,7 +3095,7 @@
                             });
                         });
                     } else {
-                        console.warn(`  ❌ Own folder NOT FOUND in userPermissionsMap!`);
+                        // console.warn(`  ❌ Own folder NOT FOUND in userPermissionsMap!`);
                     }
                 }
                 
@@ -3113,7 +3116,7 @@
                 const inheritedCount = permissionEntries.filter(p => p.isInherited).length;
                 const directCount = permissionEntries.filter(p => !p.isInherited).length;
                 if (inheritedCount > 0) {
-                    log(`📁 "${folderName}": ${directCount} direct, ${inheritedCount} inherited permissions`);
+                    // log(`📁 "${folderName}": ${directCount} direct, ${inheritedCount} inherited permissions`);
                 }
 
                 // PER-ROW LEFT-ALIGNMENT with inheritance column consistency
@@ -3368,8 +3371,8 @@
             updateLoadingProgress('Loading folder structure...', 95);
 
             if (totalPermissionsLoaded > 0) {
-                log(`✅ Pre-populated table with ${totalPermissionsLoaded} permissions from ${foldersWithPermissions} folders`);
-                log(`📊 Total columns: ${additionalColumnsCount + 2} (${additionalColumnsCount} for users + 2 for folder names)`);
+                // log(`✅ Pre-populated table with ${totalPermissionsLoaded} permissions from ${foldersWithPermissions} folders`);
+                // log(`📊 Total columns: ${additionalColumnsCount + 2} (${additionalColumnsCount} for users + 2 for folder names)`);
                 
                 // Count inherited vs direct permissions
                 const stats = Object.values(userPermissionsMap)
@@ -3384,17 +3387,17 @@
                         return acc;
                     }, {});
                     
-                log(`📋 Breakdown:`, stats);
-                log(`🔗 Inherited: ${stats.inherited || 0} | Direct: ${stats.direct || 0}`);
+                // log(`📋 Breakdown:`, stats);
+                // log(`🔗 Inherited: ${stats.inherited || 0} | Direct: ${stats.direct || 0}`);
             } else {
-                log('ℹ️ No existing ACC permissions found to pre-populate');
+                // log('ℹ️ No existing ACC permissions found to pre-populate');
             }
 
             updateLoadingProgress('Loading folder structure...', 98);
 
         } catch (error) {
-            console.error('❌ Error loading existing ACC permissions:', error);
-            log('⚠️ Could not load existing ACC permissions, table will be empty');
+            // console.error('❌ Error loading existing ACC permissions:', error);
+            // log('⚠️ Could not load existing ACC permissions, table will be empty');
             // Ensure progress reaches 98% even on error
             updateLoadingProgress('Loading folder structure...', 98);
         }
@@ -3406,7 +3409,7 @@
     async function loadFolderPermissions(projectName) {
         try {
             if (!currentProjectData || !currentProjectData.hubId || !currentProjectData.projectId) {
-                console.error('Missing hubId or projectId in currentProjectData');
+                // console.error('Missing hubId or projectId in currentProjectData');
                 return;
             }
             
@@ -3423,12 +3426,12 @@
             const result = await response.json();
             
             if (!result.success || !result.exists || !result.data) {
-                log('📂 No saved folder permissions found for this project');
+                // log('📂 No saved folder permissions found for this project');
                 return;
             }
 
             const data = result.data;
-            log(`📂 Loading saved folder permissions for: ${projectName}`);
+            // log(`📂 Loading saved folder permissions for: ${projectName}`);
 
             // Check for users that no longer exist in the project
             const deletedUsers = await checkForDeletedUsers(data);
@@ -3545,9 +3548,9 @@
             // Re-attach arrow key navigation to all inputs after loading
             attachArrowKeyNavigationToAllInputs();
 
-            log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
+            // log(`✅ Loaded folder permissions from ${data.projectName}_folder_permissions.json`);
         } catch (error) {
-            console.error('Error loading folder permissions:', error);
+            // console.error('Error loading folder permissions:', error);
         }
     }
 
@@ -3650,7 +3653,7 @@
             }
         });
 
-        log(`🔍 Search for "${searchTerm}": ${matchCount} matches found`);
+        // log(`🔍 Search for "${searchTerm}": ${matchCount} matches found`);
     }
 
     /**
@@ -4379,3 +4382,5 @@
     }
 
 })();
+
+

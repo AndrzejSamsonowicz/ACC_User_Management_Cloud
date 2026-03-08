@@ -1937,6 +1937,73 @@
             }
         }
         
+        // Function to show invalid roles modal
+        function showInvalidRolesModal(htmlContent) {
+            // Remove existing warning if any
+            let warningDiv = document.getElementById('invalidRolesWarning');
+            if (warningDiv) {
+                warningDiv.remove();
+            }
+
+            // Create warning div
+            warningDiv = document.createElement('div');
+            warningDiv.id = 'invalidRolesWarning';
+            warningDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: #fff3cd;
+                border: 2px solid #ffc107;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10001;
+                min-width: 400px;
+                max-width: 600px;
+                max-height: 400px;
+                overflow-y: auto;
+                font-family: 'Artifact Elements', Arial, sans-serif;
+                color: #856404;
+            `;
+            
+            // Add content and OK button
+            warningDiv.innerHTML = htmlContent + `
+                <div style="margin-top: 20px; text-align: center;">
+                    <button id="closeInvalidRolesWarning" style="
+                        padding: 10px 30px;
+                        background: #ffc107;
+                        border: none;
+                        border-radius: 4px;
+                        color: #856404;
+                        font-weight: bold;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-family: 'Artifact Elements', Arial, sans-serif;
+                    ">OK</button>
+                </div>
+            `;
+            
+            document.body.appendChild(warningDiv);
+            
+            // Add click handler for OK button
+            const okButton = document.getElementById('closeInvalidRolesWarning');
+            if (okButton) {
+                okButton.addEventListener('click', () => {
+                    warningDiv.remove();
+                });
+            }
+            
+            // Close on Escape key
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape' && document.getElementById('invalidRolesWarning')) {
+                    warningDiv.remove();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+        }
+        
         // Function to execute sync operations based on checkbox selections
         // OPTIMIZATION: Accept cached data to avoid duplicate fetches
         async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
@@ -1990,6 +2057,30 @@
                 try {
                     const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId);
                     log('✅ Account users updated:', accountUpdateResult);
+                    
+                    // Check for invalid roles and warn the user
+                    const invalidRoleCount = accountUpdateResult.invalidRoles?.size || 0;
+                    if (invalidRoleCount > 0) {
+                        console.warn('⚠️ INVALID ROLES DETECTED - users were processed without roles:', accountUpdateResult.invalidRoles);
+                        
+                        // Build error message HTML for modal
+                        let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
+                        for (const [role, emails] of accountUpdateResult.invalidRoles) {
+                            errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+                            errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+                            errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+                            emails.forEach(email => {
+                                errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
+                            });
+                            errorHTML += '</ul></div>';
+                        }
+                        errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+                        errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
+                        errorHTML += '</div>';
+                        
+                        // Show modal to user
+                        showInvalidRolesModal(errorHTML);
+                    }
                 } catch (accountError) {
                     console.error('⚠️ Account update failed (continuing anyway):', accountError);
                     // Continue even if account update fails - user might not have permissions
@@ -3105,13 +3196,13 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2025021817"></script>
-    <script src="update_account_users.js?v=2025021817"></script>
+    <script src="user-table.js?v=2026030821"></script>
+    <script src="update_account_users.js?v=2026030821"></script>
     <script src="get_account_users.js?v=2025021817"></script>
-    <script src="get_project_users.js?v=2025021817"></script>
-    <script src="manage_project_users.js?v=2025021817"></script>
+    <script src="get_project_users.js?v=2026030833"></script>
+    <script src="manage_project_users.js?v=2026030822"></script>
     <script src="update_folder_permission.js?v=2025021817"></script>
-    <script src="read_project_folders.js?v=2026030716"></script>
+    <script src="read_project_folders.js?v=2026030822"></script>
     <script src="folders_permissions.js?v=2026030714"></script>
     <script>
         // Initialize user table management when DOM is ready
@@ -3161,7 +3252,7 @@
                 </div>
                 <div style="margin-top: 10px; font-size: 13px; color: #666; line-height: 1.6;">
                     <div>💡 Press <strong>Shift</strong> to select multiple cells vertically and horizontally</div>
-                    <div>💡 User Roles must match those defined in Account</div>
+                    <div>💡 User <strong>Roles</strong> must match these defined in the <strong>Account</strong></div>
                 </div>
                 
                 <!-- Progress indicator for modal operations -->

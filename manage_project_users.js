@@ -28,18 +28,18 @@ class ProjectUsersManager {
                 pu.email.toLowerCase() === adminUser.email.toLowerCase()
             );
             if (projectUser) {
-                log(`Using admin user ${adminUser.email} (${projectUser.id}) for User-Id header`);
+                // log(`Using admin user ${adminUser.email} (${projectUser.id}) for User-Id header`);
                 return projectUser.id;
             }
         }
         
         // Fallback: use the first project user we can find
         if (this.projectUsers.length > 0) {
-            log(`Using first project user ${this.projectUsers[0].email} (${this.projectUsers[0].id}) for User-Id header`);
+            // log(`Using first project user ${this.projectUsers[0].email} (${this.projectUsers[0].id}) for User-Id header`);
             return this.projectUsers[0].id;
         }
         
-        console.warn('No suitable user found for User-Id header');
+        // console.warn('No suitable user found for User-Id header');
         return null;
     }
 
@@ -47,7 +47,7 @@ class ProjectUsersManager {
     async fetchProjectRoles(projectId) {
         try {
             const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/roles`;
-            log(`Fetching project roles: ${apiUrl}`);
+            // log(`Fetching project roles: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -57,15 +57,15 @@ class ProjectUsersManager {
             });
 
             if (!response.ok) {
-                console.warn(`Failed to fetch project roles: ${response.status} ${response.statusText}`);
+                // console.warn(`Failed to fetch project roles: ${response.status} ${response.statusText}`);
                 return [];
             }
 
             const rolesData = await response.json();
-            log('Project roles:', rolesData);
+            // log('Project roles:', rolesData);
             return rolesData.results || rolesData || [];
         } catch (error) {
-            console.warn('Error fetching project roles:', error);
+            // console.warn('Error fetching project roles:', error);
             return [];
         }
     }
@@ -79,11 +79,11 @@ class ProjectUsersManager {
         );
         
         if (role) {
-            log(`Found role ID ${role.id} for role name "${roleName}"`);
+            // log(`Found role ID ${role.id} for role name "${roleName}"`);
             return role.id;
         }
         
-        console.warn(`No role found for name "${roleName}"`);
+        // console.warn(`No role found for name "${roleName}"`);
         return null;
     }
 
@@ -100,7 +100,7 @@ class ProjectUsersManager {
             if (progressBar && typeof percent === 'number') progressBar.style.width = `${percent}%`;
             if (progressText && text) progressText.textContent = text;
         } catch (e) {
-            console.warn('reportProgress failed', e);
+            // console.warn('reportProgress failed', e);
         }
     }
 
@@ -119,16 +119,16 @@ class ProjectUsersManager {
             });
             
             if (!response.ok) {
-                log('Could not load import users, starting with empty list');
+                // log('Could not load import users, starting with empty list');
                 this.importUsers = [];
                 return;
             }
             
             const data = await response.json();
             this.importUsers = data.users || [];
-            log('Loaded import users from Firebase:', this.importUsers.length);
+            // log('Loaded import users from Firebase:', this.importUsers.length);
         } catch (error) {
-            console.error('Error loading import users:', error);
+            // console.error('Error loading import users:', error);
             this.importUsers = [];
         }
     }
@@ -322,7 +322,7 @@ class ProjectUsersManager {
             tableContainer.style.display = 'block';
             
         } catch (error) {
-            console.error('Error fetching users:', error);
+            // console.error('Error fetching users:', error);
             
             // Show error message
             loadingMessage.style.display = 'none';
@@ -344,7 +344,7 @@ class ProjectUsersManager {
             });
 
             const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
-            log(`Fetching users: ${apiUrl}`);
+            // log(`Fetching users: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -357,7 +357,7 @@ class ProjectUsersManager {
                 let errorData;
                 try {
                     errorData = await response.json();
-                    log('Error response:', errorData);
+                    // log('Error response:', errorData);
                 } catch (parseError) {
                     const textError = await response.text();
                     throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
@@ -372,7 +372,7 @@ class ProjectUsersManager {
             }
 
             const usersData = await response.json();
-            log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
+            // log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
 
             if (usersData.results && usersData.results.length > 0) {
                 allUsers = allUsers.concat(usersData.results);
@@ -402,7 +402,7 @@ class ProjectUsersManager {
 
             // Safety check
             if (offset > 10000) {
-                console.warn('Stopping at 10,000 users for safety');
+                // console.warn('Stopping at 10,000 users for safety');
                 hasMoreData = false;
             }
         }
@@ -448,20 +448,20 @@ class ProjectUsersManager {
 
     // PATCH: Update existing users
     async updateProjectUsers(projectId, accountId, progressId) {
-        log('Starting PATCH operation for existing users...');
+        // log('Starting PATCH operation for existing users...');
         this.reportProgress(progressId, 'Starting update...', 2);
         
         if (!this.projectUsers.length) {
-            log('No project users loaded, fetching...');
+            // log('No project users loaded, fetching...');
             this.projectUsers = await this.fetchAllUsers(projectId);
         }
 
         if (!this.accountUsers.length) {
-            log('No account users loaded, fetching with 2-legged auth...');
+            // log('No account users loaded, fetching with 2-legged auth...');
             try {
                 this.accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
             } catch (error) {
-                console.warn('Failed to fetch account users, continuing without company/role mapping:', error);
+                // console.warn('Failed to fetch account users, continuing without company/role mapping:', error);
                 this.accountUsers = [];
             }
         }
@@ -482,7 +482,7 @@ class ProjectUsersManager {
             }
         }
 
-        log(`Found ${usersToUpdate.length} users to update`);
+        // log(`Found ${usersToUpdate.length} users to update`);
         if (usersToUpdate.length === 0) {
             this.reportProgress(progressId, 'No users to update', 100);
             return;
@@ -497,14 +497,14 @@ class ProjectUsersManager {
             try {
                 this.reportProgress(progressId, `Updating ${i + 1} of ${usersToUpdate.length}: ${userInfo.projectUser.email}`, Math.round(((i + 10) / (usersToUpdate.length + 10)) * 100));
                 await this.patchUser(projectId, userInfo.projectUser.id, userInfo.importUser, userInfo.accountUser, projectRoles);
-                log(`Updated user: ${userInfo.projectUser.email}`);
+                // log(`Updated user: ${userInfo.projectUser.email}`);
             } catch (error) {
-                console.error(`Failed to update user ${userInfo.projectUser.email}:`, error);
+                // console.error(`Failed to update user ${userInfo.projectUser.email}:`, error);
             }
         }
 
         this.reportProgress(progressId, 'Update completed', 100);
-        log('PATCH operation completed');
+        // log('PATCH operation completed');
     }
 
     async patchUser(projectId, userId, importUser, accountUser, projectRoles) {
@@ -515,15 +515,15 @@ class ProjectUsersManager {
         // Always update services if present in importUser
         if (importUser.services) {
             patchData.services = importUser.services;
-            log(`User ${importUser.email}: updating services:`, importUser.services);
+            // log(`User ${importUser.email}: updating services:`, importUser.services);
         }
 
         // Get company name from account user (use company_name field)
         if (accountUser && accountUser.company_name) {
             patchData.companyName = accountUser.company_name;
-            log(`User ${importUser.email}: using company_name from account user: ${accountUser.company_name}`);
+            // log(`User ${importUser.email}: using company_name from account user: ${accountUser.company_name}`);
         } else {
-            console.warn(`User ${importUser.email}: no company_name found in account user`);
+            // console.warn(`User ${importUser.email}: no company_name found in account user`);
         }
 
         // Get role from account user's default_role and map to project role ID
@@ -531,15 +531,15 @@ class ProjectUsersManager {
             const roleId = this.findRoleIdByName(projectRoles, accountUser.default_role);
             if (roleId) {
                 patchData.roleIds = [roleId];
-                log(`User ${importUser.email}: mapped account role "${accountUser.default_role}" to roleId: ${roleId}`);
+                // log(`User ${importUser.email}: mapped account role "${accountUser.default_role}" to roleId: ${roleId}`);
             } else {
-                console.warn(`User ${importUser.email}: account role '${accountUser.default_role}' not found in project roles.`);
+                // console.warn(`User ${importUser.email}: account role '${accountUser.default_role}' not found in project roles.`);
             }
         } else {
-            console.warn(`User ${importUser.email}: no default_role found in account user`);
+            // console.warn(`User ${importUser.email}: no default_role found in account user`);
         }
 
-        log(`PATCH data for ${importUser.email}:`, JSON.stringify(patchData, null, 2));
+        // log(`PATCH data for ${importUser.email}:`, JSON.stringify(patchData, null, 2));
 
         const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${userId}`;
 
@@ -554,7 +554,7 @@ class ProjectUsersManager {
         // Add User-Id header if we found a suitable user
         if (adminUserId) {
             headers['User-Id'] = adminUserId;
-            log(`PATCH: Using User-Id header: ${adminUserId}`);
+            // log(`PATCH: Using User-Id header: ${adminUserId}`);
         }
 
         const response = await fetch(apiUrl, {
@@ -567,10 +567,10 @@ class ProjectUsersManager {
             let errorData;
             try {
                 errorData = await response.json();
-                console.error('PATCH error response:', errorData);
+                // console.error('PATCH error response:', errorData);
             } catch (parseError) {
                 const textError = await response.text();
-                console.error('PATCH error response (text):', textError);
+                // console.error('PATCH error response (text):', textError);
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
             }
             const errorMessage = errorData && (errorData.message || errorData.error || errorData.error_description || (errorData.errors && errorData.errors[0] && errorData.errors[0].detail)) || `HTTP ${response.status}: ${response.statusText}`;
@@ -578,26 +578,26 @@ class ProjectUsersManager {
         }
 
         const result = await response.json();
-        log('PATCH success response:', result);
+        // log('PATCH success response:', result);
         return result;
     }
 
     // POST: Add new users
     async addNewProjectUsers(projectId, accountId, progressId) {
-        log('Starting POST operation for new users...');
+        // log('Starting POST operation for new users...');
         this.reportProgress(progressId, 'Preparing to add users...', 2);
         
         if (!this.projectUsers.length) {
-            log('No project users loaded, fetching...');
+            // log('No project users loaded, fetching...');
             this.projectUsers = await this.fetchAllUsers(projectId);
         }
 
         if (!this.accountUsers.length) {
-            log('No account users loaded, fetching with 2-legged auth...');
+            // log('No account users loaded, fetching with 2-legged auth...');
             try {
                 this.accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
             } catch (error) {
-                console.warn('Failed to fetch account users, continuing without company/role mapping:', error);
+                // console.warn('Failed to fetch account users, continuing without company/role mapping:', error);
                 this.accountUsers = [];
             }
         }
@@ -617,11 +617,11 @@ class ProjectUsersManager {
             }
         }
 
-        log(`Found ${usersToAdd.length} users to add`);
+        // log(`Found ${usersToAdd.length} users to add`);
 
         if (usersToAdd.length === 0) {
             this.reportProgress(progressId, 'No users to add', 100);
-            log('No users to add');
+            // log('No users to add');
             return;
         }
 
@@ -639,9 +639,9 @@ class ProjectUsersManager {
             // Get company name from account user (use company_name field)
             if (userInfo.accountUser && userInfo.accountUser.company_name) {
                 userData.companyName = userInfo.accountUser.company_name;
-                log(`User ${userInfo.importUser.email}: using company_name from account user: ${userInfo.accountUser.company_name}`);
+                // log(`User ${userInfo.importUser.email}: using company_name from account user: ${userInfo.accountUser.company_name}`);
             } else {
-                console.warn(`User ${userInfo.importUser.email}: no company_name found in account user`);
+                // console.warn(`User ${userInfo.importUser.email}: no company_name found in account user`);
             }
 
             // Get role from account user's default_role and map to project role ID
@@ -649,15 +649,15 @@ class ProjectUsersManager {
                 const roleId = this.findRoleIdByName(projectRoles, userInfo.accountUser.default_role);
                 if (roleId) {
                     userData.roleIds = [roleId];
-                    log(`User ${userInfo.importUser.email}: mapped account role "${userInfo.accountUser.default_role}" to roleId: ${roleId}`);
+                    // log(`User ${userInfo.importUser.email}: mapped account role "${userInfo.accountUser.default_role}" to roleId: ${roleId}`);
                 } else {
-                    console.warn(`User ${userInfo.importUser.email}: account role '${userInfo.accountUser.default_role}' not found in project roles.`);
+                    // console.warn(`User ${userInfo.importUser.email}: account role '${userInfo.accountUser.default_role}' not found in project roles.`);
                 }
             } else {
-                console.warn(`User ${userInfo.importUser.email}: no default_role found in account user`);
+                // console.warn(`User ${userInfo.importUser.email}: no default_role found in account user`);
             }
 
-            log(`Prepared user data for ${userData.email}:`, userData);
+            // log(`Prepared user data for ${userData.email}:`, userData);
             return userData;
         });
 
@@ -665,10 +665,10 @@ class ProjectUsersManager {
             this.reportProgress(progressId, `Importing ${usersArray.length} users...`, 20);
             await this.postUsers(projectId, usersArray);
             this.reportProgress(progressId, 'Add completed', 100);
-            log('POST operation completed successfully');
+            // log('POST operation completed successfully');
         } catch (error) {
             this.reportProgress(progressId, `Add failed: ${error.message}`, 0);
-            console.error('POST operation failed:', error);
+            // console.error('POST operation failed:', error);
             throw error;
         }
     }
@@ -676,8 +676,8 @@ class ProjectUsersManager {
     async postUsers(projectId, usersArray) {
         const apiUrl = `https://developer.api.autodesk.com/construction/admin/v2/projects/${projectId}/users:import`;
         
-        log(`Posting ${usersArray.length} users to:`, apiUrl);
-        log('Users payload:', JSON.stringify({ users: usersArray }, null, 2));
+        // log(`Posting ${usersArray.length} users to:`, apiUrl);
+        // log('Users payload:', JSON.stringify({ users: usersArray }, null, 2));
         
         // Get a suitable admin user for the User-Id header
         const adminUserId = this.getAdminUserId();
@@ -690,7 +690,7 @@ class ProjectUsersManager {
         // Add User-Id header if we found a suitable user
         if (adminUserId) {
             headers['User-Id'] = adminUserId;
-            log(`POST: Using User-Id header: ${adminUserId}`);
+            // log(`POST: Using User-Id header: ${adminUserId}`);
         }
         
         const response = await fetch(apiUrl, {
@@ -701,16 +701,16 @@ class ProjectUsersManager {
             })
         });
 
-        log(`POST response status: ${response.status} ${response.statusText}`);
+        // log(`POST response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             let errorData;
             try {
                 errorData = await response.json();
-                console.error('POST error response:', errorData);
+                // console.error('POST error response:', errorData);
             } catch (parseError) {
                 const textError = await response.text();
-                console.error('POST error response (text):', textError);
+                // console.error('POST error response (text):', textError);
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
             }
             
@@ -723,17 +723,17 @@ class ProjectUsersManager {
         }
 
         const result = await response.json();
-        log('POST success response:', result);
+        // log('POST success response:', result);
         return result;
     }
 
     // DELETE: Remove users not in import JSON
     async deleteProjectUsers(projectId, progressId) {
-        log('Starting DELETE operation for extra users...');
+        // log('Starting DELETE operation for extra users...');
         this.reportProgress(progressId, 'Preparing deletion...', 2);
         
         if (!this.projectUsers.length) {
-            log('No project users loaded, fetching...');
+            // log('No project users loaded, fetching...');
             this.projectUsers = await this.fetchAllUsers(projectId);
         }
 
@@ -746,7 +746,7 @@ class ProjectUsersManager {
             }
         }
 
-        log(`Found ${usersToDelete.length} users to delete`);
+        // log(`Found ${usersToDelete.length} users to delete`);
         if (usersToDelete.length === 0) {
             this.reportProgress(progressId, 'No users to delete', 100);
             return;
@@ -757,21 +757,21 @@ class ProjectUsersManager {
             try {
                 this.reportProgress(progressId, `Deleting ${i + 1} of ${usersToDelete.length}: ${user.email}`, Math.round(((i) / usersToDelete.length) * 100));
                 await this.deleteUser(projectId, user.id);
-                log(`Deleted user: ${user.email}`);
+                // log(`Deleted user: ${user.email}`);
             } catch (error) {
-                console.error(`Failed to delete user ${user.email}:`, error);
+                // console.error(`Failed to delete user ${user.email}:`, error);
             }
         }
 
         this.reportProgress(progressId, 'Delete completed', 100);
-        log('DELETE operation completed');
+        // log('DELETE operation completed');
     }
 
     async deleteUser(projectId, userId) {
         const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${userId}`;
         
-        log(`Attempting to delete user ${userId} from project ${projectId}`);
-        log(`DELETE URL: ${apiUrl}`);
+        // log(`Attempting to delete user ${userId} from project ${projectId}`);
+        // log(`DELETE URL: ${apiUrl}`);
         
         // Get a suitable admin user for the User-Id header
         const adminUserId = this.getAdminUserId();
@@ -784,9 +784,9 @@ class ProjectUsersManager {
         // Add User-Id header if we found a suitable user
         if (adminUserId) {
             headers['User-Id'] = adminUserId;
-            log(`Using User-Id header: ${adminUserId}`);
+            // log(`Using User-Id header: ${adminUserId}`);
         } else {
-            console.warn('No User-Id header set - DELETE might fail with 2-legged OAuth');
+            // console.warn('No User-Id header set - DELETE might fail with 2-legged OAuth');
         }
         
         const response = await fetch(apiUrl, {
@@ -794,16 +794,16 @@ class ProjectUsersManager {
             headers: headers
         });
 
-        log(`DELETE response status: ${response.status} ${response.statusText}`);
+        // log(`DELETE response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             let errorData;
             try {
                 errorData = await response.json();
-                console.error('DELETE error response:', errorData);
+                // console.error('DELETE error response:', errorData);
             } catch (parseError) {
                 const textError = await response.text();
-                console.error('DELETE error response (text):', textError);
+                // console.error('DELETE error response (text):', textError);
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
             }
             
@@ -816,7 +816,7 @@ class ProjectUsersManager {
         }
 
         // DELETE returns 204 No Content on success
-        log(`Successfully deleted user ${userId}`);
+        // log(`Successfully deleted user ${userId}`);
         return true;
     }
 
@@ -862,3 +862,4 @@ function deleteProjectUsers(projectId, accessToken, progressId) {
     projectUsersManager.setAccessToken(accessToken);
     return projectUsersManager.deleteProjectUsers(projectId, progressId);
 }
+

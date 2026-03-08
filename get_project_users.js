@@ -1,13 +1,15 @@
 // Project Users Viewer (Read-Only)
-log('🚀🚀🚀 get_project_users.js LOADING - VERSION 20251109171600 🚀🚀🚀');
+// log('🚀🚀🚀 get_project_users.js LOADING - VERSION 20251109171600 🚀🚀🚀');
 
 class ProjectUsersViewer {
     constructor() {
         this.currentAccessToken = null;
+        this.currentProjectId = null;
         this.originalUsers = [];
         this.currentProjectName = '';
         this.sortColumn = 'email';
         this.sortDirection = 'asc';
+        this.lastCheckedIndex = null;
         this.createModal();
     }
 
@@ -27,22 +29,25 @@ class ProjectUsersViewer {
                     <div class="users-modal-body">
                         <div id="usersLoadingMessage">Loading users...</div>
                         <div id="usersTableContainer" style="display: none;">
-                            <!-- Filter Section -->
+                            <!-- Action Section -->
                             <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
-                                <label for="projectUsersFilter" style="font-weight: bold;">Filter by Email:</label>
+                                <label for="projectUsersFilter" style="font-weight: bold;">Search:</label>
                                 <input 
                                     type="text" 
                                     id="projectUsersFilter" 
-                                    placeholder="Type to filter by email..." 
+                                    placeholder="Type to search..." 
                                     style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
                                 />
-                                <button onclick="projectUsersViewer.clearFilter()" style="padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">Clear</button>
+                                <button onclick="projectUsersViewer.deleteSelectedUsers()" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Delete</button>
                             </div>
                             <div id="projectUsersFilterInfo" style="margin-bottom: 10px; font-size: 13px; color: #666;"></div>
                             
                             <table id="usersTable">
                                 <thead>
                                     <tr>
+                                        <th style="width: 40px; text-align: center;">
+                                            <input type="checkbox" id="selectAllCheckbox" onchange="projectUsersViewer.toggleSelectAll()" title="Select/Deselect All">
+                                        </th>
                                         <th onclick="projectUsersViewer.sortTable('email')" style="cursor: pointer; user-select: none;">
                                             Email <span id="sortIndicator-email">↕</span>
                                         </th>
@@ -208,8 +213,9 @@ class ProjectUsersViewer {
         const tableContainer = document.getElementById('usersTableContainer');
         const errorMessage = document.getElementById('usersErrorMessage');
         
-        // Store project name
+        // Store project info
         this.currentProjectName = projectName;
+        this.currentProjectId = projectId;
         
         // Set modal title
         modalTitle.textContent = `Users in: ${projectName}`;
@@ -230,12 +236,12 @@ class ProjectUsersViewer {
             // Fetch all users with pagination
             const allUsers = await this.fetchAllUsers(projectId);
             
-            log('🔍 RAW API DATA - Total users:', allUsers.length);
+            // log('🔍 RAW API DATA - Total users:', allUsers.length);
             if (allUsers.length > 0) {
-                log('🔍 First raw user:', allUsers[0]);
-                log('🔍 First user.email:', allUsers[0].email);
-                log('🔍 First user.companyName:', allUsers[0].companyName);
-                log('🔍 First user.roles:', allUsers[0].roles);
+                // log('🔍 First raw user:', allUsers[0]);
+                // log('🔍 First user.email:', allUsers[0].email);
+                // log('🔍 First user.companyName:', allUsers[0].companyName);
+                // log('🔍 First user.roles:', allUsers[0].roles);
             }
             
             // Store original users data
@@ -247,16 +253,17 @@ class ProjectUsersViewer {
                 }
                 
                 const mapped = {
+                    id: user.id,
                     email: user.email || 'N/A',
                     company: user.companyName || 'N/A',
                     role: roleNames
                 };
                 
-                log('🔍 Mapped user:', mapped);
+                // log('🔍 Mapped user:', mapped);
                 return mapped;
             });
             
-            log('🔍 FINAL originalUsers array:', this.originalUsers);
+            // log('🔍 FINAL originalUsers array:', this.originalUsers);
             
             // Reset sort to default
             this.sortColumn = 'email';
@@ -270,7 +277,7 @@ class ProjectUsersViewer {
             tableContainer.style.display = 'block';
             
         } catch (error) {
-            console.error('Error fetching users:', error);
+            // console.error('Error fetching users:', error);
             
             // Show error message
             loadingMessage.style.display = 'none';
@@ -292,7 +299,7 @@ class ProjectUsersViewer {
             });
 
             const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
-            log(`Fetching users: ${apiUrl}`);
+            // log(`Fetching users: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -305,7 +312,7 @@ class ProjectUsersViewer {
                 let errorData;
                 try {
                     errorData = await response.json();
-                    log('Error response:', errorData);
+                    // log('Error response:', errorData);
                 } catch (parseError) {
                     const textError = await response.text();
                     throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
@@ -320,7 +327,7 @@ class ProjectUsersViewer {
             }
 
             const usersData = await response.json();
-            log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
+            // log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
 
             if (usersData.results && usersData.results.length > 0) {
                 allUsers = allUsers.concat(usersData.results);
@@ -350,7 +357,7 @@ class ProjectUsersViewer {
 
             // Safety check
             if (offset > 10000) {
-                console.warn('Stopping at 10,000 users for safety');
+                // console.warn('Stopping at 10,000 users for safety');
                 hasMoreData = false;
             }
         }
@@ -448,8 +455,24 @@ class ProjectUsersViewer {
         });
 
         // Create table rows
-        sortedUsers.forEach((user) => {
+        sortedUsers.forEach((user, index) => {
             const row = document.createElement('tr');
+            row.dataset.userId = user.id;
+            row.dataset.userEmail = user.email;
+            row.dataset.rowIndex = index;
+            
+            // Checkbox cell
+            const checkboxCell = document.createElement('td');
+            checkboxCell.style.textAlign = 'center';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'user-checkbox';
+            checkbox.dataset.rowIndex = index;
+            checkbox.addEventListener('click', (e) => {
+                this.handleCheckboxChange(e, index);
+            });
+            checkboxCell.appendChild(checkbox);
+            row.appendChild(checkboxCell);
             
             // Email cell
             const emailCell = document.createElement('td');
@@ -468,6 +491,9 @@ class ProjectUsersViewer {
             
             tableBody.appendChild(row);
         });
+        
+        // Update select all checkbox state
+        this.updateSelectAllCheckbox();
 
         // Update modal title with count
         const modalTitle = document.getElementById('modalTitle');
@@ -481,6 +507,210 @@ class ProjectUsersViewer {
     displayUsersTable(users) {
         // This method is kept for backward compatibility but now just calls renderTable
         this.renderTable();
+    }
+
+    handleCheckboxChange(event, index) {
+        const checkbox = event.target;
+        
+        // Get all checkboxes to find the actual current position in DOM
+        const checkboxes = document.querySelectorAll('.user-checkbox');
+        const checkboxArray = Array.from(checkboxes);
+        const currentIndex = checkboxArray.indexOf(checkbox);
+        
+        // Safety check
+        if (currentIndex === -1) return;
+        
+        // Check if Shift key is pressed for range selection
+        if (event.shiftKey && this.lastCheckedIndex !== null && this.lastCheckedIndex !== currentIndex) {
+            // Prevent default to avoid the checkbox toggling
+            event.preventDefault();
+            
+            const start = Math.min(this.lastCheckedIndex, currentIndex);
+            const end = Math.max(this.lastCheckedIndex, currentIndex);
+            
+            // Use the last checked checkbox's state as the target state
+            const lastCheckbox = checkboxArray[this.lastCheckedIndex];
+            const targetState = lastCheckbox ? lastCheckbox.checked : true;
+            
+            // Set all checkboxes in range (inclusive) to the same state
+            for (let i = start; i <= end; i++) {
+                if (checkboxArray[i]) {
+                    checkboxArray[i].checked = targetState;
+                }
+            }
+            
+            // Explicitly ensure the clicked checkbox is set (should already be done in loop, but just to be safe)
+            checkbox.checked = targetState;
+            
+            // Don't update lastCheckedIndex - keep the anchor point
+        } else {
+            // Normal click (no shift) - update the anchor point
+            this.lastCheckedIndex = currentIndex;
+        }
+        
+        // Update select all checkbox state
+        this.updateSelectAllCheckbox();
+    }
+
+    toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const checkboxes = document.querySelectorAll('.user-checkbox');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+    }
+
+    updateSelectAllCheckbox() {
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const checkboxes = document.querySelectorAll('.user-checkbox');
+        
+        if (checkboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+            return;
+        }
+        
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        
+        if (checkedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount === checkboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+
+    async deleteSelectedUsers() {
+        // Get selected checkboxes
+        const checkboxes = Array.from(document.querySelectorAll('.user-checkbox:checked'));
+        
+        if (checkboxes.length === 0) {
+            alert('Please select at least one user to delete.');
+            return;
+        }
+        
+        // Get user info from rows
+        const usersToDelete = checkboxes.map(checkbox => {
+            const row = checkbox.closest('tr');
+            return {
+                id: row.dataset.userId,
+                email: row.dataset.userEmail
+            };
+        });
+        
+        // Confirm deletion
+        const confirmMessage = `Are you sure you want to delete ${usersToDelete.length} user(s) from this project?\\n\\n${usersToDelete.map(u => u.email).join('\\n')}`;
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // Show loading overlay
+        const modal = document.getElementById('usersModal');
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'deleteLoadingOverlay';
+        loadingOverlay.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; align-items: center; justify-content: center;';
+        loadingOverlay.innerHTML = '<div style=\"text-align: center;\"><div style=\"font-size: 18px; font-weight: bold; margin-bottom: 10px;\">Deleting users...</div><div id=\"deleteProgress\" style=\"font-size: 14px; color: #666;\">0 / ' + usersToDelete.length + '</div></div>';
+        modal.querySelector('.users-modal-content').style.position = 'relative';
+        modal.querySelector('.users-modal-content').appendChild(loadingOverlay);
+        
+        // Delete users one by one
+        let successCount = 0;
+        let failedUsers = [];
+        
+        for (let i = 0; i < usersToDelete.length; i++) {
+            const user = usersToDelete[i];
+            const progressEl = document.getElementById('deleteProgress');
+            if (progressEl) {
+                progressEl.textContent = `${i + 1} / ${usersToDelete.length} - ${user.email}`;
+            }
+            
+            try {
+                await this.deleteUser(user.id);
+                successCount++;
+            } catch (error) {
+                failedUsers.push({ email: user.email, error: error.message });
+            }
+        }
+        
+        // Remove loading overlay
+        if (loadingOverlay.parentNode) {
+            loadingOverlay.parentNode.removeChild(loadingOverlay);
+        }
+        
+        // Show result
+        if (failedUsers.length === 0) {
+            alert(`Successfully deleted ${successCount} user(s).`);
+        } else {
+            alert(`Deleted ${successCount} user(s).\\n\\nFailed to delete ${failedUsers.length} user(s):\\n${failedUsers.map(f => `${f.email}: ${f.error}`).join('\\n')}`);
+        }
+        
+        // Refresh the user list
+        await this.showProjectUsers(this.currentProjectId, this.currentProjectName);
+    }
+
+    getAdminUserId() {
+        // Use the same logic as manage_project_users.js which works
+        // Try to find first user's ID from originalUsers array
+        if (this.originalUsers && this.originalUsers.length > 0) {
+            const firstUser = this.originalUsers[0];
+            if (firstUser.id) {
+                return firstUser.id;
+            }
+        }
+        
+        // Fallback: try to get from table DOM
+        const firstRow = document.querySelector('#usersTable tbody tr');
+        if (firstRow) {
+            const userId = firstRow.dataset.userId;
+            return userId;
+        }
+        
+        return null;
+    }
+
+    async deleteUser(userId) {
+        const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${this.currentProjectId}/users/${userId}`;
+        
+        // Get a suitable admin user for the User-Id header (same as manage_project_users.js)
+        const adminUserId = this.getAdminUserId();
+        
+        const headers = {
+            'Authorization': `Bearer ${this.currentAccessToken}`,
+            'Content-Type': 'application/json'
+        };
+        
+        // Add User-Id header if we found a suitable user
+        if (adminUserId) {
+            headers['User-Id'] = adminUserId;
+        }
+        
+        const response = await fetch(apiUrl, {
+            method: 'DELETE',
+            headers: headers
+        });
+
+        if (!response.ok) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (parseError) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const errorMessage = errorData.message || 
+                               errorData.error || 
+                               errorData.error_description || 
+                               (errorData.errors && errorData.errors[0] && errorData.errors[0].detail) ||
+                               `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage);
+        }
+        
+        return true;
     }
 
     closeModal() {
@@ -513,17 +743,17 @@ const projectUsersViewer = new ProjectUsersViewer();
 
 // Global function to be called from main page
 async function showProjectUsers(projectId, projectName, accessToken) {
-    log('🎯🎯🎯 showProjectUsers CALLED! 🎯🎯🎯');
-    log('Project ID:', projectId);
-    log('Project Name:', projectName);
+    // log('🎯🎯🎯 showProjectUsers CALLED! 🎯🎯🎯');
+    // log('Project ID:', projectId);
+    // log('Project Name:', projectName);
     
     try {
-        // Get 2-legged token for project users (Construction Admin API requires 2-legged)
-        const twoLeggedToken = await get2LeggedToken();
-        projectUsersViewer.setAccessToken(twoLeggedToken);
+        // Use the passed 3-legged access token (has account:write scope)
+        projectUsersViewer.setAccessToken(accessToken);
         projectUsersViewer.showProjectUsers(projectId, projectName);
     } catch (error) {
-        console.error('Error getting 2-legged token for project users:', error);
-        alert(`Failed to authenticate: ${error.message}`);
+        // console.error('Error in showProjectUsers:', error);
+        alert(`Failed to load project users: ${error.message}`);
     }
 }
+
