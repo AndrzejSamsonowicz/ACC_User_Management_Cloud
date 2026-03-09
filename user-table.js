@@ -2145,7 +2145,7 @@ class UserTableManager {
             
             progressDiv.innerHTML = `
                 <div style="margin-bottom: 15px; font-size: 16px; color: #333;">
-                    <span id="saveProgressMessage">${message}</span>
+                    <span id="saveProgressMessage">Saving...</span>
                 </div>
                 <div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden;">
                     <div id="saveProgressBarFill" style="height: 100%; background: #0696D7; width: ${percentage}%; transition: width 0.3s ease;"></div>
@@ -2157,7 +2157,7 @@ class UserTableManager {
             // Update existing
             const messageEl = document.getElementById('saveProgressMessage');
             const barEl = document.getElementById('saveProgressBarFill');
-            if (messageEl) messageEl.textContent = message;
+            // Keep message as "Saving..." - don't update it
             if (barEl) barEl.style.width = percentage + '%';
         }
     }
@@ -2580,14 +2580,6 @@ class UserTableManager {
             
             if (data.success) {
                 log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
-                
-                // Account update was already performed above (if not skipped)
-                const statusMessage = skipAccountUpdate 
-                    ? '✓ Saved to database' 
-                    : '✓ Account updated & saved';
-                
-                this.showTooltip(document.querySelector('button[onclick="saveModalTableToJson()"]'), 
-                    statusMessage);
                 
                 // Show final success message
                 this.showSaveProgress('Complete!', 100);
