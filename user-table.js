@@ -51,6 +51,7 @@ class UserTableManager {
         this.isMouseSelecting = false;
         this.mouseSelectStart = null;
         this.selectedCells = new Set();
+        this.lastSelectedCell = null;
         // Hub tracking for modal
         this.modalHubId = null;
         this.modalHubName = null;
@@ -364,8 +365,12 @@ class UserTableManager {
             this.mouseSelectStart = cell;
             
             // Clear previous selection
-            this.selectedCells.forEach(c => c.style.backgroundColor = '');
+            this.selectedCells.forEach(c => {
+                c.style.backgroundColor = '';
+                c.classList.remove('selected');
+            });
             this.selectedCells.clear();
+            this.lastSelectedCell = null;
             
             // Add first cell
             this.selectedCells.add(cell);
@@ -395,7 +400,10 @@ class UserTableManager {
             
             if (isVertical || isHorizontal) {
                 // Clear previous highlights
-                this.selectedCells.forEach(c => c.style.backgroundColor = '');
+                this.selectedCells.forEach(c => {
+                    c.style.backgroundColor = '';
+                    c.classList.remove('selected');
+                });
                 this.selectedCells.clear();
                 
                 const allRows = Array.from(tbody.rows);
@@ -470,8 +478,12 @@ class UserTableManager {
             
             // If click is outside the table and we have selections, clear them
             if (!clickedInsideTable && this.selectedCells.size > 0) {
-                this.selectedCells.forEach(c => c.style.backgroundColor = '');
+                this.selectedCells.forEach(c => {
+                    c.style.backgroundColor = '';
+                    c.classList.remove('selected');
+                });
                 this.selectedCells.clear();
+                this.lastSelectedCell = null;
                 log('🖱️ Selection cleared (clicked outside table)');
             }
         });
@@ -1166,6 +1178,16 @@ class UserTableManager {
         const checkbox = cell.querySelector('input[type="checkbox"]');
         checkbox.addEventListener('change', (e) => this.handleToggleChange(e, cell, columnName, columnIndex));
         
+        // Add shift-click handler for range selection
+        cell.addEventListener('click', (e) => {
+            // Skip if clicking on checkbox/slider itself
+            if (e.target.type === 'checkbox' || e.target.classList.contains('toggle-slider')) {
+                return;
+            }
+            
+            this.handleShiftClickSelection(cell, e.shiftKey, e.ctrlKey);
+        });
+        
         // Prevent event bubbling
         cell.addEventListener('click', (e) => {
             if (e.target.classList.contains('toggle-slider')) {
@@ -1300,6 +1322,144 @@ class UserTableManager {
                     }
                 });
             }
+        }
+    }
+
+    /**
+     * Handle shift-click based cell selection (similar to folders table)
+     */
+    handleShiftClickSelection(cell, shiftPressed, ctrlPressed) {
+        // Skip if not a product/access cell
+        if (!cell.classList.contains('modal-access-cell')) return;
+        
+        const row = cell.parentElement;
+        const cellIndex = cell.cellIndex;
+        const tbody = row.parentElement;
+        const rowIndex = Array.from(tbody.rows).indexOf(row);
+        
+        // Get checkbox state from the clicked cell
+        const clickedCheckbox = cell.querySelector('input[type="checkbox"]');
+        const clickedState = clickedCheckbox ? clickedCheckbox.checked : false;
+        
+        if (!shiftPressed && !ctrlPressed) {
+            // No modifier key - clear previous selection and select only this cell
+            this.selectedCells.forEach(c => c.classList.remove('selected'));
+            this.selectedCells.clear();
+            cell.classList.add('selected');
+            this.selectedCells.add(cell);
+            this.lastSelectedCell = cell;
+        } else if (shiftPressed && this.lastSelectedCell) {
+            // Shift pressed - select range
+            const lastRow = this.lastSelectedCell.parentElement;
+            const lastCellIndex = this.lastSelectedCell.cellIndex;
+            const lastRowIndex = Array.from(tbody.rows).indexOf(lastRow);
+            
+            // Get the toggle state from the FIRST selected cell (lastSelectedCell)
+            const sourceCheckbox = this.lastSelectedCell.querySelector('input[type="checkbox"]');
+            const sourceState = sourceCheckbox ? sourceCheckbox.checked : false;
+            
+            // Clear current selection
+            this.selectedCells.forEach(c => c.classList.remove('selected'));
+            this.selectedCells.clear();
+            
+            // Determine selection type
+            if (lastRowIndex === rowIndex) {
+                // HORIZONTAL selection (same row)
+                const startCol = Math.min(lastCellIndex, cellIndex);
+                const endCol = Math.max(lastCellIndex, cellIndex);
+                
+                for (let col = startCol; col <= endCol; col++) {
+                    if (col >= 4) { // Skip first 4 columns (checkbox, email, company, role)
+                        const targetCell = row.cells[col];
+                        if (targetCell && targetCell.classList.contains('modal-access-cell')) {
+                            targetCell.classList.add('selected');
+                            this.selectedCells.add(targetCell);
+                            
+                            // Apply toggle state from source cell
+                            const targetCheckbox = targetCell.querySelector('input[type="checkbox"]');
+                            if (targetCheckbox && targetCheckbox.checked !== sourceState) {
+                                targetCheckbox.checked = sourceState;
+                                // Trigger change event to update cell state properly
+                                targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+                }
+            } else if (lastCellIndex === cellIndex) {
+                // VERTICAL selection (same column)
+                const startRow = Math.min(lastRowIndex, rowIndex);
+                const endRow = Math.max(lastRowIndex, rowIndex);
+                const allRows = Array.from(tbody.rows);
+                
+                for (let r = startRow; r <= endRow; r++) {
+                    const targetRow = allRows[r];
+                    if (targetRow && cellIndex < targetRow.cells.length) {
+                        const targetCell = targetRow.cells[cellIndex];
+                        if (targetCell && targetCell.classList.contains('modal-access-cell')) {
+                            targetCell.classList.add('selected');
+                            this.selectedCells.add(targetCell);
+                            
+                            // Apply toggle state from source cell
+                            const targetCheckbox = targetCell.querySelector('input[type="checkbox"]');
+                            if (targetCheckbox && targetCheckbox.checked !== sourceState) {
+                                targetCheckbox.checked = sourceState;
+                                // Trigger change event to update cell state properly
+                                targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+                }
+            } else {
+                // RECTANGULAR selection
+                const startRow = Math.min(lastRowIndex, rowIndex);
+                const endRow = Math.max(lastRowIndex, rowIndex);
+                const startCol = Math.min(lastCellIndex, cellIndex);
+                const endCol = Math.max(lastCellIndex, cellIndex);
+                const allRows = Array.from(tbody.rows);
+                
+                for (let r = startRow; r <= endRow; r++) {
+                    const targetRow = allRows[r];
+                    if (targetRow) {
+                        for (let col = startCol; col <= endCol; col++) {
+                            if (col >= 4 && col < targetRow.cells.length) {
+                                const targetCell = targetRow.cells[col];
+                                if (targetCell && targetCell.classList.contains('modal-access-cell')) {
+                                    targetCell.classList.add('selected');
+                                    this.selectedCells.add(targetCell);
+                                    
+                                    // Apply toggle state from source cell
+                                    const targetCheckbox = targetCell.querySelector('input[type="checkbox"]');
+                                    if (targetCheckbox && targetCheckbox.checked !== sourceState) {
+                                        targetCheckbox.checked = sourceState;
+                                        // Trigger change event to update cell state properly
+                                        targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            log(`✅ Shift-selected ${this.selectedCells.size} cells and applied toggle state`);
+        } else if (ctrlPressed) {
+            // Ctrl pressed - toggle individual cell in selection
+            if (this.selectedCells.has(cell)) {
+                cell.classList.remove('selected');
+                this.selectedCells.delete(cell);
+                if (this.lastSelectedCell === cell) {
+                    this.lastSelectedCell = this.selectedCells.size > 0 ? Array.from(this.selectedCells)[this.selectedCells.size - 1] : null;
+                }
+            } else {
+                cell.classList.add('selected');
+                this.selectedCells.add(cell);
+                this.lastSelectedCell = cell;
+            }
+        } else {
+            // Just select this cell
+            cell.classList.add('selected');
+            this.selectedCells.add(cell);
+            this.lastSelectedCell = cell;
         }
     }
 
