@@ -9,7 +9,7 @@ $ZONE = "europe-west6-b"
 $PROJECT_ID = "acc-user-mgmt"
 $VM_IP = "34.65.160.116"
 $LOCAL_PATH = "c:\MCPServer\ACC_User_Management"
-$VM_PATH = "/home/acc-user-management"
+$VM_PATH = "/home/samsona/ACC_User_Management_Cloud"
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "ACC User Management - Deployment Script" -ForegroundColor Cyan
@@ -18,11 +18,10 @@ Write-Host ""
 
 # Step 1: Check if gcloud is installed
 Write-Host "Step 1: Checking gcloud installation..." -ForegroundColor Green
-try {
-    $gcloudVersion = gcloud version 2>&1
-    Write-Host "✓ gcloud is installed" -ForegroundColor Green
-} catch {
-    Write-Host "✗ gcloud is not installed!" -ForegroundColor Red
+if (Get-Command gcloud -ErrorAction SilentlyContinue) {
+    Write-Host "* gcloud is installed" -ForegroundColor Green
+} else {
+    Write-Host "X gcloud is not installed!" -ForegroundColor Red
     Write-Host "Install from: https://cloud.google.com/sdk/docs/install" -ForegroundColor Yellow
     exit 1
 }
@@ -30,27 +29,27 @@ try {
 # Step 2: Set project
 Write-Host "`nStep 2: Setting Google Cloud project..." -ForegroundColor Green
 gcloud config set project $PROJECT_ID
-Write-Host "✓ Project set to: $PROJECT_ID" -ForegroundColor Green
+Write-Host "* Project set to: $PROJECT_ID" -ForegroundColor Green
 
 # Step 3: Check VM status
 Write-Host "`nStep 3: Checking VM status..." -ForegroundColor Green
-$vmStatus = gcloud compute instances describe $VM_NAME --zone=$ZONE --format=`"value(status)`" 2>&1
+$vmStatus = gcloud compute instances describe $VM_NAME --zone=$ZONE --format='value(status)' 2>&1
 if ($vmStatus -eq "RUNNING") {
-    Write-Host "✓ VM is running" -ForegroundColor Green
+    Write-Host "* VM is running" -ForegroundColor Green
 } elseif ($vmStatus -eq "TERMINATED") {
     Write-Host "! VM is stopped. Starting..." -ForegroundColor Yellow
     gcloud compute instances start $VM_NAME --zone=$ZONE
-    Write-Host "✓ VM started. Waiting 30 seconds for boot..." -ForegroundColor Green
+    Write-Host "* VM started. Waiting 30 seconds for boot..." -ForegroundColor Green
     Start-Sleep -Seconds 30
 } else {
-    Write-Host "✗ VM status unknown: $vmStatus" -ForegroundColor Red
+    Write-Host "X VM status unknown: $vmStatus" -ForegroundColor Red
     exit 1
 }
 
 # Step 4: Upload deployment script
 Write-Host "`nStep 4: Uploading deployment script..." -ForegroundColor Green
 gcloud compute scp "$LOCAL_PATH\deploy-vm.sh" ${VM_NAME}:${VM_PATH}/deploy-vm.sh --zone=$ZONE
-Write-Host "✓ Deployment script uploaded" -ForegroundColor Green
+Write-Host "* Deployment script uploaded" -ForegroundColor Green
 
 # Step 5: Upload application files
 Write-Host "`nStep 5: Uploading application files..." -ForegroundColor Green
@@ -67,6 +66,7 @@ $filesToCopy = @(
     "*.html",
     "*.css",
     "*.md",
+    "*.mp4",
     ".env.production"
 )
 
@@ -80,12 +80,12 @@ gcloud compute scp --recurse "$tempDir\*" ${VM_NAME}:${VM_PATH}/ --zone=$ZONE
 # Clean up temp directory
 Remove-Item -Path $tempDir -Recurse -Force
 
-Write-Host "✓ Application files uploaded" -ForegroundColor Green
+Write-Host "* Application files uploaded" -ForegroundColor Green
 
 # Step 6: Run deployment script on VM
 Write-Host "`nStep 6: Running deployment script on VM..." -ForegroundColor Green
 gcloud compute ssh $VM_NAME --zone=$ZONE --command="cd $VM_PATH && chmod +x deploy-vm.sh && ./deploy-vm.sh"
-Write-Host "✓ Deployment script completed" -ForegroundColor Green
+Write-Host "* Deployment script completed" -ForegroundColor Green
 
 # Step 7: Check application status
 Write-Host "`nStep 7: Checking application status..." -ForegroundColor Green
@@ -107,9 +107,10 @@ Write-Host ""
 Write-Host "Application URL: http://$VM_IP:3000" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor Cyan
-Write-Host "  View logs:    gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 logs`'" -ForegroundColor White
-Write-Host "  Check status: gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 status`'" -ForegroundColor White
-Write-Host "  Restart app:  gcloud compute ssh $VM_NAME --zone=$ZONE --command=`'pm2 restart all`'" -ForegroundColor White
+Write-Host "  View logs:    gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 logs'" -ForegroundColor White
+Write-Host "  Check status: gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 status'" -ForegroundColor White
+Write-Host "  Restart app:  gcloud compute ssh $VM_NAME --zone=$ZONE --command='pm2 restart all'" -ForegroundColor White
 Write-Host "  SSH to VM:    gcloud compute ssh $VM_NAME --zone=$ZONE" -ForegroundColor White
 Write-Host ""
 Write-Host "=========================================" -ForegroundColor Cyan
+
