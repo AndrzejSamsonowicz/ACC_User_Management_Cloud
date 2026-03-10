@@ -767,24 +767,54 @@
                 <div id="credentialsModal" class="credentials-modal" style="display: none;">
                     <div class="credentials-modal-content">
                         <div class="credentials-modal-header">
-                            <h3>Enter your APS application Client Credentials</h3>
+                            <h3>Setup your application</h3>
                             <span class="credentials-modal-close">&times;</span>
                         </div>
                         <div class="credentials-modal-body">
                             <div class="credentials-two-column">
                                 <div class="credentials-left-column">
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <button onclick="openApsGuide()" style="width: 100%; box-sizing: border-box;">
-                                            How to create an APS app
-                                        </button>
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <div style="padding: 12px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 13px; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px;">
-                                            In your app General Settings add the Callback URL: <strong>https://usermgt.digibuild.ch/index.html</strong>
+                                    <div style="margin-bottom: 10px; max-width: 450px;">
+                                        <div style="font-size: 16px; font-weight: bold; color: #333; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 15px;">
+                                            Follow these steps to enable the application:
+                                        </div>
+                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
+                                            Step 1
                                         </div>
                                     </div>
-                                    <div style="text-align: center; max-width: 450px; width: 450px;">
-                                        <img src="APS General Settings.png" alt="APS General Settings" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <div onclick="openApsGuide()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                            Create an APS application
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 10px; max-width: 450px;">
+                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
+                                            Step 2
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <div onclick="openAddUrlVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                            Add the Callback URL
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 10px; max-width: 450px;">
+                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
+                                            Step 3
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                            Add custom integration
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 10px; max-width: 450px;">
+                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
+                                            Step 4
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 20px; max-width: 450px;">
+                                        <div onclick="openCopyClientIdVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                            Copy and paste Client ID and Client Secret
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="credentials-right-column">
@@ -799,8 +829,8 @@
                                                style="width: 450px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; margin: 0;" />
                                         <small style="color: #666; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">Secret will be hidden for security</small>
                                     </div>
-                                    <div style="margin-bottom: 15px; max-width: 450px;">
-                                        <button onclick="saveCredentials()" style="width: 100%; box-sizing: border-box; margin: 0;">
+                                    <div style="margin-bottom: 15px; max-width: 450px; text-align: center;">
+                                        <button onclick="saveCredentials()" style="box-sizing: border-box; margin: 0 auto; display: inline-block;">
                                             Save Credentials
                                         </button>
                                     </div>
@@ -921,6 +951,11 @@
                     .credentials-modal-body {
                         padding: 20px;
                         font-family: 'Artifact Elements', Arial, sans-serif;
+                    }
+                    
+                    .step-button-clickable:hover {
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                        background-color: #e9ecef !important;
                     }
                 </style>
             `;
@@ -1043,7 +1078,195 @@
         }
 
         function openApsGuide() {
-            window.open('https://aps.autodesk.com/en/docs/oauth/v2/tutorials/create-app/', '_blank');
+            // Create video modal if it doesn't exist
+            let videoModal = document.getElementById('apsVideoModal');
+            if (!videoModal) {
+                const modalHTML = `
+                    <div id="apsVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to create an APS application</h3>
+                                <span onclick="closeApsVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                            </div>
+                            <div style="padding: 20px;">
+                                <video id="apsVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
+                                    <source src="create APS app.mp4" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                videoModal = document.getElementById('apsVideoModal');
+            }
+            
+            // Show modal
+            videoModal.style.display = 'block';
+            
+            // Play video
+            const video = document.getElementById('apsVideo');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+        }
+        
+        function closeApsVideoModal() {
+            const videoModal = document.getElementById('apsVideoModal');
+            if (videoModal) {
+                videoModal.style.display = 'none';
+                
+                // Pause video
+                const video = document.getElementById('apsVideo');
+                if (video) {
+                    video.pause();
+                }
+            }
+        }
+        
+        function openAddUrlVideo() {
+            // Create video modal if it doesn't exist
+            let videoModal = document.getElementById('addUrlVideoModal');
+            if (!videoModal) {
+                const modalHTML = `
+                    <div id="addUrlVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Add the Callback URL</h3>
+                                <span onclick="closeAddUrlVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                            </div>
+                            <div style="padding: 20px;">
+                                <video id="addUrlVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
+                                    <source src="add URL.mp4" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                videoModal = document.getElementById('addUrlVideoModal');
+            }
+            
+            // Show modal
+            videoModal.style.display = 'block';
+            
+            // Play video
+            const video = document.getElementById('addUrlVideo');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+        }
+        
+        function closeAddUrlVideoModal() {
+            const videoModal = document.getElementById('addUrlVideoModal');
+            if (videoModal) {
+                videoModal.style.display = 'none';
+                
+                // Pause video
+                const video = document.getElementById('addUrlVideo');
+                if (video) {
+                    video.pause();
+                }
+            }
+        }
+        
+        function openCustomIntegrationVideo() {
+            // Create video modal if it doesn't exist
+            let videoModal = document.getElementById('customIntegrationVideoModal');
+            if (!videoModal) {
+                const modalHTML = `
+                    <div id="customIntegrationVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Add custom integration</h3>
+                                <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                            </div>
+                            <div style="padding: 20px;">
+                                <video id="customIntegrationVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
+                                    <source src="custom integration.mp4" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                videoModal = document.getElementById('customIntegrationVideoModal');
+            }
+            
+            // Show modal
+            videoModal.style.display = 'block';
+            
+            // Play video
+            const video = document.getElementById('customIntegrationVideo');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+        }
+        
+        function closeCustomIntegrationVideoModal() {
+            const videoModal = document.getElementById('customIntegrationVideoModal');
+            if (videoModal) {
+                videoModal.style.display = 'none';
+                
+                // Pause video
+                const video = document.getElementById('customIntegrationVideo');
+                if (video) {
+                    video.pause();
+                }
+            }
+        }
+        
+        function openCopyClientIdVideo() {
+            // Create video modal if it doesn't exist
+            let videoModal = document.getElementById('copyClientIdVideoModal');
+            if (!videoModal) {
+                const modalHTML = `
+                    <div id="copyClientIdVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Copy and paste Client ID and Client Secret</h3>
+                                <span onclick="closeCopyClientIdVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                            </div>
+                            <div style="padding: 20px;">
+                                <video id="copyClientIdVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
+                                    <source src="copy Client ID and Secret.mp4" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                videoModal = document.getElementById('copyClientIdVideoModal');
+            }
+            
+            // Show modal
+            videoModal.style.display = 'block';
+            
+            // Play video
+            const video = document.getElementById('copyClientIdVideo');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+        }
+        
+        function closeCopyClientIdVideoModal() {
+            const videoModal = document.getElementById('copyClientIdVideoModal');
+            if (videoModal) {
+                videoModal.style.display = 'none';
+                
+                // Pause video
+                const video = document.getElementById('copyClientIdVideo');
+                if (video) {
+                    video.pause();
+                }
+            }
         }
         
         function showError(message) {
