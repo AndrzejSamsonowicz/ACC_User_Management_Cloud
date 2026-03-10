@@ -1506,6 +1506,18 @@
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
                                         
+                                        // AUTO-UPDATE inherited permissions in child folders
+                                        const row = targetCell.parentElement;
+                                        const parentFolderId = row.getAttribute('data-folder-id');
+                                        const level1Id = row.getAttribute('data-level1-id');
+                                        const level2Id = row.getAttribute('data-level2-id');
+                                        const isLevel2Folder = level1Id && !level2Id;
+                                        const userIdentifier = targetCell.getAttribute('data-user');
+                                        
+                                        if (isLevel2Folder && userIdentifier) {
+                                            updateInheritedPermissions(parentFolderId, userIdentifier, sourcePermissionLevel);
+                                        }
+                                        
                                         // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                     }
                                 }
@@ -1538,6 +1550,18 @@
                                         const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
                                         targetCell.style.backgroundColor = colors.background;
                                         targetCell.style.color = colors.color;
+                                        
+                                        // AUTO-UPDATE inherited permissions in child folders
+                                        const row = targetCell.parentElement;
+                                        const parentFolderId = row.getAttribute('data-folder-id');
+                                        const level1Id = row.getAttribute('data-level1-id');
+                                        const level2Id = row.getAttribute('data-level2-id');
+                                        const isLevel2Folder = level1Id && !level2Id;
+                                        const userIdentifier = targetCell.getAttribute('data-user');
+                                        
+                                        if (isLevel2Folder && userIdentifier) {
+                                            updateInheritedPermissions(parentFolderId, userIdentifier, sourcePermissionLevel);
+                                        }
                                         
                                         // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                     }
@@ -1575,6 +1599,18 @@
                                                 const colors = subjectType ? getSubjectColor(subjectType, sourcePermissionLevel) : getPermissionLevelColor(sourcePermissionLevel);
                                                 targetCell.style.backgroundColor = colors.background;
                                                 targetCell.style.color = colors.color;
+                                                
+                                                // AUTO-UPDATE inherited permissions in child folders
+                                                const row = targetCell.parentElement;
+                                                const parentFolderId = row.getAttribute('data-folder-id');
+                                                const level1Id = row.getAttribute('data-level1-id');
+                                                const level2Id = row.getAttribute('data-level2-id');
+                                                const isLevel2Folder = level1Id && !level2Id;
+                                                const userIdentifier = targetCell.getAttribute('data-user');
+                                                
+                                                if (isLevel2Folder && userIdentifier) {
+                                                    updateInheritedPermissions(parentFolderId, userIdentifier, sourcePermissionLevel);
+                                                }
                                                 
                                                 // log(`📝 Applied permission level ${sourcePermissionLevel} to cell`);
                                             }
