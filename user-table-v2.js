@@ -1,11 +1,3 @@
-// Test that this file is loading
-console.error('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
-console.error('🎯🎯🎯 VERSION: 2026-03-10-HORIZONTAL-SHIFT-SELECT-FIX 🎯🎯🎯');
-console.error('🎯🎯🎯 OLD VERTICAL-ONLY SHIFT CODE IS DISABLED 🎯🎯🎯');
-log('🎯🎯🎯 USER-TABLE.JS FILE IS LOADING! 🎯🎯🎯');
-log('🎯🎯🎯 VERSION: 2026-03-10-HORIZONTAL-SHIFT-SELECT-FIX 🎯🎯🎯');
-log('🎯🎯🎯 OLD VERTICAL-ONLY SHIFT CODE IS DISABLED 🎯🎯🎯');
-
 // Security: HTML escape function to prevent XSS
 function escapeHtml(text) {
     if (typeof text !== 'string') return text;
