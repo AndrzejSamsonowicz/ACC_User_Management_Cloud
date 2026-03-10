@@ -1017,7 +1017,7 @@ class UserTableManager {
                 // Normal click - track as last selected
                 this.selectedCells.forEach(c => c.classList.remove('selected'));
                 this.selectedCells.clear();
-                cell.classList.add('selected');
+                // cell.classList.add('selected'); // Disabled: no visual highlighting
                 this.selectedCells.add(cell);
                 this.lastSelectedCell = cell;
             }
@@ -1095,7 +1095,7 @@ class UserTableManager {
                 setTimeout(() => {
                     this.selectedCells.forEach(c => c.classList.remove('selected'));
                     this.selectedCells.clear();
-                    cell.classList.add('selected');
+                    // cell.classList.add('selected'); // Disabled: no visual highlighting
                     this.selectedCells.add(cell);
                     this.lastSelectedCell = cell;
                     log(`  ✅ lastSelectedCell set to: ${cell.getAttribute('data-column-name')}`);
@@ -1336,7 +1336,7 @@ class UserTableManager {
                             
                             log(`  📍 Col ${col} - ${targetColumnName}: Processing (current value: ${oldValue})...`);
                             
-                            targetCell.classList.add('selected');
+                            // targetCell.classList.add('selected'); // Disabled: no visual highlighting
                             this.selectedCells.add(targetCell);
                             
                             // Apply value based on cell type
@@ -1390,7 +1390,7 @@ class UserTableManager {
                     if (targetRow && cellIndex < targetRow.cells.length) {
                         const targetCell = targetRow.cells[cellIndex];
                         if (targetCell && cellIndex > 0) { // Skip checkbox column
-                            targetCell.classList.add('selected');
+                            // targetCell.classList.add('selected'); // Disabled: no visual highlighting
                             this.selectedCells.add(targetCell);
                             
                             // Apply value based on cell type
@@ -1444,7 +1444,7 @@ class UserTableManager {
                             if (col > 0 && col < targetRow.cells.length) { // Skip checkbox column
                                 const targetCell = targetRow.cells[col];
                                 if (targetCell) {
-                                    targetCell.classList.add('selected');
+                                    // targetCell.classList.add('selected'); // Disabled: no visual highlighting
                                     this.selectedCells.add(targetCell);
                                     
                                     // Apply value based on cell type
@@ -1497,7 +1497,7 @@ class UserTableManager {
             log(`⚠️ Shift pressed but no lastSelectedCell anchor - treating as regular selection`);
             this.selectedCells.forEach(c => c.classList.remove('selected'));
             this.selectedCells.clear();
-            cell.classList.add('selected');
+            // cell.classList.add('selected'); // Disabled: no visual highlighting
             this.selectedCells.add(cell);
             this.lastSelectedCell = cell;
         } else if (ctrlPressed) {
@@ -1509,13 +1509,13 @@ class UserTableManager {
                     this.lastSelectedCell = this.selectedCells.size > 0 ? Array.from(this.selectedCells)[this.selectedCells.size - 1] : null;
                 }
             } else {
-                cell.classList.add('selected');
+                // cell.classList.add('selected'); // Disabled: no visual highlighting
                 this.selectedCells.add(cell);
                 this.lastSelectedCell = cell;
             }
         } else {
             // Just select this cell
-            cell.classList.add('selected');
+            // cell.classList.add('selected'); // Disabled: no visual highlighting
             this.selectedCells.add(cell);
             this.lastSelectedCell = cell;
         }
@@ -2759,8 +2759,15 @@ class UserTableManager {
                 'Content-Type': 'application/json'
             };
             
-            // Add authentication token if available (not in demo mode)
-            const token = window.getAuthToken && window.getAuthToken();
+            // Refresh token before saving (Firebase tokens expire after 1 hour)
+            let token = null;
+            if (window.refreshAuthToken) {
+                log('🔄 Refreshing auth token before save...');
+                token = await window.refreshAuthToken();
+            } else {
+                token = window.getAuthToken && window.getAuthToken();
+            }
+            
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             } else {
@@ -3101,7 +3108,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
     /**
      * Load table data from server
      */
-    loadTableData() {
+    async loadTableData() {
         log('📊 loadTableData() called');
         
         // Check if we have a project ID
@@ -3114,9 +3121,16 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         const loadUrl = `${window.location.origin}/load-project-users/${this.modalProjectId}`;
         log('📊 Fetching from:', loadUrl);
         
-        // Prepare headers with auth token
+        // Prepare headers with refreshed auth token
         const headers = {};
-        const token = window.getAuthToken && window.getAuthToken();
+        let token = null;
+        if (window.refreshAuthToken) {
+            log('🔄 Refreshing auth token before load...');
+            token = await window.refreshAuthToken();
+        } else {
+            token = window.getAuthToken && window.getAuthToken();
+        }
+        
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
@@ -3168,7 +3182,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
         tbody.innerHTML = '';
         this.existingEmails.clear();
         
-        users.forEach(user => {
+        users.forEach((user, rowIndex) => {
             log('📋 Populating row for user:', user.email);
             log('📋   Company:', user.metadata?.company);
             log('📋   Role:', user.metadata?.role);
@@ -3222,70 +3236,32 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             ];
             
             columnOrder.forEach((columnName, index) => {
-                const cell = document.createElement('td');
-                cell.className = 'modal-access-cell';
-                cell.setAttribute('data-column', index + 4);
-                cell.setAttribute('data-column-name', columnName);
+                // Use createAccessCell to get proper event handlers
+                const cell = this.createAccessCell(columnName, index + 4, rowIndex);
                 
+                // Find the product data for this column
                 const product = user.products.find(p => 
                     productKeyMap[p.key] === columnName
                 );
                 
-                // Set default values based on service type (same logic as createAccessCell)
-                let defaultValue;
-                if (columnName === 'Project Admin') {
-                    defaultValue = 'none';
-                } else if (columnName === 'Docs') {
-                    defaultValue = 'member';
-                } else if (columnName === 'Design Collaboration' || 
-                           columnName === 'Model Coordination' || 
-                           columnName === 'Build' || 
-                           columnName === 'Cost' || 
-                           columnName === 'Forma' ||
-                           columnName === 'Preconstruction') {
-                    defaultValue = 'none';
-                } else {
-                    // Default fallback (should not be reached with current services)
-                    defaultValue = 'member';
-                }
-                
-                const accessValue = product ? product.access : defaultValue;
-                
-                // Determine if toggle should be checked based on column type and value
-                let isChecked;
-                if (columnName === 'Project Admin') {
-                    // Project Admin: OFF='none', ON='administrator'
-                    isChecked = (accessValue === 'administrator');
-                } else if (columnName === 'Docs') {
-                    // Docs: OFF='member', ON='administrator'
-                    isChecked = (accessValue === 'administrator');
-                } else {
-                    // Other products: OFF='none', ON='member' or 'administrator'
-                    isChecked = (accessValue === 'member' || accessValue === 'administrator');
-                }
-                
-                // Create toggle switch HTML
-                cell.innerHTML = `
-                    <label class="toggle-switch">
-                        <input type="checkbox" ${isChecked ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                `;
-                
-                // Set data-value attribute
-                cell.setAttribute('data-value', accessValue);
-                
-                // Add administrator class for visual feedback
-                if (accessValue === 'administrator') {
-                    cell.classList.add('administrator');
-                }
-                
-                // Add event listener to checkbox
-                const checkbox = cell.querySelector('input[type="checkbox"]');
-                if (checkbox) {
-                    checkbox.addEventListener('change', (e) => {
-                        this.handleToggleChange(e, cell, columnName, index + 4);
-                    });
+                if (product) {
+                    // Update cell with loaded value
+                    const accessValue = product.access;
+                    cell.setAttribute('data-value', accessValue);
+                    
+                    // Update checkbox state
+                    const checkbox = cell.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        const isChecked = this.isToggleChecked(columnName, accessValue);
+                        checkbox.checked = isChecked;
+                    }
+                    
+                    // Update administrator class
+                    if (accessValue === 'administrator') {
+                        cell.classList.add('administrator');
+                    } else {
+                        cell.classList.remove('administrator');
+                    }
                 }
                 
                 row.appendChild(cell);

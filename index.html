@@ -473,7 +473,7 @@
         // DEBUG MODE CONFIGURATION
         // ========================================================================
         // Set to true for development, false for production (silences console.log)
-        const DEBUG_MODE = false;
+        const DEBUG_MODE = true;
         const log = DEBUG_MODE ? console.log.bind(console) : () => {};
         
         // ========================================================================
@@ -534,6 +534,21 @@
         // Security: Secure token manager - NEVER expose token on window object
         window.getAuthToken = function() {
             return authToken;
+        };
+        
+        // Refresh authentication token (Firebase tokens expire after 1 hour)
+        window.refreshAuthToken = async function() {
+            if (auth && auth.currentUser) {
+                try {
+                    authToken = await auth.currentUser.getIdToken(true); // force refresh
+                    log('🔄 Auth token refreshed');
+                    return authToken;
+                } catch (error) {
+                    console.error('❌ Failed to refresh auth token:', error);
+                    return null;
+                }
+            }
+            return null;
         };
         
         // Check authentication status on page load
@@ -3420,7 +3435,7 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="user-table.js?v=2026030907"></script>
+    <script src="user-table-v2.js"></script>
     <script src="update_account_users.js?v=2026030821"></script>
     <script src="get_account_users.js?v=2025021817"></script>
     <script src="get_project_users.js?v=2026030906"></script>

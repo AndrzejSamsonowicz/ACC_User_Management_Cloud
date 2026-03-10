@@ -97,7 +97,7 @@ class ProjectUsersViewer {
 
                 .users-modal-header {
                     padding: 15px 20px;
-                    background-color: #e8f4f8;
+                    background-color: #F1F1F1;
                     border-bottom: 1px solid #ddd;
                     border-radius: 8px 8px 0 0;
                     display: flex;
@@ -522,15 +522,12 @@ class ProjectUsersViewer {
         
         // Check if Shift key is pressed for range selection
         if (event.shiftKey && this.lastCheckedIndex !== null && this.lastCheckedIndex !== currentIndex) {
-            // Prevent default to avoid the checkbox toggling
-            event.preventDefault();
+            // Use the clicked checkbox's current state (after toggle) as target
+            // The checkbox has already toggled by the time this handler runs
+            const targetState = checkbox.checked;
             
             const start = Math.min(this.lastCheckedIndex, currentIndex);
             const end = Math.max(this.lastCheckedIndex, currentIndex);
-            
-            // Use the last checked checkbox's state as the target state
-            const lastCheckbox = checkboxArray[this.lastCheckedIndex];
-            const targetState = lastCheckbox ? lastCheckbox.checked : true;
             
             // Set all checkboxes in range (inclusive) to the same state
             for (let i = start; i <= end; i++) {
@@ -538,9 +535,6 @@ class ProjectUsersViewer {
                     checkboxArray[i].checked = targetState;
                 }
             }
-            
-            // Explicitly ensure the clicked checkbox is set (should already be done in loop, but just to be safe)
-            checkbox.checked = targetState;
             
             // Don't update lastCheckedIndex - keep the anchor point
         } else {
@@ -590,7 +584,7 @@ class ProjectUsersViewer {
         const checkboxes = Array.from(document.querySelectorAll('.user-checkbox:checked'));
         
         if (checkboxes.length === 0) {
-            alert('Please select at least one user to delete.');
+            this.showMessage('Please select at least one user to delete.', 'warning');
             return;
         }
         
@@ -603,9 +597,9 @@ class ProjectUsersViewer {
             };
         });
         
-        // Confirm deletion
-        const confirmMessage = `Are you sure you want to delete ${usersToDelete.length} user(s) from this project?\\n\\n${usersToDelete.map(u => u.email).join('\\n')}`;
-        if (!confirm(confirmMessage)) {
+        // Show confirmation modal
+        const confirmed = await this.showConfirmModal(usersToDelete);
+        if (!confirmed) {
             return;
         }
         
@@ -614,7 +608,7 @@ class ProjectUsersViewer {
         const loadingOverlay = document.createElement('div');
         loadingOverlay.id = 'deleteLoadingOverlay';
         loadingOverlay.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; align-items: center; justify-content: center;';
-        loadingOverlay.innerHTML = '<div style=\"text-align: center;\"><div style=\"font-size: 18px; font-weight: bold; margin-bottom: 10px;\">Deleting users...</div><div id=\"deleteProgress\" style=\"font-size: 14px; color: #666;\">0 / ' + usersToDelete.length + '</div></div>';
+        loadingOverlay.innerHTML = '<div style="text-align: center;"><div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">Deleting users...</div><div id="deleteProgress" style="font-size: 14px; color: #666;">0 / ' + usersToDelete.length + '</div></div>';
         modal.querySelector('.users-modal-content').style.position = 'relative';
         modal.querySelector('.users-modal-content').appendChild(loadingOverlay);
         
@@ -642,15 +636,224 @@ class ProjectUsersViewer {
             loadingOverlay.parentNode.removeChild(loadingOverlay);
         }
         
-        // Show result
-        if (failedUsers.length === 0) {
-            alert(`Successfully deleted ${successCount} user(s).`);
-        } else {
-            alert(`Deleted ${successCount} user(s).\\n\\nFailed to delete ${failedUsers.length} user(s):\\n${failedUsers.map(f => `${f.email}: ${f.error}`).join('\\n')}`);
-        }
+        // Show result modal
+        this.showResultModal(successCount, failedUsers, usersToDelete.length);
         
         // Refresh the user list
         await this.showProjectUsers(this.currentProjectId, this.currentProjectName);
+    }
+
+    showConfirmModal(usersToDelete) {
+        return new Promise((resolve) => {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'deleteConfirmModal';
+            overlay.style.cssText = 'position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;';
+            
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = 'background-color: white; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+            
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = 'padding: 15px 20px; background-color: #F1F1F1; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;';
+            header.innerHTML = '<h3 style="margin: 0; font-size: 18px; color: #333;">Confirm Deletion</h3>';
+            
+            // Body
+            const body = document.createElement('div');
+            body.style.cssText = 'padding: 20px; overflow-y: auto; flex: 1;';
+            
+            const message = document.createElement('p');
+            message.style.cssText = 'margin: 0 0 15px 0; font-size: 16px; font-weight: 500;';
+            message.textContent = `You are about to delete ${usersToDelete.length} user(s) from this project:`;
+            body.appendChild(message);
+            
+            // User list
+            const userList = document.createElement('div');
+            userList.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto;';
+            const list = document.createElement('ul');
+            list.style.cssText = 'margin: 0; padding-left: 20px; list-style-type: disc;';
+            usersToDelete.forEach(user => {
+                const item = document.createElement('li');
+                item.style.cssText = 'margin: 5px 0; color: #333; font-size: 14px;';
+                item.textContent = user.email;
+                list.appendChild(item);
+            });
+            userList.appendChild(list);
+            body.appendChild(userList);
+            
+            // Footer with buttons
+            const footer = document.createElement('div');
+            footer.style.cssText = 'padding: 15px 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6; border-radius: 0 0 8px 8px; display: flex; justify-content: space-evenly; gap: 10px;';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.cssText = 'padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; flex: 1; max-width: 200px;';
+            cancelBtn.onmouseover = () => cancelBtn.style.background = '#5a6268';
+            cancelBtn.onmouseout = () => cancelBtn.style.background = '#6c757d';
+            cancelBtn.onclick = () => {
+                document.body.removeChild(overlay);
+                resolve(false);
+            };
+            
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Yes, Delete';
+            confirmBtn.style.cssText = 'padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; flex: 1; max-width: 200px;';
+            confirmBtn.onmouseover = () => confirmBtn.style.background = '#0056b3';
+            confirmBtn.onmouseout = () => confirmBtn.style.background = '#007bff';
+            confirmBtn.onclick = () => {
+                document.body.removeChild(overlay);
+                resolve(true);
+            };
+            
+            footer.appendChild(cancelBtn);
+            footer.appendChild(confirmBtn);
+            
+            // Assemble modal
+            modalContent.appendChild(header);
+            modalContent.appendChild(body);
+            modalContent.appendChild(footer);
+            overlay.appendChild(modalContent);
+            
+            // Add to page
+            document.body.appendChild(overlay);
+            
+            // Close on overlay click
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                }
+            };
+        });
+    }
+
+    showResultModal(successCount, failedUsers, totalCount) {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'deleteResultModal';
+        overlay.style.cssText = 'position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;';
+        
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = 'background-color: white; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+        
+        // Determine if operation was successful
+        const isSuccess = failedUsers.length === 0;
+        
+        // Header
+        const header = document.createElement('div');
+        header.style.cssText = 'padding: 15px 20px; background-color: #F1F1F1; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;';
+        header.innerHTML = '<h3 style="margin: 0; font-size: 18px; color: #333;">Deletion Complete</h3>';
+        
+        // Body
+        const body = document.createElement('div');
+        body.style.cssText = 'padding: 20px; overflow-y: auto; flex: 1;';
+        
+        if (isSuccess) {
+            const message = document.createElement('p');
+            message.style.cssText = 'margin: 0; font-size: 16px; color: #333;';
+            message.innerHTML = `<strong>Successfully deleted ${successCount} user(s).</strong>`;
+            body.appendChild(message);
+        } else {
+            const successMsg = document.createElement('p');
+            successMsg.style.cssText = 'margin: 0 0 15px 0; font-size: 16px; color: #333;';
+            successMsg.innerHTML = `<strong>Successfully deleted:</strong> ${successCount} user(s)`;
+            body.appendChild(successMsg);
+            
+            const failMsg = document.createElement('p');
+            failMsg.style.cssText = 'margin: 0 0 10px 0; font-size: 16px; color: #dc3545; font-weight: 500;';
+            failMsg.textContent = `Failed to delete ${failedUsers.length} user(s):`;
+            body.appendChild(failMsg);
+            
+            // Failed users list
+            const failList = document.createElement('div');
+            failList.style.cssText = 'background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto;';
+            const list = document.createElement('div');
+            list.style.cssText = 'font-size: 14px;';
+            failedUsers.forEach(fail => {
+                const item = document.createElement('div');
+                item.style.cssText = 'margin: 8px 0; padding: 8px; background: white; border-radius: 3px;';
+                item.innerHTML = `<strong>${fail.email}</strong><br><span style="color: #666; font-size: 13px;">${fail.error}</span>`;
+                list.appendChild(item);
+            });
+            failList.appendChild(list);
+            body.appendChild(failList);
+        }
+        
+        // Footer with OK button
+        const footer = document.createElement('div');
+        footer.style.cssText = 'padding: 15px 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6; border-radius: 0 0 8px 8px; display: flex; justify-content: center;';
+        
+        const okBtn = document.createElement('button');
+        okBtn.textContent = 'OK';
+        okBtn.style.cssText = 'padding: 10px 30px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; min-width: 120px;';
+        okBtn.onmouseover = () => okBtn.style.background = '#0056b3';
+        okBtn.onmouseout = () => okBtn.style.background = '#007bff';
+        okBtn.onclick = () => {
+            document.body.removeChild(overlay);
+        };
+        
+        footer.appendChild(okBtn);
+        
+        // Assemble modal
+        modalContent.appendChild(header);
+        modalContent.appendChild(body);
+        modalContent.appendChild(footer);
+        overlay.appendChild(modalContent);
+        
+        // Add to page
+        document.body.appendChild(overlay);
+        
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        };
+    }
+
+    showMessage(message, type = 'info') {
+        // Simple message modal for quick notifications
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;';
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = 'background-color: white; border-radius: 8px; max-width: 400px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+        
+        const colors = {
+            info: '#17a2b8',
+            warning: '#ffc107',
+            error: '#dc3545',
+            success: '#28a745'
+        };
+        
+        const header = document.createElement('div');
+        header.style.cssText = `padding: 15px 20px; background-color: ${colors[type] || colors.info}; color: white; border-radius: 8px 8px 0 0;`;
+        header.innerHTML = `<h4 style="margin: 0; font-size: 16px;">${type.charAt(0).toUpperCase() + type.slice(1)}</h4>`;
+        
+        const body = document.createElement('div');
+        body.style.cssText = 'padding: 20px; font-size: 14px;';
+        body.textContent = message;
+        
+        const footer = document.createElement('div');
+        footer.style.cssText = 'padding: 10px 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6; border-radius: 0 0 8px 8px; text-align: right;';
+        
+        const okBtn = document.createElement('button');
+        okBtn.textContent = 'OK';
+        okBtn.style.cssText = 'padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;';
+        okBtn.onclick = () => document.body.removeChild(overlay);
+        
+        footer.appendChild(okBtn);
+        modalContent.appendChild(header);
+        modalContent.appendChild(body);
+        modalContent.appendChild(footer);
+        overlay.appendChild(modalContent);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = (e) => {
+            if (e.target === overlay) document.body.removeChild(overlay);
+        };
     }
 
     getAdminUserId() {
