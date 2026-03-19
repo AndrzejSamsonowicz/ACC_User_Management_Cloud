@@ -2070,6 +2070,26 @@
             await updateProjectUsersFromMainList(projectId, accountId, accessToken, 'modalProgressIndicator');
         }
         
+        // Function to save and then synchronize (combined operation)
+        async function saveAndSync() {
+            log('🔄 saveAndSync called - executing Save then Sync');
+            
+            try {
+                // Step 1: Save the table data
+                log('Step 1: Saving table data...');
+                await saveModalTableToJson();
+                
+                // Step 2: Synchronize with account users
+                log('Step 2: Synchronizing with account users...');
+                await updateProjectUsersFromModalContext();
+                
+                log('✅ Save & Sync completed successfully');
+            } catch (error) {
+                console.error('❌ Error in Save & Sync:', error);
+                alert(`Error during Save & Sync: ${error.message}`);
+            }
+        }
+        
         // Function to show the 3 lists in a dialog
         // OPTIMIZATION: Cache fetched data to avoid duplicate API calls
         function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
@@ -3485,8 +3505,8 @@
                     </div>
                     <div>
                         <button onclick="importCSV()">Import CSV</button>
-                        <button onclick="saveModalTableToJson()">Save</button>
-                        <button id="updateFromMainListBtn" onclick="updateProjectUsersFromModalContext()">Synchronize</button>
+                        <button onclick="openImportFromProjectModal()">Import From Other Project</button>
+                        <button onclick="saveAndSync()">Save & Sync</button>
                     </div>
                 </div>
                 <div style="margin-top: 10px; font-size: 13px; color: #666; line-height: 1.6;">
