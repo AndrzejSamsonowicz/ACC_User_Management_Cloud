@@ -903,11 +903,26 @@
                 const statusClass = user.emailVerified ? 'badge-active' : 'badge-pending';
                 const statusText = user.emailVerified ? 'Verified' : 'Unverified';
                 
+                // Check if user is on trial
+                let licenseDisplay = user.licenseKey || 'N/A';
+                if (user.isTrial && user.trialEndDate) {
+                    const trialEnd = new Date(user.trialEndDate);
+                    const now = new Date();
+                    const hoursLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60)));
+                    const isTrialActive = hoursLeft > 0;
+                    
+                    if (isTrialActive) {
+                        licenseDisplay = `<span style="color: #ff9800; font-weight: 600;">🎉 Trial: ${hoursLeft}h left</span>`;
+                    } else {
+                        licenseDisplay = `<span style="color: #dc3545; font-weight: 600;">Trial Expired</span>`;
+                    }
+                }
+                
                 html += `
                     <tr>
                         <td><input type="checkbox" class="user-checkbox" data-user-id="${user.userId}" data-user-email="${user.email}" onchange="updateDeleteButton()"></td>
                         <td>${user.email}</td>
-                        <td><code>${user.licenseKey || 'N/A'}</code></td>
+                        <td>${licenseDisplay}</td>
                         <td><span class="badge ${statusClass}">${statusText}</span></td>
                         <td>${expiryDate ? formatDate(expiryDate) : 'N/A'} ${isExpired ? '<span class="badge badge-expired">Expired</span>' : ''}</td>
                         <td>${user.lastLogin ? formatDate(new Date(user.lastLogin)) : 'Never'}</td>

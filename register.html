@@ -244,8 +244,12 @@
         </div>
         
         <div class="info-box">
-            <h3>📌 Registration Options</h3>
-            <p>You can register with or without a license key. If you don't have a license yet, <a href="purchase.html" style="color: #0696D7;">purchase one here</a> and add it to your account later.</p>
+            <h3>📌 Registration Options:</h3>
+            <p style="line-height: 1.8; margin-bottom: 0;">
+                <strong>1.</strong> All new accounts receive a <strong>3-day free trial</strong> with full access—no license key required to start!<br>
+                <strong>2.</strong> You can optionally enter a license key during registration. If you don't have one yet, <a href="purchase.html" style="color: #0696D7;">purchase one here</a> and add it to your account later.<br>
+                <strong>3.</strong> The confirmation email may arrive in your spam folder. Please check your spam/junk folder if you don't see it in your inbox.
+            </p>
         </div>
         
         <!-- Alert Messages -->
@@ -261,7 +265,7 @@
             <div class="form-group">
                 <label for="licenseKey">License Key (Optional)</label>
                 <input type="text" id="licenseKey" name="licenseKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19">
-                <div class="password-requirements">Leave empty if you don't have a license yet</div>
+                <div class="password-requirements">Leave empty to start with the 3-day free trial</div>
             </div>
             
             <div class="form-group">
@@ -387,7 +391,10 @@
                 // Step 3: Send email verification
                 await user.sendEmailVerification();
                 
-                // Step 4: Create user document in Firestore
+                // Step 4: Create user document in Firestore with 3-day trial
+                const now = new Date();
+                const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
+                
                 await db.collection('users').doc(user.uid).set({
                     email: email,
                     licenseKey: licenseKey || null,
@@ -397,7 +404,13 @@
                     lastLogin: null,
                     clientId: '',
                     clientSecret: '',
-                    encryptionIV: ''
+                    encryptionIV: '',
+                    // Trial period fields
+                    isTrial: licenseKey ? false : true,
+                    trialStartDate: licenseKey ? null : firebase.firestore.Timestamp.fromDate(now),
+                    trialEndDate: licenseKey ? null : firebase.firestore.Timestamp.fromDate(trialEndDate),
+                    trialUsed: true,
+                    hasActiveAccess: true
                 });
                 
                 // Step 5: Update license with user ID (if license provided)
@@ -434,7 +447,7 @@
                 
                 const successMessage = licenseKey 
                     ? '✅ Account created successfully! Please check your email to verify your account.' 
-                    : '✅ Account created successfully! Please check your email to verify. You can add a license key from the purchase page.';
+                    : '✅ Account created! You have 3 days of free access. Please check your email to verify your account.';
                 showAlert(successMessage, 'success');
                 
                 // Redirect to login after 3 seconds

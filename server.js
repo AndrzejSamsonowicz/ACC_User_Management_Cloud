@@ -990,6 +990,9 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
                 emailVerified: data.emailVerified || false,
                 licenseKey: data.licenseKey,
                 licenseExpiry: data.licenseExpiry?.toDate().toISOString(),
+                isTrial: data.isTrial || false,
+                trialEndDate: data.trialEndDate?.toDate().toISOString(),
+                trialUsed: data.trialUsed || false,
                 lastLogin: data.lastLogin?.toDate().toISOString(),
                 createdAt: data.createdAt?.toDate().toISOString()
             });
@@ -1333,12 +1336,19 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
         
         const userData = userDoc.data();
         const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
+        const trialEndDate = userData.trialEndDate ? userData.trialEndDate.toDate() : null;
+        const isTrial = userData.isTrial || false;
+        const now = new Date();
         
-        // Check license expiry for non-admin users
-        if (!isAdmin && (!licenseExpiry || licenseExpiry < new Date())) {
+        // Check access for non-admin users
+        // Allow access if: 1) User has valid license OR 2) User is in trial period
+        const hasValidLicense = licenseExpiry && licenseExpiry > now;
+        const hasValidTrial = isTrial && trialEndDate && trialEndDate > now;
+        
+        if (!isAdmin && !hasValidLicense && !hasValidTrial) {
             return res.json({ 
                 success: false, 
-                error: 'License expired',
+                error: isTrial ? 'Trial period expired. Please purchase a license to continue.' : 'License expired',
                 redirectTo: 'purchase.html'
             });
         }
@@ -1364,6 +1374,8 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
             isAdmin: isAdmin,
             email: userData.email,
             licenseExpiry: licenseExpiry ? licenseExpiry.toISOString() : null,
+            isTrial: isTrial,
+            trialEndDate: trialEndDate ? trialEndDate.toISOString() : null,
             redirectTo: isAdmin ? 'admin.html' : 'index.html'
         });
         
