@@ -99,7 +99,7 @@ ACC_User_Management/
 │
 └── Legacy Files/
     ├── get_account_users.js
-    ├── get_project_users.js
+    ├── view_project_users.js
     ├── manage_project_users.js
     └── ... (other utility scripts)
 ```

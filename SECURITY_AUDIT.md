@@ -39,7 +39,7 @@
   ```
 
 ### 3. **XSS Vulnerability via innerHTML**
-- **Files**: Multiple (index.html, get_account_users.js, get_project_users.js)
+- **Files**: Multiple (index.html, get_account_users.js, view_project_users.js)
 - **Issue**: Using `innerHTML` with potentially untrusted data
 - **Risk**: HIGH - Cross-site scripting attacks
 - **Examples**:

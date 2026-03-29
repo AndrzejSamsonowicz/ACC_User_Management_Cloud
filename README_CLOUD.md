@@ -193,7 +193,7 @@ ACC_USER_MANAGEMENT_CLOUD/
 ├── index.html                     # Frontend UI
 ├── user-table.js                  # User table component
 ├── get_account_users.js           # Account user operations
-├── get_project_users.js           # Project user operations
+├── view_project_users.js          # Project user operations
 ├── update_account_users.js        # Account user updates
 ├── manage_project_users.js        # Project user management
 ├── read_project_folders.js        # Folder operations

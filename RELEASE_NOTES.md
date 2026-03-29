@@ -86,7 +86,7 @@ This release introduces the initial version of ACC User Management system with c
 - `update_folder_permission.js` (695 lines) - Batch permission sync to ACC
 - `folders_permissions.js` (203 lines) - Permission fetching and utilities
 - `manage_project_users.js` - Project user management
-- `get_project_users.js` - Fetch project users from ACC
+- `view_project_users.js` - Fetch project users from ACC
 - `get_account_users.js` - Fetch account-level users
 - `update_account_users.js` - Update account user settings
 - `index.html` (2476 lines) - Main HTML structure and modals

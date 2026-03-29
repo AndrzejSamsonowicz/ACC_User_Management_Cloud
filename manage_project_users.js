@@ -838,7 +838,7 @@ class ProjectUsersManager {
 // Create global instance
 const projectUsersManager = new ProjectUsersManager();
 
-// DEPRECATED: This function has been moved to get_project_users.js
+// DEPRECATED: This function has been moved to view_project_users.js
 // Keeping this commented out to avoid conflicts
 /*
 function showProjectUsers(projectId, projectName, accessToken) {

@@ -29,7 +29,7 @@
 **JavaScript Modules:**
 ```
 ✅ get_account_users.js
-✅ get_project_users.js
+✅ view_project_users.js
 ✅ update_account_users.js
 ✅ manage_project_users.js
 ✅ read_project_folders.js

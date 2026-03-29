@@ -493,6 +493,7 @@ class UserTableManager {
 
     /**
      * Paste copied cells to selected range
+     * IMPROVED: Always paste multi-line clipboard data vertically, even from single cell selection
      */
     async pasteToSelectedCells() {
         if (this.selectedCells.size === 0) return;
@@ -503,7 +504,12 @@ class UserTableManager {
             // Use clipboard API without triggering permission prompt
             const clipboardText = await navigator.clipboard.readText();
             if (clipboardText) {
-                externalData = clipboardText.split(/\r?\n/).filter(line => line.trim());
+                // Split by newlines (keep empty lines to preserve structure)
+                externalData = clipboardText.split(/\r?\n/);
+                // Only filter out the very last empty line if it exists (from trailing newline)
+                if (externalData.length > 0 && externalData[externalData.length - 1].trim() === '') {
+                    externalData.pop();
+                }
                 log(`📋 Got ${externalData.length} lines from system clipboard`);
             }
         } catch (err) {
@@ -528,50 +534,61 @@ class UserTableManager {
         const targetRow = firstTargetCell.parentElement;
         const targetColIndex = firstTargetCell.cellIndex;
         
-        // Determine target orientation
-        const targetIsVertical = targetCells.every(cell => cell.cellIndex === targetColIndex);
-        const targetIsHorizontal = targetCells.every(cell => cell.parentElement === targetRow);
-        
-        if (!targetIsVertical && !targetIsHorizontal) {
-            log('⚠️ Cannot paste to non-linear selection');
-            return;
-        }
-        
         // Get column names to check for email column
         const table = document.getElementById('modalUserTable');
         const headers = Array.from(table.querySelectorAll('thead th'));
         
         // Handle external data (from system clipboard)
         if (externalData) {
-            if (targetIsVertical) {
+            // IMPROVED: Check if clipboard has multiple lines
+            const hasMultipleLines = dataSource.length > 1;
+            
+            // If multiple lines, ALWAYS paste vertically (Excel-like behavior)
+            if (hasMultipleLines) {
                 const startRowIndex = allRows.indexOf(targetRow);
+                let pastedCount = 0;
+                
                 for (let i = 0; i < dataSource.length && (startRowIndex + i) < allRows.length; i++) {
                     const cell = allRows[startRowIndex + i].cells[targetColIndex];
                     if (cell && cell.cellIndex !== 0) {
                         const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
                         if (columnHeader !== 'email') {
                             cell.textContent = dataSource[i];
-                            cell.style.backgroundColor = '#90EE90';
-                            setTimeout(() => { cell.style.backgroundColor = '#d4edff'; }, 300);
+                            pastedCount++;
                         }
                     }
                 }
-            } else if (targetIsHorizontal) {
-                const startColIndex = targetColIndex;
-                for (let i = 0; i < dataSource.length; i++) {
-                    const colIndex = startColIndex + i;
-                    const cell = targetRow.cells[colIndex];
-                    if (cell && cell.cellIndex !== 0 && colIndex < targetRow.cells.length) {
-                        const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
-                        if (columnHeader !== 'email') {
-                            cell.textContent = dataSource[i];
-                            cell.style.backgroundColor = '#90EE90';
-                            setTimeout(() => { cell.style.backgroundColor = '#d4edff'; }, 300);
-                        }
-                    }
-                }
+                log(`✅ Pasted ${pastedCount} lines vertically from clipboard`);
+                this.updateUserCount();
+                return;
             }
-            log('✅ Pasted from external clipboard');
+            
+            // Single line: paste to selected cell(s)
+            if (targetCells.length === 1) {
+                const cell = targetCells[0];
+                if (cell.cellIndex !== 0) {
+                    const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
+                    if (columnHeader !== 'email') {
+                        cell.textContent = dataSource[0];
+                        log('✅ Pasted single value from clipboard');
+                    }
+                }
+                this.updateUserCount();
+                return;
+            }
+            
+            // Multiple cells selected: fill all selected cells with the single value
+            targetCells.forEach(cell => {
+                if (cell.cellIndex !== 0) {
+                    const colIndex = cell.cellIndex;
+                    const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
+                    if (columnHeader !== 'email') {
+                        cell.textContent = dataSource[0];
+                    }
+                }
+            });
+            
+            log(`✅ Pasted to ${targetCells.length} selected cells`);
             this.updateUserCount();
             return;
         }
@@ -592,12 +609,6 @@ class UserTableManager {
                     if (columnHeader !== 'email') {
                         const oldValue = cell.textContent.trim();
                         cell.textContent = this.copiedData[i].value;
-                        
-                        // Visual feedback
-                        cell.style.backgroundColor = '#90EE90';
-                        setTimeout(() => {
-                            cell.style.backgroundColor = '#d4edff';
-                        }, 300);
                         
                         log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
                     } else {
@@ -620,12 +631,6 @@ class UserTableManager {
                     if (columnHeader !== 'email') {
                         const oldValue = cell.textContent.trim();
                         cell.textContent = this.copiedData[i].value;
-                        
-                        // Visual feedback
-                        cell.style.backgroundColor = '#90EE90';
-                        setTimeout(() => {
-                            cell.style.backgroundColor = '#d4edff';
-                        }, 300);
                         
                         log(`📝 Pasted "${this.copiedData[i].value}" to cell (was: "${oldValue}")`);
                     } else {
@@ -4020,7 +4025,7 @@ async function loadUsersForImport(projectId) {
         
         while (hasMoreData) {
             pageCount++;
-            // Use construction admin API (same as get_project_users.js and manage_project_users.js)
+            // Use construction admin API (same as view_project_users.js and manage_project_users.js)
             const queryParams = new URLSearchParams({
                 limit: limit.toString(),
                 offset: offset.toString()
@@ -4161,7 +4166,7 @@ function renderImportUsersTable(users) {
         const email = escapeHtml(user.email || '');
         const company = escapeHtml(user.companyName || '');
         
-        // Extract role names from roles array (same as get_project_users.js)
+        // Extract role names from roles array (same as view_project_users.js)
         let role = 'N/A';
         if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
             role = user.roles.map(r => r.name).join(', ');
