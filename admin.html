@@ -903,9 +903,10 @@
                 const statusClass = user.emailVerified ? 'badge-active' : 'badge-pending';
                 const statusText = user.emailVerified ? 'Verified' : 'Unverified';
                 
-                // Check if user is on trial
+                // Check if user is on trial - only show trial info if no active license
                 let licenseDisplay = user.licenseKey || 'N/A';
-                if (user.isTrial && user.trialEndDate) {
+                const hasActiveLicense = user.licenseKey && expiryDate && !isExpired;
+                if (user.isTrial && user.trialEndDate && !hasActiveLicense) {
                     const trialEnd = new Date(user.trialEndDate);
                     const now = new Date();
                     const hoursLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60)));

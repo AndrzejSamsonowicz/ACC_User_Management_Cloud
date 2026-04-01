@@ -1150,7 +1150,8 @@ app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
         // Update user document
         await db.collection('users').doc(userId).update({
             licenseKey: licenseKey,
-            licenseExpiry: admin.firestore.Timestamp.fromDate(expiryDate)
+            licenseExpiry: admin.firestore.Timestamp.fromDate(expiryDate),
+            isTrial: false  // Clear trial flag when a real license is activated
         });
         
         // Log analytics
