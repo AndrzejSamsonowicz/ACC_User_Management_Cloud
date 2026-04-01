@@ -1113,6 +1113,19 @@ app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
         const userData = userDoc.data();
         const email = userData.email;
         
+        // If user already has a license key (e.g. expired), mark it as replaced
+        if (userData.licenseKey) {
+            try {
+                await db.collection('licenses').doc(userData.licenseKey).update({
+                    status: 'replaced',
+                    replacedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    replacedBy: req.user.uid
+                });
+            } catch (e) {
+                // Old license doc may not exist - ignore
+            }
+        }
+        
         // Generate unique license key
         const licenseKey = generateLicenseKey();
         

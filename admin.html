@@ -928,7 +928,7 @@
                         <td>${user.lastLogin ? formatDate(new Date(user.lastLogin)) : 'Never'}</td>
                         <td>${formatDate(new Date(user.createdAt))}</td>
                         <td>
-                            ${!user.licenseKey ? 
+                            ${!user.licenseKey || isExpired ? 
                                 `<button class="btn btn-success btn-sm" onclick="activateUserLicense('${user.userId}', '${user.email}')">Activate License</button>` : 
                                 `<button class="btn btn-warning btn-sm" onclick="deactivateUserLicense('${user.userId}', '${user.email}', '${user.licenseKey}')">Deactivate License</button>`}
                         </td>
