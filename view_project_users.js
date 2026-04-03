@@ -249,12 +249,8 @@ class ProjectUsersViewer {
             });
         }
 
-        // Close modal when pressing ESC key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && modal.style.display === 'block') {
-                this.closeModal();
-            }
-        });
+        // Close modal when pressing ESC key — intentionally disabled
+        // Modal closes ONLY via the X button
 
         // Add filter input event listener
         const filterInput = document.getElementById('projectUsersFilter');
@@ -825,80 +821,63 @@ class ProjectUsersViewer {
     }
 
     showInvalidRolesModalInline(htmlContent) {
-        // Remove existing warning if any
-        let warningDiv = document.getElementById('invalidRolesWarning');
-        if (warningDiv) {
-            warningDiv.remove();
+        // Delegate to the global backdrop version if available
+        if (typeof window.showInvalidRolesModal === 'function') {
+            window.showInvalidRolesModal(htmlContent);
+            return;
         }
 
-        // Create warning div
-        warningDiv = document.createElement('div');
+        // Fallback: Remove existing warning if any (both naming patterns)
+        document.getElementById('invalidRolesBackdrop')?.remove();
+        document.getElementById('invalidRolesWarning')?.remove();
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'invalidRolesBackdrop';
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.55);
+            z-index: 99999;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 6vh;
+            box-sizing: border-box;
+        `;
+
+        const warningDiv = document.createElement('div');
         warningDiv.id = 'invalidRolesWarning';
         warningDiv.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             background: #fff3cd;
             border: 2px solid #ffc107;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 10001;
             min-width: 400px;
             max-width: 600px;
+            width: 90%;
             font-family: 'Artifact Elements', Arial, sans-serif;
             color: #856404;
             display: flex;
             flex-direction: column;
-            max-height: 80vh;
+            max-height: 60vh;
         `;
-        
-        // Add scrollable content and fixed OK button
+
         warningDiv.innerHTML = `
-            <div style="
-                padding: 20px;
-                overflow-y: auto;
-                flex: 1;
-            ">${htmlContent}</div>
-            <div style="
-                padding: 15px 20px;
-                text-align: center;
-                border-top: 1px solid #ffc107;
-                background: #fff3cd;
-                border-radius: 0 0 6px 6px;
-            ">
-                <button id="closeInvalidRolesWarning" style="
-                    padding: 10px 30px;
-                    background: #ffc107;
-                    border: none;
-                    border-radius: 4px;
-                    color: #856404;
-                    font-weight: bold;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
-                ">OK</button>
+            <div style="padding: 20px; overflow-y: auto; flex: 1;">${htmlContent}</div>
+            <div style="padding: 15px 20px; text-align: center; border-top: 1px solid #ffc107; background: #fff3cd; border-radius: 0 0 6px 6px;">
+                <button id="closeInvalidRolesWarning" style="padding: 10px 30px; background: #ffc107; border: none; border-radius: 4px; color: #856404; font-weight: bold; cursor: pointer; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif;">OK</button>
             </div>
         `;
-        
-        document.body.appendChild(warningDiv);
-        
-        // Add click handler for OK button
-        const okButton = document.getElementById('closeInvalidRolesWarning');
-        if (okButton) {
-            okButton.addEventListener('click', () => {
-                warningDiv.remove();
-            });
-        }
-        
-        // Close on Escape key
-        const escapeHandler = (e) => {
-            if (e.key === 'Escape' && document.getElementById('invalidRolesWarning')) {
-                warningDiv.remove();
-                document.removeEventListener('keydown', escapeHandler);
-            }
-        };
-        document.addEventListener('keydown', escapeHandler);
+
+        backdrop.appendChild(warningDiv);
+        document.body.appendChild(backdrop);
+
+        const close = () => backdrop.remove();
+        backdrop.querySelector('#closeInvalidRolesWarning').addEventListener('click', close);
+        document.addEventListener('keydown', function esc(e) {
+            if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
+        });
     }
 
     showConfirmationModal(message, onConfirm, onCancel) {

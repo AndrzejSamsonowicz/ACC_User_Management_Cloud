@@ -241,9 +241,9 @@ app.use((req, res, next) => {
     }
 });
 
-// Prevent caching of HTML files
+// Prevent caching of HTML and JS files
 app.use((req, res, next) => {
-    if (req.url.endsWith('.html') || req.url === '/' || req.url.startsWith('/?')) {
+    if (req.url.endsWith('.html') || req.url === '/' || req.url.startsWith('/?') || req.url.endsWith('.js')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');

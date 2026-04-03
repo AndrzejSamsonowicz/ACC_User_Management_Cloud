@@ -228,6 +228,13 @@
             align-items: center;
         }
         
+        /* Hide add/import buttons and swap Save & Sync label when in manage-existing mode */
+        .modal-manage-mode #modalAddRowBtn,
+        .modal-manage-mode #modalImportCSVBtn,
+        .modal-manage-mode #modalImportFromProjectBtn {
+            display: none !important;
+        }
+        
         .modal-access-cell {
             background: white;
             cursor: pointer;
@@ -380,7 +387,7 @@
         <div class="spinner"></div>
     </div>
     
-    <h1 style="font-family: 'Artifact Elements', Arial, sans-serif; margin-left: 20px;">ACC User Management</h1>
+    <h1 style="font-family: 'Artifact Elements', Arial, sans-serif; margin-left: 20px;">Forma User Management</h1>
     <div id="login" style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 20px;">
         <button onclick="logout()">Logout</button>
         <button onclick="showCredentialsModal()">Settings</button>
@@ -420,13 +427,24 @@
                 <div id="projectsHeader" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 id="selectedHubTitle" style="font-family: 'Artifact Elements', Arial, sans-serif;">Select a hub to view projects</h3>
-                        <div style="display: flex; gap: 10px;">
+                        <div style="display: flex; gap: 10px; align-items: flex-start;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                                <button id="addNewUsersBtn" onclick="openMultiProjectNewUsersModal()" disabled style="display: none;">
+                                    Add New Project Users
+                                </button>
+                                <span id="addNewUsersBtnWarning" style="visibility: hidden; color: #E8A838; font-size: 12px; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">&#9888; Select at least one project</span>
+                            </div>
                             <button id="viewAccountUsersBtn" onclick="" style="display: none;">
                                 View Account Users
                             </button>
                         </div>
                     </div>
                     
+                    <!-- Admin Note -->
+                    <div id="adminNote" style="margin-bottom: 12px; display: none; padding: 10px 12px; background-color: #e7f3ff; border: 1px solid #b3d9ff; border-left: 3px solid #0696D7; border-radius: 4px; font-size: 13px; color: #0077B6;">
+                        <strong>ℹ️ Note:</strong> You must be a project administrator to manage project users.
+                    </div>
+
                     <!-- Project Filter -->
                     <div id="projectFilterContainer" style="margin-bottom: 20px; display: none;">
                         <label for="projectFilter" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #333; margin-right: 10px;">Filter projects:</label>
@@ -449,9 +467,10 @@
                     </div>
                     
                     <!-- Button Explanations -->
-                    <div id="buttonExplanations" style="margin-bottom: 15px; padding: 10px 12px; background-color: #e7f3ff; border: 1px solid #b3d9ff; border-left: 3px solid #0696D7; border-radius: 4px; flex-shrink: 0; display: none;">
-                        <div style="font-size: 13px; color: #0077B6;">
-                            <strong>ℹ️ Note:</strong> You must be a project administrator to manage project users.
+                    <div id="buttonExplanations" style="margin-bottom: 10px; flex-shrink: 0; display: none;">
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="checkAllProjects()" style="min-width: unset !important; height: 28px !important; padding: 4px 12px !important; font-size: 12px !important; margin: 0 !important;">Check All</button>
+                            <button onclick="uncheckAllProjects()" style="min-width: unset !important; height: 28px !important; padding: 4px 12px !important; font-size: 12px !important; margin: 0 !important;">Uncheck All</button>
                         </div>
                     </div>
                 </div>
@@ -1447,6 +1466,15 @@
             // Set up the View Account Users button
             viewAccountUsersBtn.onclick = () => showAccountUsers(hubId, hubName, currentAccessToken);
             viewAccountUsersBtn.style.display = 'block';
+
+            // Show the Add new users button (disabled until a project is selected)
+            const addNewUsersBtn = document.getElementById('addNewUsersBtn');
+            const addNewUsersBtnWarning = document.getElementById('addNewUsersBtnWarning');
+            if (addNewUsersBtn) {
+                addNewUsersBtn.style.display = 'block';
+                addNewUsersBtn.disabled = true;
+            }
+            if (addNewUsersBtnWarning) addNewUsersBtnWarning.style.visibility = 'visible';
             
             // Show loading message
             projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading projects...</div>';
@@ -1554,15 +1582,18 @@
             const projectFilterContainer = document.getElementById('projectFilterContainer');
             const projectFilter = document.getElementById('projectFilter');
             const buttonExplanations = document.getElementById('buttonExplanations');
+            const adminNote = document.getElementById('adminNote');
             
             // Store original projects data globally for filtering
             window.originalProjectsData = projects;
+            window.checkedProjectIds = new Set(); // Reset checked state when hub/projects change
             window.currentHubName = hubName;
             window.currentHubId = hubId;
             
-            // Show filter container, button explanations, and clear filter
+            // Show filter container, button explanations, admin note, and clear filter
             projectFilterContainer.style.display = 'block';
             buttonExplanations.style.display = 'block';
+            if (adminNote) adminNote.style.display = 'block';
             projectFilter.value = '';
             
             if (projects && projects.length > 0) {
@@ -1577,32 +1608,46 @@
         // Function to render the projects list
         function renderProjectsList(projects) {
             const projectsList = document.getElementById('projectsList');
-            
+            // Restore button state based on persistent checkedProjectIds
+            const checkedIds = window.checkedProjectIds || new Set();
+            const anyChecked = projects && projects.some(p => checkedIds.has(p.id));
+            const addBtn = document.getElementById('addNewUsersBtn');
+            if (addBtn) addBtn.disabled = !anyChecked;
+            const addWarning = document.getElementById('addNewUsersBtnWarning');
+            if (addWarning) addWarning.style.visibility = anyChecked ? 'hidden' : 'visible';
+
             if (projects && projects.length > 0) {
                 const projectsHtml = projects.map(project => `
-                    <div class="project-item" style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa;">
-                        <div style="margin-bottom: 15px;">
-                            <strong style="font-size: 16px; color: #333;">${project.name}</strong>
-                        </div>
-                        <div style="display: flex; gap: 10px; flex-direction: column;">
-                            <div style="display:flex; gap:10px;">
-                                <button class="project-btn project-btn-update" onclick="openUserManagementModal('${project.id}', '${project.name.replace(/'/g, "\\'")}')">
-                                    New Users
-                                </button>
-                                <button class="project-btn project-btn-update" onclick="showProjectUsers('${project.id}', '${project.name.replace(/'/g, "\\'")}', currentAccessToken)">
-                                    View Project Users
-                                </button>
-                                <button class="project-btn project-btn-update" onclick="showFoldersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}', window.currentHubId, currentAccessToken)">
-                                    Manage Access to Folders
-                                </button>
-                            </div>
-
-                            <!-- Per-project progress indicator -->
-                            <div class="project-progress" id="projectProgress-${project.id}" style="display:none; margin-top:8px;">
-                                <div style="width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;">
-                                    <div id="projectProgressBar-${project.id}" style="width:0%;height:10px;background:#0696D7;border-radius:6px;"></div>
+                    <div class="project-item" style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa; cursor: pointer;" onclick="toggleProjectCheckbox(event, '${project.id}')">
+                        <div style="display: flex; align-items: flex-start; gap: 12px;">
+                            <input type="checkbox" class="project-select-cb"
+                                data-project-id="${project.id}"
+                                data-project-name="${project.name.replace(/"/g, '&quot;')}"
+                                onchange="onProjectCheckboxChange()"
+                                ${checkedIds.has(project.id) ? 'checked' : ''}
+                                style="margin-top: 3px; cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
+                            <div style="flex: 1;">
+                                <div style="margin-bottom: 15px;">
+                                    <strong style="font-size: 16px; color: #333;">${project.name}</strong>
                                 </div>
-                                <div id="projectProgressText-${project.id}" style="font-size:12px;color:#666;margin-top:6px;"></div>
+                                <div style="display: flex; gap: 10px; flex-direction: column;">
+                                    <div style="display:flex; gap:10px;">
+                                        <button class="project-btn project-btn-update" onclick="openManageExistingUsersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}')">
+                                            Existing Users
+                                        </button>
+                                        <button class="project-btn project-btn-update" onclick="showFoldersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}', window.currentHubId, currentAccessToken)">
+                                            Manage Access to Folders
+                                        </button>
+                                    </div>
+
+                                    <!-- Per-project progress indicator -->
+                                    <div class="project-progress" id="projectProgress-${project.id}" style="display:none; margin-top:8px;">
+                                        <div style="width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;">
+                                            <div id="projectProgressBar-${project.id}" style="width:0%;height:10px;background:#0696D7;border-radius:6px;"></div>
+                                        </div>
+                                        <div id="projectProgressText-${project.id}" style="font-size:12px;color:#666;margin-top:6px;"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1611,6 +1656,39 @@
             } else {
                 projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No projects match your filter.</div>';
             }
+        }
+
+        function onProjectCheckboxChange() {
+            const checkedIds = window.checkedProjectIds || (window.checkedProjectIds = new Set());
+            // Sync DOM state into the persistent set
+            document.querySelectorAll('.project-select-cb').forEach(cb => {
+                if (cb.checked) checkedIds.add(cb.dataset.projectId);
+                else checkedIds.delete(cb.dataset.projectId);
+            });
+            const anyChecked = checkedIds.size > 0;
+            const btn = document.getElementById('addNewUsersBtn');
+            const warning = document.getElementById('addNewUsersBtnWarning');
+            if (btn) btn.disabled = !anyChecked;
+            if (warning) warning.style.visibility = anyChecked ? 'hidden' : 'visible';
+        }
+
+        function toggleProjectCheckbox(event, projectId) {
+            // Don't double-toggle if the click was directly on the checkbox or a button
+            if (event.target.type === 'checkbox' || event.target.closest('button')) return;
+            const cb = document.querySelector(`.project-select-cb[data-project-id="${projectId}"]`);
+            if (cb) { cb.checked = !cb.checked; onProjectCheckboxChange(); }
+        }
+
+        function checkAllProjects() {
+            // Only affect currently visible checkboxes
+            document.querySelectorAll('.project-select-cb').forEach(cb => cb.checked = true);
+            onProjectCheckboxChange();
+        }
+
+        function uncheckAllProjects() {
+            // Only affect currently visible checkboxes
+            document.querySelectorAll('.project-select-cb').forEach(cb => cb.checked = false);
+            onProjectCheckboxChange();
         }
 
         // Function to update project count display
@@ -1638,7 +1716,7 @@
 
             // Filter projects by name (case-insensitive)
             const filteredProjects = window.originalProjectsData.filter(project => 
-                project.name.toLowerCase().includes(filterText)
+                project.name.toLowerCase().startsWith(filterText)
             );
 
             renderProjectsList(filteredProjects);
@@ -2646,9 +2724,12 @@
     </script>
 
     <!-- Load User Table Management Module -->
+    <script src="table-cell-interaction.js"></script>
     <script src="user-table-v2.js"></script>
+    <script src="xlsx.full.min.js"></script>
+    <script src="import-from-project.js"></script>
     <script src="update_account_users.js?v=2026030821"></script>
-    <script src="update_project_users.js?v=20260308"></script>
+    <script src="update_project_users.js?v=20260403"></script>
     <script src="get_account_users.js?v=2025021817"></script>
     <script src="view_project_users.js?v=20260329172500"></script>
     <script src="manage_project_users.js?v=2026030822"></script>
@@ -2691,14 +2772,14 @@
             <div class="user-modal-body">
                 <div class="modal-table-actions">
                     <div>
-                        <button onclick="addModalRow()">Add Row</button>
+                        <button id="modalAddRowBtn" onclick="addModalRow()">Add Row</button>
                         <button onclick="deleteSelectedModalRows()">Delete Row</button>
                         <button onclick="clearModalTable()">Clear Table</button>
                     </div>
                     <div>
-                        <button onclick="importCSV()">Import CSV</button>
-                        <button onclick="openImportFromProjectModal()">Import From Other Project</button>
-                        <button onclick="saveAndSync()">Save & Sync</button>
+                        <button id="modalImportCSVBtn" onclick="importCSV()">Import From File</button>
+                        <button id="modalImportFromProjectBtn" onclick="openImportFromProjectModal()">Import From Other Project</button>
+                        <button id="modalSaveSyncBtn" onclick="saveAndSync()">Save &amp; Sync</button>
                     </div>
                 </div>
                 <div style="margin-top: 10px; font-size: 13px; color: #666; line-height: 1.6;">
@@ -2739,15 +2820,15 @@
                                 <th class="modal-editable">Email</th>
                                 <th class="modal-editable">Company</th>
                                 <th class="modal-editable">Role</th>
-                                <th>Project Admin</th>
+                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Project Admin</th>
                                 <!-- <th>Insight</th> Hidden: Insight always defaults to 'member' and doesn't support 'administrator' -->
-                                <th>Docs</th>
-                                <th>Design Collaboration</th>
-                                <th>Model Coordination</th>
+                                <!-- <th>Docs</th> Removed: Data Management is auto-granted by ACC -->
+                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Design Collaboration</th>
+                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Model Coordination</th>
                                 <th>Preconstruction</th>
                                 <th>Build</th>
-                                <th>Cost</th>
-                                <th>Forma</th>
+                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Cost Management</th>
+                                <th>Design</th>
                             </tr>
                         </thead>
                         <tbody id="modalTableBody"></tbody>

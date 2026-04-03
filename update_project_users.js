@@ -12,7 +12,7 @@ log('🔄 update_project_users.js loaded');
  * - Users to POST (add new)
  * - Users to DELETE (remove)
  */
-async function updateProjectUsersFromMainList(projectId, accountId, accessToken, progressId) {
+async function updateProjectUsersFromMainList(projectId, accountId, accessToken, progressId, overrideImportUsers = null) {
     const progressEl = document.getElementById(progressId);
     const progressBar = document.getElementById(`${progressId.replace('projectProgress-','projectProgressBar-')}`) || null;
     const progressText = document.getElementById(`${progressId.replace('projectProgress-','projectProgressText-')}`) || null;
@@ -21,29 +21,38 @@ async function updateProjectUsersFromMainList(projectId, accountId, accessToken,
     if (progressText) progressText.textContent = 'Analyzing users...';
     
     try {
-        // Load user permissions from Firestore (project-specific)
+        // Load user permissions from Firestore (project-specific), unless overrideImportUsers supplied
         if (progressBar) progressBar.style.width = '40%';
         
-        // Fetch from server API with authentication (project-specific endpoint)
-        const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-            headers: isDemoMode ? {} : {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
+        let importUsers, importData;
         
-        if (!importResponse.ok) {
-            if (importResponse.status === 401) {
-                alert('Session expired. Please login again.');
-                if (!isDemoMode) await auth.signOut();
-                window.location.href = 'login.html';
-                return;
+        if (overrideImportUsers) {
+            // Use live table data (manage/Existing Users mode — changes not yet saved to Firestore)
+            importUsers = overrideImportUsers;
+            importData = { users: importUsers };
+            log(`Using ${importUsers.length} users from live modal table (override)`);
+        } else {
+            // Fetch from server API with authentication (project-specific endpoint)
+            const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
+                headers: isDemoMode ? {} : {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            
+            if (!importResponse.ok) {
+                if (importResponse.status === 401) {
+                    alert('Session expired. Please login again.');
+                    if (!isDemoMode) await auth.signOut();
+                    window.location.href = 'login.html';
+                    return;
+                }
+                throw new Error('Failed to load user permissions');
             }
-            throw new Error('Failed to load user permissions');
+            
+            importData = await importResponse.json();
+            importUsers = importData.users || [];
+            log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
         }
-        
-        const importData = await importResponse.json();
-        const importUsers = importData.users || [];
-        log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
         
         // Fetch project users
         if (progressBar) progressBar.style.width = '60%';
@@ -142,7 +151,7 @@ async function updateProjectUsersFromMainList(projectId, accountId, accessToken,
  * Wrapper to trigger sync from modal context
  * Gets context from userTableManager (projectId, accountId, accessToken)
  */
-async function updateProjectUsersFromModalContext() {
+async function updateProjectUsersFromModalContext(overrideImportUsers = null) {
     log('🚀 updateProjectUsersFromModalContext called');
     
     // Get project context from userTableManager
@@ -163,7 +172,7 @@ async function updateProjectUsersFromModalContext() {
     log('Context:', { projectId, accountId, accessToken: accessToken ? 'exists' : 'missing' });
     
     // Call the existing function with modal progress indicator
-    await updateProjectUsersFromMainList(projectId, accountId, accessToken, 'modalProgressIndicator');
+    await updateProjectUsersFromMainList(projectId, accountId, accessToken, 'modalProgressIndicator', overrideImportUsers);
 }
 
 /**
@@ -175,6 +184,12 @@ async function saveAndSync() {
     log('🔄 saveAndSync called - executing Save then Sync');
     
     try {
+        const projectIds = userTableManager?.modalProjectIds;
+        if (projectIds && projectIds.length > 1) {
+            await saveAndSyncMultiProject(projectIds);
+            return;
+        }
+
         // Step 1: Save the table data
         log('Step 1: Saving table data...');
         await saveModalTableToJson();
@@ -190,12 +205,29 @@ async function saveAndSync() {
     }
 }
 
+async function syncOnly() {
+    log('🔄 syncOnly called - skipping Firestore save, syncing only');
+    try {
+        // Collect live table data so PATCH uses current toggle state, not stale Firestore data
+        const tableUsers = (userTableManager && typeof userTableManager.collectTableUsers === 'function')
+            ? userTableManager.collectTableUsers()
+            : null;
+        await updateProjectUsersFromModalContext(tableUsers);
+        log('✅ Sync completed successfully');
+    } catch (error) {
+        console.error('❌ Error in Sync:', error);
+        alert(`Error during Sync: ${error.message}`);
+    }
+}
+
 /**
  * Show sync analysis dialog with 3 lists
  * Displays PATCH, POST, DELETE lists with checkboxes
  * @param {Object} cachedData - OPTIMIZATION: Cached data to avoid duplicate API calls
  */
 function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
+    // Detect manage mode (Existing Users) — hide ADD section
+    const isManageMode = userTableManager?.modalMode === 'manage';
     // Use user lists as-is
     const enrichedPatchList = listToPatch;
     const enrichedPostList = listToPost;
@@ -266,7 +298,7 @@ function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, a
                         ${buildUserTable(enrichedPatchList, 'syncTablePatch', 'No users to update')}
                     </div>
                     
-                    <div style="margin-bottom: 30px;">
+                    ${!isManageMode ? `<div style="margin-bottom: 30px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                             <h3 style="color: #28a745; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
                                 Users to ADD - ${enrichedPostList.length}
@@ -277,7 +309,7 @@ function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, a
                             These users exist in Users Main List but not in the project. They will be added.
                         </p>
                         ${buildUserTable(enrichedPostList, 'syncTablePost', 'No users to add')}
-                    </div>
+                    </div>` : ''}
                     
                     <div style="margin-bottom: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -351,34 +383,44 @@ function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, a
  * Show invalid roles warning modal
  */
 function showInvalidRolesModal(htmlContent) {
-    // Remove existing warning if any
-    let warningDiv = document.getElementById('invalidRolesWarning');
-    if (warningDiv) {
-        warningDiv.remove();
-    }
+    // Remove existing warning if any (both naming patterns)
+    document.getElementById('invalidRolesBackdrop')?.remove();
+    document.getElementById('invalidRolesWarning')?.remove();
 
-    // Create warning div
-    warningDiv = document.createElement('div');
+    // Backdrop overlay (sits above everything)
+    const backdrop = document.createElement('div');
+    backdrop.id = 'invalidRolesBackdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        background: rgba(0,0,0,0.55);
+        z-index: 99999;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 6vh;
+        box-sizing: border-box;
+    `;
+
+    // Warning card
+    const warningDiv = document.createElement('div');
     warningDiv.id = 'invalidRolesWarning';
     warningDiv.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
         background: #fff3cd;
         border: 2px solid #ffc107;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10001;
         min-width: 400px;
         max-width: 600px;
+        width: 90%;
         font-family: 'Artifact Elements', Arial, sans-serif;
         color: #856404;
         display: flex;
         flex-direction: column;
-        max-height: 80vh;
+        max-height: 60vh;
     `;
-    
+
     // Add scrollable content and fixed OK button
     warningDiv.innerHTML = `
         <div style="
@@ -406,21 +448,20 @@ function showInvalidRolesModal(htmlContent) {
             ">OK</button>
         </div>
     `;
-    
-    document.body.appendChild(warningDiv);
-    
-    // Add click handler for OK button
-    const okButton = document.getElementById('closeInvalidRolesWarning');
-    if (okButton) {
-        okButton.addEventListener('click', () => {
-            warningDiv.remove();
-        });
-    }
-    
+
+    backdrop.appendChild(warningDiv);
+    document.body.appendChild(backdrop);
+
+    const close = () => backdrop.remove();
+
+    // Use querySelector on the container to avoid ID clash with any other elements
+    const okButton = backdrop.querySelector('#closeInvalidRolesWarning');
+    if (okButton) okButton.addEventListener('click', close);
+
     // Close on Escape key
     const escapeHandler = (e) => {
-        if (e.key === 'Escape' && document.getElementById('invalidRolesWarning')) {
-            warningDiv.remove();
+        if (e.key === 'Escape' && document.getElementById('invalidRolesBackdrop')) {
+            close();
             document.removeEventListener('keydown', escapeHandler);
         }
     };
@@ -432,17 +473,18 @@ function showInvalidRolesModal(htmlContent) {
  * Performs PATCH, POST, and DELETE operations at project level
  * @param {Object} cachedData - OPTIMIZATION: Cached data to avoid duplicate API calls
  */
-async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
+async function executeSyncOperations(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null, options = {}) {
     log('🔥🔥🔥 SYNC CODE VERSION: 2026-03-29-ROLE-FIX-V2 - Roles are account-level, use account role IDs directly 🔥🔥🔥');
-    const enableUpdate = document.getElementById('enableUpdate').checked;
-    const enableAdd = document.getElementById('enableAdd').checked;
-    const enableDelete = document.getElementById('enableDelete').checked;
+    const isDirectMode = !!options.directMode;
+    const enableUpdate = options.enableUpdate ?? (document.getElementById('enableUpdate')?.checked ?? true);
+    const enableAdd = options.enableAdd ?? (document.getElementById('enableAdd')?.checked ?? false);
+    const enableDelete = options.enableDelete ?? (document.getElementById('enableDelete')?.checked ?? true);
     
-    log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId });
+    log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId, isDirectMode });
     
     if (!projectId || !accountId) {
-        alert('Missing project or account ID');
-        return;
+        if (!isDirectMode) alert('Missing project or account ID');
+        return { updated: 0, added: 0, deleted: 0, errors: ['Missing project or account ID'] };
     }
     
     // Calculate total operations
@@ -458,10 +500,21 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
     }
     
     let completedOperations = 0;
+
+    // Results object — declared here so STEP 1 (account update) can store invalidRoles
+    let results = {
+        updated: 0,
+        added: 0,
+        deleted: 0,
+        errors: [],
+        invalidRoles: null
+    };
     
     // Disable sync button and show progress
-    const syncButton = document.getElementById('syncButton');
-    const originalButtonText = syncButton.textContent;
+    const syncButton = isDirectMode
+        ? { textContent: '', disabled: false, style: { opacity: '1', cursor: 'pointer' } }
+        : document.getElementById('syncButton');
+    const originalButtonText = syncButton ? syncButton.textContent : '';
     syncButton.disabled = true;
     syncButton.style.opacity = '0.6';
     syncButton.style.cursor = 'not-allowed';
@@ -481,31 +534,33 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         // STEP 1: Update account users first (company and role from Users Main List)
         log('🚀 STEP 1: Updating account users with company and role from Users Main List');
         try {
-            const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId);
+            // Pass cached/live import users so company & role come from the current table, not stale Firestore data
+            const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId, cachedData?.importUsers || null);
             log('✅ Account users updated:', accountUpdateResult);
             
             // Check for invalid roles and warn the user
             const invalidRoleCount = accountUpdateResult.invalidRoles?.size || 0;
             if (invalidRoleCount > 0) {
                 console.warn('⚠️ INVALID ROLES DETECTED - users were processed without roles:', accountUpdateResult.invalidRoles);
-                
-                // Build error message HTML for modal
-                let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
-                for (const [role, emails] of accountUpdateResult.invalidRoles) {
-                    errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-                    errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
-                    errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
-                    emails.forEach(email => {
-                        errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
-                    });
-                    errorHTML += '</ul></div>';
+                results.invalidRoles = accountUpdateResult.invalidRoles;
+
+                if (!isDirectMode) {
+                    // Build error message HTML for modal
+                    let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
+                    for (const [role, emails] of accountUpdateResult.invalidRoles) {
+                        errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+                        errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+                        errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+                        emails.forEach(email => {
+                            errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
+                        });
+                        errorHTML += '</ul></div>';
+                    }
+                    errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+                    errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
+                    errorHTML += '</div>';
+                    showInvalidRolesModal(errorHTML);
                 }
-                errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-                errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
-                errorHTML += '</div>';
-                
-                // Show modal to user
-                showInvalidRolesModal(errorHTML);
             }
         } catch (accountError) {
             console.error('⚠️ Account update failed (continuing anyway):', accountError);
@@ -572,13 +627,6 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             projectUsers: projectUsers.length,
             availableProducts: availableProductKeys.size
         });
-        
-        let results = {
-            updated: 0,
-            added: 0,
-            deleted: 0,
-            errors: []
-        };
         
         // NOTE: Roles are defined at ACCOUNT level, not project level
         // We use account role IDs directly in project-level PATCH/POST operations
@@ -975,7 +1023,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             }
         }
         
-        // Show results section
+        // Show results section briefly, then auto-close the modal
         const resultsDiv = document.getElementById('syncResults');
         const resultsContent = document.getElementById('syncResultsContent');
         if (resultsDiv && resultsContent) {
@@ -985,22 +1033,234 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             // Scroll to results
             resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
+
+        // Auto-close the modal after a short delay so the user can see the completion message
+        setTimeout(() => {
+            const modal = document.getElementById('userListsModal');
+            if (modal) modal.remove();
+        }, 1500);
+
+        return results;
         
     } catch (error) {
         console.error('Sync error:', error);
-        alert(`Sync failed: ${error.message}`);
-        // Re-enable button on error
-        syncButton.disabled = false;
-        syncButton.style.opacity = '1';
-        syncButton.style.cursor = 'pointer';
-        syncButton.textContent = originalButtonText;
+        if (!isDirectMode) {
+            alert(`Sync failed: ${error.message}`);
+            // Re-enable button on error
+            syncButton.disabled = false;
+            syncButton.style.opacity = '1';
+            syncButton.style.cursor = 'pointer';
+            syncButton.textContent = originalButtonText;
+        }
+        return { updated: 0, added: 0, deleted: 0, errors: [`Sync failed: ${error.message}`] };
     }
+}
+
+/**
+ * Run sync for a single project directly (no confirmation dialog).
+ * Builds the 3 lists then calls executeSyncOperations in direct mode.
+ * enableDelete = false for "add new users" flow — we never delete from other projects.
+ */
+async function runSyncForProjectDirect(projectId, accountId, accessToken, tableUsers) {
+    log(`🔁 runSyncForProjectDirect: project ${projectId}`);
+
+    const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
+
+    const importEmailMap = new Map();
+    (tableUsers || []).forEach(u => { if (u.email) importEmailMap.set(u.email.toLowerCase(), u); });
+
+    const projectEmailMap = new Map();
+    projectUsers.forEach(u => { if (u.email) projectEmailMap.set(u.email.toLowerCase(), u); });
+
+    const listToPatch = [];
+    const listToPost = [];
+    const listToDelete = []; // built but not executed (enableDelete = false)
+
+    (tableUsers || []).forEach(importUser => {
+        if (!importUser.email) return;
+        const email = importUser.email.toLowerCase();
+        if (projectEmailMap.has(email)) {
+            listToPatch.push({ email: importUser.email, projectUserId: projectEmailMap.get(email).id });
+        } else {
+            listToPost.push({ email: importUser.email });
+        }
+    });
+
+    projectUsers.forEach(pu => {
+        if (!pu.email) return;
+        if (!importEmailMap.has(pu.email.toLowerCase())) {
+            listToDelete.push({ email: pu.email, id: pu.id });
+        }
+    });
+
+    const cachedData = {
+        importData: { users: tableUsers },
+        importUsers: tableUsers,
+        projectUsers,
+        importEmailMap,
+        projectEmailMap
+    };
+
+    return await executeSyncOperations(
+        listToPatch, listToPost, listToDelete,
+        projectId, accountId, accessToken, cachedData,
+        { directMode: true, enableUpdate: true, enableAdd: true, enableDelete: false }
+    );
+}
+
+/**
+ * Save & Sync for multiple selected projects.
+ * Saves the modal table to Firestore for each project, then syncs them all.
+ */
+async function saveAndSyncMultiProject(projects) {
+    log('🔄 saveAndSyncMultiProject called for', projects.length, 'projects');
+
+    const tableUsers = (userTableManager && typeof userTableManager.collectTableUsers === 'function')
+        ? userTableManager.collectTableUsers()
+        : null;
+
+    if (!tableUsers || tableUsers.length === 0) {
+        alert('No users in the table to sync.');
+        return;
+    }
+
+    const accountId = window.currentHubId;
+    const accessToken = window.currentAccessToken;
+
+    if (!accountId || !accessToken) {
+        alert('Error: Missing hub or access token. Please refresh the page.');
+        return;
+    }
+
+    // Show progress overlay
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="multiSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${projects.length} Projects</h3>
+                <div id="multiSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Preparing...</div>
+                <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                    <div id="multiSyncBar" style="background:#0696D7;height:100%;width:0%;transition:width 0.3s;"></div>
+                </div>
+            </div>
+        </div>
+    `);
+
+    const statusEl = document.getElementById('multiSyncStatus');
+    const barEl = document.getElementById('multiSyncBar');
+
+    const allResults = [];
+
+    for (let i = 0; i < projects.length; i++) {
+        const project = projects[i];
+        if (statusEl) statusEl.textContent = `(${i + 1}/${projects.length}) ${project.name}`;
+        if (barEl) barEl.style.width = `${Math.round((i / projects.length) * 100)}%`;
+
+        try {
+            // Save table to Firestore for this project (skip account update — executeSyncOperations STEP 1 handles it)
+            userTableManager.modalProjectId = project.id;
+            userTableManager.modalProjectName = project.name;
+            await userTableManager.saveTableToJson(true); // skipAccountUpdate = true
+
+            // Run sync directly (no confirmation dialog)
+            const result = await runSyncForProjectDirect(project.id, accountId, accessToken, tableUsers);
+            allResults.push({ project, result, error: null });
+        } catch (err) {
+            console.error(`Error syncing project ${project.name}:`, err);
+            allResults.push({ project, result: null, error: err.message });
+        }
+    }
+
+    // Complete progress bar
+    if (barEl) barEl.style.width = '100%';
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Remove progress overlay
+    document.getElementById('multiSyncOverlay')?.remove();
+
+    // Collect and show ONE combined invalid roles warning across all projects
+    const allInvalidRoles = new Map();
+    allResults.forEach(({ project, result }) => {
+        if (result?.invalidRoles?.size > 0) {
+            for (const [role, emails] of result.invalidRoles) {
+                if (!allInvalidRoles.has(role)) allInvalidRoles.set(role, { emails: [], projects: [] });
+                const entry = allInvalidRoles.get(role);
+                emails.forEach(e => { if (!entry.emails.includes(e)) entry.emails.push(e); });
+                if (!entry.projects.includes(project.name)) entry.projects.push(project.name);
+            }
+        }
+    });
+    if (allInvalidRoles.size > 0) {
+        let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
+        for (const [role, { emails, projects: pNames }] of allInvalidRoles) {
+            errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+            errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+            if (pNames.length > 1) errorHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${pNames.join(', ')}</div>`;
+            errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => { errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`; });
+            errorHTML += '</ul></div>';
+        }
+        errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+        errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
+        errorHTML += '</div>';
+        showInvalidRolesModal(errorHTML);
+    }
+
+    // Show summary
+    _showMultiSyncResults(allResults);
+}
+
+/**
+ * Show a summary dialog after multi-project sync completes.
+ */
+function _showMultiSyncResults(allResults) {
+    const rows = allResults.map(({ project, result, error }) => {
+        if (error) {
+            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifact Elements',Arial,sans-serif;">Error: ${error}</td></tr>`;
+        }
+        const r = result || {};
+        const errNote = r.errors?.length ? ` &bull; <span style="color:#dc3545;">${r.errors.length} error(s)</span>` : '';
+        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${errNote}</td></tr>`;
+    }).join('');
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="multiSyncResultsModal" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:8px;padding:0;width:90%;max-width:620px;max-height:80vh;display:flex;flex-direction:column;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+                <div style="padding:20px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
+                    <h3 style="margin:0;font-family:'Artifact Elements',Arial,sans-serif;">Multi-Project Sync Complete</h3>
+                    <span id="multiSyncResultsClose" style="color:#aaa;font-size:26px;line-height:1;cursor:pointer;">&times;</span>
+                </div>
+                <div style="overflow-y:auto;flex:1;padding:20px;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f5f5f5;">
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifact Elements',Arial,sans-serif;">Project</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifact Elements',Arial,sans-serif;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                <div style="padding:15px 20px;border-top:1px solid #ddd;text-align:right;">
+                    <button id="multiSyncResultsOk" style="padding:8px 24px;background:#0696D7;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:'Artifact Elements',Arial,sans-serif;">OK</button>
+                </div>
+            </div>
+        </div>
+    `);
+
+    const close = () => document.getElementById('multiSyncResultsModal')?.remove();
+    document.getElementById('multiSyncResultsClose').onclick = close;
+    document.getElementById('multiSyncResultsOk').onclick = close;
+    document.addEventListener('keydown', function esc(e) {
+        if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
+    });
 }
 
 // Expose global functions
 window.updateProjectUsersFromMainList = updateProjectUsersFromMainList;
 window.updateProjectUsersFromModalContext = updateProjectUsersFromModalContext;
 window.saveAndSync = saveAndSync;
+window.syncOnly = syncOnly;
 window.showUserListsDialog = showUserListsDialog;
 window.showInvalidRolesModal = showInvalidRolesModal;
 window.executeSyncOperations = executeSyncOperations;
+window.saveAndSyncMultiProject = saveAndSyncMultiProject;
