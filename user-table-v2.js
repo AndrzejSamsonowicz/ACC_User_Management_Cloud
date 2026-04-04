@@ -226,15 +226,7 @@ class UserTableManager extends TableCellInteraction {
         
         modal.style.display = 'block';
         log('🎯 Calling loadTableData()...');
-        // In multi-new mode start with a blank table (no existing data to load)
-        if (mode === 'multi-new') {
-            const tbody = document.getElementById(this.tableBodyId);
-            tbody.innerHTML = '';
-            this.existingEmails.clear();
-            this.updateUserCount();
-        } else {
-            this.loadTableData();
-        }
+        this.loadTableData();
         
         // Focus on the modal for better accessibility
         setTimeout(() => {

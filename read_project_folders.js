@@ -513,12 +513,12 @@
         for (let d = 0; d < currentFolderDisplayDepth; d++) {
             const isLast = (d === currentFolderDisplayDepth - 1);
             if (isLast) {
-                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">expand subfolders</div><button class="folder-level-btn folder-expand-btn" id="folderExpandBtn" onclick="window.expandFolderDepth()" title="Expand to next level">+</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-inner"><div class="folder-col-label">expand subfolders</div><button class="folder-level-btn folder-expand-btn" id="folderExpandBtn" onclick="window.expandFolderDepth()" title="Expand to next level">+</button></div></th>`;
             } else if (d === 0) {
                 // First column: show × to collapse all subfolders back to root level
-                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">collapse all</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(1)" title="Collapse all subfolders">×</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-inner"><div class="folder-col-label">collapse all</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(1)" title="Collapse all subfolders">×</button></div></th>`;
             } else {
-                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">collapse level ${d + 1}</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-inner"><div class="folder-col-label">collapse level ${d + 1}</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></div></th>`;
             }
         }
         for (let i = 0; i < additionalColumnsCount; i++) theadHTML += '<th></th>';
@@ -640,7 +640,7 @@
                 const displayName = data.displayName || data.user;
                 const inheritedAttr = data.isInherited ? ' readonly title="Inherited from parent folder (read-only)"' : '';
                 const inheritedIndicator = data.isInherited ? '<span class="inherited-indicator" title="Inherited from parent folder">↓</span>' : '';
-                cell.innerHTML = `<span class="cell-username">${displayName}</span><input type="text" class="cell-permission-level" value="${data.level}" maxlength="1"${inheritedAttr} />${inheritedIndicator}`;
+                cell.innerHTML = `<span class="cell-username" title="${displayName}">${displayName}</span><input type="text" class="cell-permission-level" value="${data.level}" maxlength="1"${inheritedAttr} />${inheritedIndicator}`;
                 cell.setAttribute('data-user', data.user);
                 cell.setAttribute('data-display-name', displayName);
                 cell.setAttribute('data-permission-level', data.level);
@@ -666,6 +666,21 @@
      * Fetches children of all currently visible leaf-level folders, updates the
      * hierarchy, increments currentFolderDisplayDepth, and re-renders the table.
      */
+
+    function showPermissionsBanner() {
+        const container = document.getElementById('foldersTableContainer');
+        if (!container || container.querySelector('.perms-loading-banner')) return;
+        const banner = document.createElement('div');
+        banner.className = 'perms-loading-banner';
+        banner.textContent = '⏳ Loading permissions in background…';
+        container.prepend(banner);
+    }
+
+    function hidePermissionsBanner() {
+        const banner = document.querySelector('.perms-loading-banner');
+        if (banner) banner.remove();
+    }
+
     window.expandFolderDepth = async function() {
         if (!currentProjectData || !currentHierarchy) return;
         const { projectId, accessToken } = currentProjectData;
@@ -743,23 +758,30 @@
             const newUserColStart = currentFolderDisplayDepth;
             restoreFolderCellData(savedCells, newUserColStart);
 
-            // Load ACC permissions only for the newly displayed folders
-            updateLoadingProgress('Loading folder permissions…', 85);
+            // ── Folder names are now visible — hide the overlay and unlock the UI ──
+            hideLoadingProgress();
+
+            // Load ACC permissions in the background (non-blocking).
+            // A subtle banner is shown while loading; it disappears when done.
             const newFolderIds = new Set(
                 currentHierarchy.filter(r => r[nextKey]).map(r => r[nextKey].id)
             );
             if (newFolderIds.size > 0 && window.FolderPermissions?.fetchAllFolderPermissions) {
-                await loadExistingACCPermissions(
+                showPermissionsBanner();
+                loadExistingACCPermissions(
                     projectId, currentHierarchy, currentProjectUsers, accessToken,
                     { onlyFolderIds: newFolderIds }
-                );
+                ).then(() => {
+                    propagatePermissionsToEmptyRows();
+                    hidePermissionsBanner();
+                }).catch(err => {
+                    console.error('❌ Background permission load error:', err);
+                    hidePermissionsBanner();
+                });
+            } else {
+                propagatePermissionsToEmptyRows();
             }
 
-            // Fallback: any subfolder that still has no user cells inherits from its
-            // nearest ancestor row in the DOM (handles all levels of nesting).
-            propagatePermissionsToEmptyRows();
-
-            updateLoadingProgress('Loading subfolders…', 100);
         } catch (err) {
             console.error('❌ expandFolderDepth error:', err);
         } finally {
@@ -1207,7 +1229,7 @@
                         // Create cell content
                         const defaultLevel = '1';
                         targetCell.innerHTML = `
-                            <span class="cell-username">${displayName}</span>
+                            <span class="cell-username" title="${displayName}">${displayName}</span>
                             <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
                         `;
                         targetCell.setAttribute('data-user', userIdentifier);
@@ -1379,7 +1401,7 @@
                         // Create cell content with user name and editable permission level
                         const defaultLevel = '1';
                         targetCell.innerHTML = `
-                            <span class="cell-username">${displayName}</span>
+                            <span class="cell-username" title="${displayName}">${displayName}</span>
                             <input type="text" class="cell-permission-level" value="${defaultLevel}" maxlength="1" />
                         `;
                         targetCell.setAttribute('data-user', userIdentifier);
@@ -1909,7 +1931,7 @@
                         if (copiedData.hasContent && copiedData.userName && copiedData.permissionLevel) {
                             // Paste with full structure (username + permission level)
                             targetCell.innerHTML = `
-                                <span class="cell-username">${copiedData.userName}</span>
+                                <span class="cell-username" title="${copiedData.userName}">${copiedData.userName}</span>
                                 <input type="text" class="cell-permission-level" value="${copiedData.permissionLevel}" maxlength="1" />
                             `;
                             targetCell.setAttribute('data-user', copiedData.userName);
@@ -2972,7 +2994,7 @@
             
             // Add the inherited user to the cell
             targetCell.innerHTML = `
-                <span class="cell-username">${displayName}</span>
+                <span class="cell-username" title="${displayName}">${displayName}</span>
                 <input type="text" class="cell-permission-level" value="${level}" maxlength="1" readonly title="Inherited from parent folder (read-only)" />
                 <span class="inherited-indicator" title="Inherited from parent folder">↓</span>
             `;
@@ -3312,7 +3334,7 @@
                         
                         // Populate cell
                         cell.innerHTML = `
-                            <span class="cell-username">${perm.displayName}</span>
+                            <span class="cell-username" title="${perm.displayName}">${perm.displayName}</span>
                             <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" />
                         `;
                         
@@ -3421,7 +3443,7 @@
                         
                         // Populate as inherited (read-only)
                         cell.innerHTML = `
-                            <span class="cell-username">${perm.displayName}</span>
+                            <span class="cell-username" title="${perm.displayName}">${perm.displayName}</span>
                             <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" readonly title="Inherited from parent folder (read-only)" />
                             <span class="inherited-indicator" title="Inherited from parent folder">↓</span>
                         `;
@@ -3465,7 +3487,7 @@
                         
                         // Populate as orphan (editable)
                         targetCell.innerHTML = `
-                            <span class="cell-username">${perm.displayName}</span>
+                            <span class="cell-username" title="${perm.displayName}">${perm.displayName}</span>
                             <input type="text" class="cell-permission-level" value="${perm.level}" maxlength="1" />
                         `;
                         
@@ -3662,7 +3684,7 @@
                 }
                 const tgt = row.querySelectorAll('td')[i];
                 tgt.innerHTML =
-                    `<span class="cell-username">${data.displayName}</span>` +
+                    `<span class="cell-username" title="${data.displayName}">${data.displayName}</span>` +
                     `<input type="text" class="cell-permission-level" value="${data.level}" maxlength="1" readonly title="Inherited from parent folder (read-only)" />` +
                     `<span class="inherited-indicator" title="Inherited from parent folder">↓</span>`;
                 tgt.setAttribute('data-user', data.user);
@@ -3760,7 +3782,7 @@
                         if (typeof permissionData === 'object' && permissionData.user && permissionData.level) {
                             // New format with permission level
                             cells[columnIndex].innerHTML = `
-                                <span class="cell-username">${permissionData.user}</span>
+                                <span class="cell-username" title="${permissionData.user}">${permissionData.user}</span>
                                 <input type="text" class="cell-permission-level" value="${permissionData.level}" maxlength="1" />
                             `;
                             cells[columnIndex].setAttribute('data-user', permissionData.user);
@@ -4306,12 +4328,17 @@
                 }
 
                 .cell-username {
-                    display: inline-block;
-                    margin-right: 8px;
+                    display: block;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
 
                 .cell-permission-level {
-                    display: inline-block;
+                    position: absolute;
+                    right: 6px;
+                    top: 50%;
+                    transform: translateY(-50%);
                     width: 30px;
                     padding: 2px 4px;
                     border: 1px solid #007bff;
@@ -4338,8 +4365,10 @@
                 }
 
                 .inherited-indicator {
-                    display: inline-block;
-                    margin-left: 4px;
+                    position: absolute;
+                    right: 52px;
+                    top: 50%;
+                    transform: translateY(-50%);
                     color: #444;
                     font-size: 14px;
                     font-weight: bold;
@@ -4375,6 +4404,28 @@
                 .folder-col-header {
                     text-align: center;
                     vertical-align: middle;
+                    padding: 12px 10px;
+                }
+
+                .folder-col-inner {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    width: 100%;
+                }
+
+                .perms-loading-banner {
+                    position: sticky;
+                    top: 0;
+                    z-index: 20;
+                    background: #fff8e1;
+                    color: #795548;
+                    font-size: 12px;
+                    padding: 6px 14px;
+                    border-bottom: 1px solid #ffe082;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
                 }
 
                 .folder-col-label {
@@ -4385,6 +4436,8 @@
                     text-transform: uppercase;
                     margin-bottom: 4px;
                     font-family: 'Artifact Elements', Arial, sans-serif;
+                    text-align: center;
+                    width: 100%;
                 }
 
                 .folder-level-btn {
@@ -4400,9 +4453,9 @@
                     font-family: monospace;
                     background: transparent;
                     color: white;
-                    display: inline-block;
+                    display: block;
                     text-align: center;
-                    vertical-align: middle;
+                    flex-shrink: 0;
                 }
                 .folder-expand-btn {
                     background: transparent;
@@ -4471,12 +4524,9 @@
                 .folders-table th:not(.folder-col-header) {
                     /* User permission columns */
                     min-width: 100px;
-                    max-width: 250px;
+                    max-width: 400px;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    white-space: normal;
-                    word-wrap: break-word;
-                    overflow-wrap: break-word;
                 }
 
                 .folders-table th {
@@ -4520,6 +4570,8 @@
 
                 .folders-table td.has-content {
                     font-weight: 500;
+                    position: relative;
+                    padding-right: 70px;
                 }
 
                 .folders-table td.selected {
