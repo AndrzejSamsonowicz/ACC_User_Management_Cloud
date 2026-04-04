@@ -421,20 +421,28 @@
                 const folders = [];
                 const rows = table.querySelectorAll('tbody tr');
 
+                // Count folder columns dynamically — supports any expansion depth.
+                // Folder header cells use class "folder-col-header"; user cells don't.
+                const folderColCount = table.querySelectorAll('thead th.folder-col-header').length || 1;
+
                 rows.forEach(row => {
                     const cells = row.querySelectorAll('td');
                     if (cells.length === 0) return;
 
                     const folderId = row.getAttribute('data-folder-id');
+                    if (!folderId) return; // skip non-folder rows
+
                     const level1 = row.getAttribute('data-level1-name');
                     const level2 = row.getAttribute('data-level2-name');
-                    
-                    const level2Cell = cells[0].textContent.trim();
-                    const level3Cell = cells[1].textContent.trim();
 
-                    // Build permissions object (skip inherited permissions)
+                    // Get display name from whichever folder-name cell is non-empty
+                    const folderNameCell = row.querySelector('td.folder-name-cell');
+                    const folderDisplayName = folderNameCell ? folderNameCell.textContent.trim() : (level2 || folderId);
+
+                    // Build permissions object (skip inherited permissions).
+                    // Start from folderColCount — works for any number of visible folder columns.
                     const permissions = {};
-                    for (let i = 2; i < cells.length; i++) {
+                    for (let i = folderColCount; i < cells.length; i++) {
                         const cell = cells[i];
                         
                         // Skip inherited permissions (they come from parent)
@@ -453,7 +461,7 @@
                             const subjectType = cell.getAttribute('data-subject-type');
                             
                             if (subjectId && subjectType && permissionLevel) {
-                                permissions[`column${i - 1}`] = {
+                                permissions[`column${i}`] = {
                                     subjectId: subjectId,
                                     subjectType: subjectType,
                                     user: userName,
@@ -463,16 +471,15 @@
                         }
                     }
 
-                    // Only add folder if it has non-inherited permissions
-                    if (Object.keys(permissions).length > 0 || level2Cell || level3Cell) {
-                        folders.push({
-                            folderId: folderId,
-                            level1: level1,
-                            level2: level2Cell || level2 || null,
-                            level3: level3Cell || null,
-                            permissions: permissions
-                        });
-                    }
+                    // Include every valid folder row — even those with no permissions,
+                    // so that deletions (cleared cells) are sent to ACC.
+                    folders.push({
+                        folderId: folderId,
+                        level1: level1,
+                        level2: folderDisplayName,
+                        level3: null,
+                        permissions: permissions
+                    });
                 });
 
                 log(`📊 Extracted ${folders.length} folders from table`);

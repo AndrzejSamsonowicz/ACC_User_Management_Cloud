@@ -60,11 +60,14 @@
         const permissionsMap = {};
         const uniqueFolderIds = new Set();
 
-        // Collect all unique folder IDs from hierarchy
+        // Collect all unique folder IDs from hierarchy (any depth level)
         hierarchy.forEach(row => {
-            if (row.level1?.id) uniqueFolderIds.add(row.level1.id);
-            if (row.level2?.id) uniqueFolderIds.add(row.level2.id);
-            if (row.level3?.id) uniqueFolderIds.add(row.level3.id);
+            // Collect all levelN keys present on the row
+            Object.keys(row).forEach(key => {
+                if (/^level\d+$/.test(key) && row[key]?.id) {
+                    uniqueFolderIds.add(row[key].id);
+                }
+            });
         });
 
         log(`📂 Found ${uniqueFolderIds.size} unique folders to fetch permissions for`);

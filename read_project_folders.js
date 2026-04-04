@@ -513,12 +513,12 @@
         for (let d = 0; d < currentFolderDisplayDepth; d++) {
             const isLast = (d === currentFolderDisplayDepth - 1);
             if (isLast) {
-                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-expand-btn" id="folderExpandBtn" onclick="window.expandFolderDepth()" title="Expand to next level">+</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">expand subfolders</div><button class="folder-level-btn folder-expand-btn" id="folderExpandBtn" onclick="window.expandFolderDepth()" title="Expand to next level">+</button></th>`;
             } else if (d === 0) {
                 // First column: show × to collapse all subfolders back to root level
-                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(1)" title="Collapse all subfolders">×</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">collapse all</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(1)" title="Collapse all subfolders">×</button></th>`;
             } else {
-                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></th>`;
+                theadHTML += `<th class="folder-col-header"><div class="folder-col-label">collapse level ${d + 1}</div><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></th>`;
             }
         }
         for (let i = 0; i < additionalColumnsCount; i++) theadHTML += '<th></th>';
@@ -701,7 +701,16 @@
             // Check if any parent has children
             const anyHasChildren = [...uniqueParentIds].some(id => folderChildrenCache[id]?.length > 0);
             if (!anyHasChildren) {
-                if (expandBtn) { expandBtn.disabled = true; expandBtn.textContent = '–'; expandBtn.title = 'No subfolders'; }
+                if (expandBtn) {
+                    expandBtn.disabled = false;
+                    expandBtn.textContent = '×';
+                    expandBtn.title = 'Collapse this level';
+                    expandBtn.classList.remove('folder-expand-btn');
+                    expandBtn.classList.add('folder-collapse-btn');
+                    expandBtn.onclick = () => window.collapseFolderDepth(currentFolderDisplayDepth - 1);
+                    const label = expandBtn.closest('th')?.querySelector('.folder-col-label');
+                    if (label) label.textContent = `collapse level ${currentFolderDisplayDepth}`;
+                }
                 hideLoadingProgress();
                 return;
             }
@@ -4363,41 +4372,65 @@
                     padding: 2px 4px;
                     background-color: #f2f2f2;
                 }
+                .folder-col-header {
+                    text-align: center;
+                    vertical-align: middle;
+                }
+
+                .folder-col-label {
+                    font-size: 11px;
+                    font-weight: 400;
+                    color: rgba(255,255,255,0.75);
+                    letter-spacing: 0.05em;
+                    text-transform: uppercase;
+                    margin-bottom: 4px;
+                    font-family: 'Artifact Elements', Arial, sans-serif;
+                }
+
                 .folder-level-btn {
-                    font-size: 14px;
+                    font-size: 42px !important;
                     font-weight: bold;
-                    width: 26px;
-                    height: 26px;
+                    width: 78px;
+                    height: 78px;
                     border-radius: 4px;
                     cursor: pointer;
                     padding: 0;
-                    line-height: 1;
-                    border: 1px solid #ccc;
+                    line-height: 78px;
+                    border: none;
                     font-family: monospace;
+                    background: transparent;
+                    color: white;
+                    display: inline-block;
+                    text-align: center;
+                    vertical-align: middle;
                 }
                 .folder-expand-btn {
-                    background: #e8f5e9;
-                    color: #2e7d32;
-                    border-color: #a5d6a7;
+                    background: transparent;
+                    color: white;
+                    border-color: transparent;
                 }
-                .folder-expand-btn:hover:not(:disabled) { background: #c8e6c9; }
+                .folder-expand-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
                 .folder-expand-btn:disabled { opacity: 0.4; cursor: default; }
                 .folder-collapse-btn {
-                    background: #fff3e0;
-                    color: #e65100;
-                    border-color: #ffcc80;
+                    background: transparent;
+                    color: white;
+                    border-color: transparent;
                 }
-                .folder-collapse-btn:hover { background: #ffe0b2; }
+                .folder-collapse-btn:hover { background: rgba(255,255,255,0.15); }
 
                 .folders-table {
                     width: auto;
-                    border-collapse: collapse;
+                    border-collapse: separate;
+                    border-spacing: 0;
                     font-family: 'Artifact Elements', Arial, sans-serif;
                 }
 
                 .folders-table th,
                 .folders-table td {
-                    border: 1px solid #ddd;
+                    border-right: 1px solid #ddd;
+                    border-bottom: 1px solid #ddd;
+                    border-top: none;
+                    border-left: none;
                     padding: 10px;
                     text-align: left;
                     font-family: 'Artifact Elements', Arial, sans-serif;
@@ -4407,6 +4440,10 @@
                     -moz-user-select: none;
                     -ms-user-select: none;
                 }
+
+                .folders-table tbody tr:first-child td {
+                    border-top: 1px solid #ddd;
+                }
                 
                 .folders-table td.folder-name-cell {
                     /* Folder name: auto-size to content, cap at 250px, wrap if longer */
@@ -4415,20 +4452,31 @@
                     white-space: normal;
                     word-wrap: break-word;
                     overflow-wrap: break-word;
+                    /* Chamfered (rounded) corners to give a folder-tab feel */
+                    border-radius: 6px;
+                    border: 1px solid #b0bec5 !important;
+                    background-color: #f0f7ff;
+                    font-weight: 500;
+                    padding-left: 14px;
                 }
 
                 .folders-table td.folder-col-cell {
-                    /* Empty indentation cells */
+                    /* Empty indentation cells — no borders, fully transparent */
                     min-width: 30px;
+                    border: none !important;
+                    background-color: transparent !important;
                 }
 
                 .folders-table td.has-content,
                 .folders-table th:not(.folder-col-header) {
                     /* User permission columns */
                     min-width: 100px;
-                    max-width: 400px;
+                    max-width: 250px;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    white-space: normal;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
                 }
 
                 .folders-table th {
@@ -4438,6 +4486,17 @@
                     top: 0;
                     font-weight: 700;
                     z-index: 10;
+                    border-top: 1px solid #0696D7;
+                    border-left: 1px solid #0696D7;
+                }
+
+                .folders-table th:not(.folder-col-header) {
+                    background-color: white;
+                    color: inherit;
+                    border-top: none !important;
+                    border-left: none !important;
+                    border-right: none !important;
+                    border-bottom: none !important;
                 }
 
                 .folders-table tr:nth-child(even) {
