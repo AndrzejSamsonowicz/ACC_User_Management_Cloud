@@ -514,10 +514,11 @@
             const isLast = (d === currentFolderDisplayDepth - 1);
             if (isLast) {
                 theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-expand-btn" id="folderExpandBtn" onclick="window.expandFolderDepth()" title="Expand to next level">+</button></th>`;
-            } else if (d > 0) {
-                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></th>`;
+            } else if (d === 0) {
+                // First column: show × to collapse all subfolders back to root level
+                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(1)" title="Collapse all subfolders">×</button></th>`;
             } else {
-                theadHTML += '<th class="folder-col-header"></th>';
+                theadHTML += `<th class="folder-col-header"><button class="folder-level-btn folder-collapse-btn" onclick="window.collapseFolderDepth(${d})" title="Collapse this level">×</button></th>`;
             }
         }
         for (let i = 0; i < additionalColumnsCount; i++) theadHTML += '<th></th>';
@@ -1000,15 +1001,13 @@
                     cell.style.backgroundColor = colors.background;
                     cell.style.color = colors.color;
                     
-                    // AUTO-UPDATE: Check if this is a parent folder
-                    const parentFolderId = row.getAttribute('data-folder-id');
-                    const level1Id = row.getAttribute('data-level1-id');
-                    const level2Id = row.getAttribute('data-level2-id');
-                    const isLevel2Folder = level1Id && !level2Id;
-                    const userIdentifier = cell.getAttribute('data-user');
-                    
-                    if (isLevel2Folder && userIdentifier) {
-                        updateInheritedPermissions(parentFolderId, userIdentifier, level.toString());
+                    // Propagate to inherited children if this cell is a direct permission
+                    if (cell.getAttribute('data-is-inherited') !== 'true') {
+                        const parentFolderId = row.getAttribute('data-folder-id');
+                        const userIdentifier = cell.getAttribute('data-user');
+                        if (parentFolderId && userIdentifier) {
+                            updateInheritedPermissions(parentFolderId, userIdentifier, level.toString());
+                        }
                     }
                 })) {
                     return; // Arrow key was handled
@@ -1025,6 +1024,14 @@
                     const colors = subjectType ? getSubjectColor(subjectType, value) : getPermissionLevelColor(value);
                     cell.style.backgroundColor = colors.background;
                     cell.style.color = colors.color;
+                    // Propagate live while typing
+                    if (cell.getAttribute('data-is-inherited') !== 'true') {
+                        const parentFolderId = row.getAttribute('data-folder-id');
+                        const userIdentifier = cell.getAttribute('data-user');
+                        if (parentFolderId && userIdentifier) {
+                            updateInheritedPermissions(parentFolderId, userIdentifier, value);
+                        }
+                    }
                 }
             });
             
@@ -1035,16 +1042,13 @@
                 const colors = subjectType ? getSubjectColor(subjectType, level) : getPermissionLevelColor(level);
                 cell.style.backgroundColor = colors.background;
                 cell.style.color = colors.color;
-                
-                // AUTO-UPDATE: Check if this is a parent folder
-                const parentFolderId = row.getAttribute('data-folder-id');
-                const level1Id = row.getAttribute('data-level1-id');
-                const level2Id = row.getAttribute('data-level2-id');
-                const isLevel2Folder = level1Id && !level2Id;
-                const userIdentifier = cell.getAttribute('data-user');
-                
-                if (isLevel2Folder && userIdentifier) {
-                    updateInheritedPermissions(parentFolderId, userIdentifier, level);
+                // Propagate to inherited children if this cell is a direct permission
+                if (cell.getAttribute('data-is-inherited') !== 'true') {
+                    const parentFolderId = row.getAttribute('data-folder-id');
+                    const userIdentifier = cell.getAttribute('data-user');
+                    if (parentFolderId && userIdentifier) {
+                        updateInheritedPermissions(parentFolderId, userIdentifier, level);
+                    }
                 }
             });
         });
@@ -3343,6 +3347,7 @@
                                     const colors = getSubjectColor(subjectType, value);
                                     cell.style.backgroundColor = colors.background;
                                     cell.style.color = colors.color;
+                                    updateInheritedPermissions(folderId, perm.identifier, value);
                                 }
                             });
                             
