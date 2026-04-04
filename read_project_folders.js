@@ -85,7 +85,6 @@
         // Reset lazy-load state for each modal open
         currentFolderDisplayDepth = 1;
         folderChildrenCache = {};
-        additionalColumnsCount = 10; // Always start with 10 empty user columns
 
         // Create modal if it doesn't exist
         createFoldersModal();
@@ -128,14 +127,6 @@
 
             // Propagate any inherited permissions that the ACC load may have missed
             propagatePermissionsToEmptyRows();
-
-            // Ensure there are always at least 10 empty user columns after permissions load
-            const minUserCols = 10;
-            if (additionalColumnsCount < minUserCols) {
-                additionalColumnsCount = minUserCols;
-                displayFolderHierarchy(currentHierarchy);
-                restoreFolderCellData(saveFolderCellData(), currentFolderDisplayDepth);
-            }
             
             // DON'T auto-load saved JSON - it would override our fresh ACC data
             // User can manually load saved data if needed
@@ -3952,7 +3943,7 @@
                     <div class="folders-modal-header">
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search users..." />
-                        <button id="cleanTableBtn" class="clean-table-btn" title="Removes all user assignments from the table. For best results, expand all subfolder levels first so inherited permissions are also cleared.">Clean Table</button>
+                        <button id="cleanTableBtn" class="clean-table-btn">Clean Table</button>
                         <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
                         <!-- <button id="saveFolderPermissionsBtn" class="save-btn">Save folders permissions</button> -->
                         <button id="syncToACCBtn" class="sync-btn">Sync with the project</button>
