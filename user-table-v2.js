@@ -2422,6 +2422,14 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             if (user.email) {
                 this.existingEmails.add(user.email);
             }
+            // In manage mode, emails are read-only (can delete row, not edit email)
+            if (this.modalMode === 'manage') {
+                emailCell.contentEditable = 'false';
+                emailCell.style.cursor = 'default';
+                emailCell.style.backgroundColor = '#f5f5f5';
+                emailCell.style.color = '#555';
+                emailCell.title = 'Email cannot be edited. Delete the row to remove this user.';
+            }
             row.appendChild(emailCell);
             
             // Company cell
