@@ -1714,9 +1714,9 @@
                 return;
             }
 
-            // Filter projects by name (case-insensitive)
+            // Filter projects by name (case-insensitive, substring match)
             const filteredProjects = window.originalProjectsData.filter(project => 
-                project.name.toLowerCase().startsWith(filterText)
+                project.name.toLowerCase().includes(filterText)
             );
 
             renderProjectsList(filteredProjects);
