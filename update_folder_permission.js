@@ -419,60 +419,44 @@
                 
                 // Extract folders and permissions from table
                 const folders = [];
-                const rows = table.querySelectorAll('tbody tr');
 
-                // Count folder columns dynamically — supports any expansion depth.
-                // Folder header cells use class "folder-col-header"; user cells don't.
-                const folderColCount = table.querySelectorAll('thead th.folder-col-header').length || 1;
+                // Vertical layout: folder rows are tr.folder-row, users are tr.user-sub-row
+                // Read from user sub-rows, skipping inherited ones
+                const folderRows = table.querySelectorAll('tbody tr.folder-row');
 
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length === 0) return;
-
+                folderRows.forEach(row => {
                     const folderId = row.getAttribute('data-folder-id');
-                    if (!folderId) return; // skip non-folder rows
+                    if (!folderId) return;
 
                     const level1 = row.getAttribute('data-level1-name');
                     const level2 = row.getAttribute('data-level2-name');
-
-                    // Get display name from whichever folder-name cell is non-empty
                     const folderNameCell = row.querySelector('td.folder-name-cell');
                     const folderDisplayName = folderNameCell ? folderNameCell.textContent.trim() : (level2 || folderId);
 
-                    // Build permissions object (skip inherited permissions).
-                    // Start from folderColCount — works for any number of visible folder columns.
+                    // Find all direct (non-inherited) user sub-rows for this folder
+                    const userRows = table.querySelectorAll(`tr.user-sub-row[data-folder-parent-id="${CSS.escape(folderId)}"]:not([data-is-inherited="true"])`);
                     const permissions = {};
-                    for (let i = folderColCount; i < cells.length; i++) {
-                        const cell = cells[i];
-                        
-                        // Skip inherited permissions (they come from parent)
-                        const isInherited = cell.getAttribute('data-is-inherited') === 'true';
-                        if (isInherited) {
-                            continue; // Don't sync inherited permissions as separate entries
-                        }
-                        
-                        const usernameSpan = cell.querySelector('.cell-username');
-                        const permissionInput = cell.querySelector('.cell-permission-level');
-                        
-                        if (usernameSpan && usernameSpan.textContent.trim() && permissionInput && permissionInput.value.trim()) {
-                            const userName = usernameSpan.textContent.trim();
-                            const permissionLevel = permissionInput.value.trim();
-                            const subjectId = cell.getAttribute('data-subject-id');
-                            const subjectType = cell.getAttribute('data-subject-type');
-                            
-                            if (subjectId && subjectType && permissionLevel) {
-                                permissions[`column${i}`] = {
-                                    subjectId: subjectId,
-                                    subjectType: subjectType,
-                                    user: userName,
-                                    level: permissionLevel
-                                };
-                            }
-                        }
-                    }
+                    let colIdx = 1;
 
-                    // Include every valid folder row — even those with no permissions,
-                    // so that deletions (cleared cells) are sent to ACC.
+                    userRows.forEach(userRow => {
+                        const userName = userRow.getAttribute('data-user');
+                        const subjectId = userRow.getAttribute('data-subject-id');
+                        const subjectType = userRow.getAttribute('data-subject-type');
+                        const permInput = userRow.querySelector('.cell-permission-level');
+                        const permissionLevel = permInput ? permInput.value.trim() : userRow.getAttribute('data-permission-level');
+
+                        if (userName && subjectId && subjectType && permissionLevel) {
+                            permissions[`column${colIdx}`] = {
+                                subjectId: subjectId,
+                                subjectType: subjectType,
+                                user: userName,
+                                level: permissionLevel
+                            };
+                            colIdx++;
+                        }
+                    });
+
+                    // Include every folder row (even empty) so deletions are sent to ACC
                     folders.push({
                         folderId: folderId,
                         level1: level1,

@@ -247,8 +247,7 @@
             <h3>📌 Registration Options:</h3>
             <p style="line-height: 1.8; margin-bottom: 0;">
                 <strong>1.</strong> All new accounts receive a <strong>3-day free trial</strong> with full access—no license key required to start!<br>
-                <strong>2.</strong> You can optionally enter a license key during registration. If you don't have one yet, <a href="purchase.html" style="color: #0696D7;">purchase one here</a> and add it to your account later.<br>
-                <strong>3.</strong> The confirmation email may arrive in your spam folder. Please check your spam/junk folder if you don't see it in your inbox.
+                <strong>2.</strong> You can optionally enter a license key during registration. If you don't have one yet, <a href="purchase.html" style="color: #0696D7;">purchase one here</a> and add it to your account later.
             </p>
         </div>
         
@@ -388,10 +387,7 @@
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const user = userCredential.user;
                 
-                // Step 3: Send email verification
-                await user.sendEmailVerification();
-                
-                // Step 4: Create user document in Firestore with 3-day trial
+                // Step 3: Create user document in Firestore with 3-day trial
                 const now = new Date();
                 const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
                 
@@ -399,7 +395,7 @@
                     email: email,
                     licenseKey: licenseKey || null,
                     licenseExpiry: licenseData ? new Date(licenseData.expiryDate) : null,
-                    emailVerified: false,
+                    emailVerified: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     lastLogin: null,
                     clientId: '',
@@ -446,8 +442,8 @@
                 }
                 
                 const successMessage = licenseKey 
-                    ? '✅ Account created successfully! Please check your email to verify your account.' 
-                    : '✅ Account created! You have 3 days of free access. Please check your email to verify your account.';
+                    ? '✅ Account created successfully! You can now log in.' 
+                    : '✅ Account created! You have 3 days of free access. You can now log in.';
                 showAlert(successMessage, 'success');
                 
                 // Redirect to login after 3 seconds

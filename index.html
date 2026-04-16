@@ -579,13 +579,7 @@
                     return;
                 }
             
-            // Check if email is verified
-            if (!user.emailVerified) {
-                alert('Please verify your email before using this tool.');
-                await auth.signOut();
-                window.location.replace('login.html');
-                return;
-            }
+            // Email verification removed - users can access immediately after registration
             
             try {
                 // Check if user is admin first
