@@ -13,7 +13,7 @@
     let currentProjectUsers = null;
     let currentProjectUsersRaw = null; // Store raw API data for subjectId lookup
     let currentUserDisplayMode = 'email'; // Track current display mode (email or name)
-    let currentFolderDisplayDepth = 1; // Tracks max loaded API depth
+    let currentFolderDisplayDepth = 2; // Tracks max loaded API depth (level1 containers + level2 folders)
     let folderChildrenCache = {}; // parentId -> [{id, name, ...}] â€” cache fetched children
     let expandedFolderIds = new Set(); // Per-node tree expansion state
 
@@ -89,7 +89,7 @@
         };
 
         // Reset lazy-load state for each modal open
-        currentFolderDisplayDepth = 1;
+        currentFolderDisplayDepth = 2;
         folderChildrenCache = {};
         expandedFolderIds = new Set();
         folderUserAssignments = new Map();
@@ -122,6 +122,10 @@
             currentHierarchy = folderHierarchy;
             currentProjectUsers = usersData.displayUsers;
             currentProjectUsersRaw = usersData.rawUsers; // Store raw data for ID lookup
+            
+            // Auto-expand level1 container folders (e.g. "Project Files") so children are visible
+            const level1Ids = new Set(folderHierarchy.map(r => r.level1?.id).filter(Boolean));
+            for (const id of level1Ids) expandedFolderIds.add(id);
             
             // Display in table and user list
             displayFolderHierarchy(folderHierarchy);
@@ -475,7 +479,7 @@
      * depth 1 â†’ 'level3', depth 2 â†’ 'level4', etc.
      */
     function levelKeyForDepth(d) {
-        return `level${d + 2}`;
+        return `level${d + 1}`;
     }
 
     /**
@@ -568,19 +572,21 @@
 
             const isExpanded = expandedFolderIds.has(folder.id);
             const showToggle = hasLoadedChildren || mightHaveChildren;
-            const toggleIcon = showToggle ? (isExpanded ? '&#9660;' : '&#9654;') : '';
             const indent = depth * 48 + 10;
+
+            // SVG folder icon (outline style)
+            const folderSVG = '<svg class="folder-svg-icon" viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="#888" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6.5l-2-2H5a2 2 0 00-2 2z"/></svg>';
 
             // --- Folder row ---
             tbodyHTML += `<tr class="folder-row" ${attrs}>`;
             tbodyHTML += `<td class="folder-name-cell" style="padding-left: ${indent}px;">`;
             if (showToggle) {
                 const escapedId = folder.id.replace(/'/g, "\\'");
-                tbodyHTML += `<span class="tree-toggle ${isExpanded ? 'expanded' : ''}" onclick="window.toggleFolderExpand('${escapedId}')">${toggleIcon}</span> `;
+                tbodyHTML += `<span class="tree-toggle ${isExpanded ? 'expanded' : ''}" onclick="window.toggleFolderExpand('${escapedId}')">&#x276F;</span> `;
             } else {
                 tbodyHTML += '<span class="tree-toggle-spacer"></span> ';
             }
-            tbodyHTML += `<span class="folder-label">&#128194; ${folderName}</span></td></tr>`;
+            tbodyHTML += `<span class="folder-label">${folderSVG} ${folderName}</span></td></tr>`;
 
             // --- User sub-rows for this folder ---
             const users = folderUserAssignments.get(folder.id);
@@ -599,12 +605,13 @@
                     const inheritedData = u.isInherited ? ' data-is-inherited="true"' : '';
 
                     tbodyHTML += `<tr class="user-sub-row${inheritedClass}" data-folder-parent-id="${folder.id}" data-user="${safeUser}" data-display-name="${safeDisplay}" data-permission-level="${u.level}" data-subject-type="${u.subjectType || ''}" data-subject-id="${u.subjectId || ''}"${inheritedData}>`;
-                    tbodyHTML += `<td class="user-entry-cell" style="padding-left: ${userIndent}px; background-color: ${colors.background}; color: ${colors.color};">`;
+                    tbodyHTML += `<td class="user-entry-cell">`;
+                    tbodyHTML += `<div class="user-entry-content" style="margin-left: ${userIndent}px; background-color: ${colors.background}; color: ${colors.color};">`;
                     tbodyHTML += `<span class="user-entry-icon">${u.subjectType === 'COMPANY' ? '&#127970;' : u.subjectType === 'ROLE' ? '&#128101;' : '&#128100;'}</span> `;
                     tbodyHTML += `<span class="cell-username" title="${safeDisplay}">${safeDisplay}</span> `;
-                    tbodyHTML += `<input type="text" class="cell-permission-level" value="${u.level}" maxlength="1"${readonlyAttr} /> `;
                     tbodyHTML += inheritedLabel;
-                    tbodyHTML += `</td></tr>`;
+                    tbodyHTML += `<input type="text" class="cell-permission-level" value="${u.level}" maxlength="1"${readonlyAttr} /> `;
+                    tbodyHTML += `</div></td></tr>`;
                 }
             }
         }
@@ -658,7 +665,7 @@
         if (!container || container.querySelector('.perms-loading-banner')) return;
         const banner = document.createElement('div');
         banner.className = 'perms-loading-banner';
-        banner.textContent = 'â³ Loading permissions in backgroundâ€¦';
+        banner.textContent = 'Loading permissions in background...';
         container.prepend(banner);
     }
 
@@ -823,7 +830,7 @@
     window.expandFolderDepth = async function() {
         if (!currentProjectData || !currentHierarchy) return;
 
-        showLoadingProgress('Loading all subfoldersâ€¦', 0);
+        showLoadingProgress('Loading all subfolders...', 0);
         const allNewFolderIds = new Set();
 
         try {
@@ -842,7 +849,7 @@
                 for (const { folder } of leafFolders) {
                     await loadChildrenForFolder(folder.id);
                     done++;
-                    updateLoadingProgress(`Loading subfolders (round ${round})â€¦`, (done / leafFolders.length) * 90);
+                    updateLoadingProgress(`Loading subfolders (round ${round})...`, (done / leafFolders.length) * 90);
                 }
 
                 let anyExpanded = false;
@@ -1108,8 +1115,8 @@
                 row.setAttribute('data-permission-level', level);
                 const subjectType = row.getAttribute('data-subject-type');
                 const colors = subjectType ? getSubjectColor(subjectType, level) : getPermissionLevelColor(level);
-                cell.style.backgroundColor = colors.background;
-                cell.style.color = colors.color;
+                const contentDiv = cell.querySelector('.user-entry-content');
+                if (contentDiv) { contentDiv.style.backgroundColor = colors.background; contentDiv.style.color = colors.color; }
                 // Update model
                 const entries = folderUserAssignments.get(folderId);
                 if (entries) {
@@ -1186,7 +1193,7 @@
 
                 // Add each user to this folder (and inherit to descendants)
                 usersToAssign.forEach(userName => {
-                    addUserToFolder(folderId, userName, '6', false);
+                    addUserToFolder(folderId, userName, '1', false);
                 });
 
                 reRenderFromModel();
@@ -1227,7 +1234,7 @@
                     const folderId = row.getAttribute('data-folder-id');
                     if (!folderId) return;
                     usersToAssign.forEach(userName => {
-                        addUserToFolder(folderId, userName, '6', false);
+                        addUserToFolder(folderId, userName, '1', false);
                     });
                 });
 
@@ -1329,7 +1336,7 @@
             const entries = folderUserAssignments.get(descId);
             const existingIdx = entries.findIndex(e => e.user === userName);
             if (existingIdx >= 0) {
-                // Already exists â€” if it was inherited, update the level
+                // Already exists - if it was inherited, update the level
                 if (entries[existingIdx].isInherited) {
                     entries[existingIdx].level = level;
                 }
@@ -1407,10 +1414,10 @@
                         r.setAttribute('data-permission-level', sourceLevel);
                         const input = r.querySelector('.cell-permission-level');
                         if (input) input.value = sourceLevel;
-                        const cell = r.querySelector('.user-entry-cell');
+                        const contentDiv = r.querySelector('.user-entry-content');
                         const subjectType = r.getAttribute('data-subject-type');
                         const colors = subjectType ? getSubjectColor(subjectType, sourceLevel) : getPermissionLevelColor(sourceLevel);
-                        if (cell) { cell.style.backgroundColor = colors.background; cell.style.color = colors.color; }
+                        if (contentDiv) { contentDiv.style.backgroundColor = colors.background; contentDiv.style.color = colors.color; }
                         // Propagate to inherited children
                         updateInheritedPermissions(fId, uId, sourceLevel);
                         // Select the row
@@ -1648,11 +1655,10 @@
                 </div>
             </div>
             <div class="user-list-instructions">
-                Drag and drop users to the table on the left.<br>
-                <strong>&#128161; Tip:</strong> Drop on parent folder name (first column) to assign to <strong>ALL parent folders</strong> with inheritance.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Shift</strong> to select a range of cells.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> to toggle individual cell selection.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> and <strong>scroll</strong> the mouse wheel to zoom in and zoom out.<br>
+                <strong>&#128161; Tip:</strong> Drag and drop a user, a company, or a role to add them to a folder.<br>
+                <strong>&#128161; Tip:</strong> Press <strong>Shift</strong> to select a range of users and apply the same access level.<br>
+                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> to toggle individual user selection.<br>
+                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> and <strong>scroll</strong> the mouse wheel to zoom in and out.<br>
                 <br>
                 Access levels:<br>
                 1 - View Only<br>
@@ -1660,7 +1666,14 @@
                 3 - View/Download+PublishMarkups<br>
                 4 - View/Download+PublishMarkups+Upload<br>
                 5 - View/Download+PublishMarkups+Upload+Edit<br>
-                6 - Full controll
+                6 - Full control<br>
+                <br>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <strong style="font-size: 11px; margin-right: 4px;">Color Legend:</strong>
+                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #90caf9; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">User</span>
+                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #ffcc80; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">Company</span>
+                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #a5d6a7; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">Role</span>
+                </div>
             </div>
         `;
         userHTML += '<div class="user-list-items">';
@@ -1779,11 +1792,6 @@
                 item.classList.remove('dragging');
             });
         });
-    }
-
-    // Add Columns function â€” no longer applicable in vertical layout (noop)
-    function addColumns() {
-        // Vertical layout doesn't use columns for users.
     }
 
     // Clean Table function - removes all users from the data model
@@ -1988,7 +1996,7 @@
             // Get folder metadata from DOM row
             const row = table ? table.querySelector(`tr.folder-row[data-folder-id="${CSS.escape(folderId)}"]`) : null;
             const level1 = row ? row.getAttribute('data-level1-name') : '';
-            const folderName = row ? (row.querySelector('.folder-label')?.textContent || '').replace(/^[\uD83D\uDCC1\uD83D\uDCC2]\s*/, '').trim() : '';
+            const folderName = row ? (row.querySelector('.folder-label')?.textContent || '').trim() : '';
 
             const permissions = {};
             let colIdx = 1;
@@ -2246,12 +2254,12 @@
             row.setAttribute('data-permission-level', newLevel);
             const input = row.querySelector('.cell-permission-level');
             if (input) input.value = newLevel;
-            const cell = row.querySelector('.user-entry-cell');
-            if (cell) {
+            const contentDiv = row.querySelector('.user-entry-content');
+            if (contentDiv) {
                 const subjectType = row.getAttribute('data-subject-type');
                 const colors = subjectType ? getSubjectColor(subjectType, newLevel) : getPermissionLevelColor(newLevel);
-                cell.style.backgroundColor = colors.background;
-                cell.style.color = colors.color;
+                contentDiv.style.backgroundColor = colors.background;
+                contentDiv.style.color = colors.color;
             }
         });
     }
@@ -2712,7 +2720,6 @@
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search users..." />
                         <button id="cleanTableBtn" class="clean-table-btn">Clean Table</button>
-                        <button id="addColumnsBtn" class="add-columns-btn">Add Columns</button>
                         <button id="expandAllBtn" class="expand-all-btn" title="Expand all folders one level deeper">Expand All</button>
                         <button id="collapseAllBtn" class="collapse-all-btn" title="Collapse all folders to root level">Collapse All</button>
                         <!-- <button id="saveFolderPermissionsBtn" class="save-btn">Save folders permissions</button> -->
@@ -2812,10 +2819,9 @@
                     border-color: #007bff;
                 }
 
-                .search-highlight {
+                .search-highlight .user-entry-content {
                     background-color: #ff4444 !important;
                     color: white !important;
-                    box-shadow: 0 0 8px rgba(255, 68, 68, 0.6) !important;
                 }
 
                 .clean-table-btn {
@@ -2961,7 +2967,7 @@
                 }
 
                 .folders-user-list {
-                    width: 320px;
+                    width: 352px;
                     border-left: 2px solid #ddd;
                     background-color: #f8f9fa;
                     overflow-y: auto;
@@ -3262,16 +3268,23 @@
                     position: sticky;
                     left: 0;
                     z-index: 5;
-                    min-width: 200px;
-                    max-width: 600px;
+                    min-width: 210px;
+                    max-width: 630px;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     border: none !important;
                     background-color: #ffffff;
-                    font-weight: 700;
-                    font-size: 21px;
-                    line-height: 1.4;
+                    font-weight: 600;
+                    font-size: 13px;
+                    line-height: 1.6;
+                }
+
+                .folder-svg-icon {
+                    vertical-align: middle;
+                    margin-right: 4px;
+                    position: relative;
+                    top: -1px;
                 }
 
                 .folders-table td.folder-col-cell {
@@ -3281,24 +3294,36 @@
 
                 /* ===== Vertical layout: user sub-rows ===== */
                 .folders-table tr.user-sub-row td.user-entry-cell {
-                    padding: 4px 10px 4px 0;
+                    padding: 4px 0;
                     font-size: 13px;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    border-bottom: 1px solid #e8e8e8;
-                    border-right: none;
+                    border: none;
                     line-height: 1.6;
+                    background-color: transparent;
+                }
+
+                .folders-table tr.user-sub-row td.user-entry-cell .user-entry-content {
+                    display: flex;
+                    align-items: center;
+                    padding: 4px 10px;
+                    border-radius: 3px;
+                    overflow: hidden;
                 }
 
                 .folders-table tr.user-sub-row td.user-entry-cell .cell-username {
-                    display: inline;
-                    vertical-align: middle;
+                    flex-shrink: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
 
                 .folders-table tr.user-sub-row {
                     cursor: pointer;
                     transition: opacity 0.15s;
+                    background-color: transparent !important;
                 }
 
                 .folders-table tr.user-sub-row.selected {
@@ -3319,12 +3344,15 @@
                 }
 
                 .inherited-label {
-                    display: inline-block;
                     font-size: 10px;
                     color: #999;
                     font-style: italic;
                     margin-left: 6px;
-                    vertical-align: middle;
+                    overflow: hidden;
+                    text-overflow: clip;
+                    white-space: nowrap;
+                    flex-shrink: 1;
+                    min-width: 0;
                 }
 
                 /* Folder row drag-over highlight */
@@ -3336,14 +3364,18 @@
 
                 /* Permission input in user sub-rows */
                 .folders-table tr.user-sub-row .cell-permission-level {
+                    position: static;
+                    transform: none;
                     width: 24px;
+                    min-width: 24px;
+                    flex-shrink: 0;
+                    margin-left: auto;
                     text-align: center;
                     border: 1px solid #ccc;
                     border-radius: 3px;
-                    padding: 1px 2px;
+                    padding: 1px 4px;
                     font-size: 12px;
-                    margin-left: 4px;
-                    vertical-align: middle;
+                    background-color: #fff;
                 }
 
                 .tree-header {
@@ -3356,11 +3388,16 @@
                     cursor: pointer;
                     user-select: none;
                     display: inline-block;
-                    width: 16px;
+                    width: 20px;
                     text-align: center;
-                    font-size: 12px;
-                    color: #555;
-                    transition: color 0.15s;
+                    font-size: 15px;
+                    color: #888;
+                    transition: transform 0.15s, color 0.15s;
+                    transform: rotate(0deg);
+                }
+
+                .tree-toggle.expanded {
+                    transform: rotate(90deg);
                 }
 
                 .tree-toggle:hover {
@@ -3602,7 +3639,6 @@
     function setupFoldersModalEvents() {
         const closeBtn = document.querySelector('.folders-modal-close');
         const cleanTableBtn = document.getElementById('cleanTableBtn');
-        const addColumnsBtn = document.getElementById('addColumnsBtn');
         const searchInput = document.getElementById('userSearchInput');
         // const saveBtn = document.getElementById('saveFolderPermissionsBtn'); // Removed - no longer saving to Firebase
         const syncBtn = document.getElementById('syncToACCBtn');
@@ -3613,10 +3649,6 @@
 
         cleanTableBtn.addEventListener('click', () => {
             cleanTable();
-        });
-
-        addColumnsBtn.addEventListener('click', () => {
-            addColumns();
         });
 
         // Expand All / Collapse All buttons

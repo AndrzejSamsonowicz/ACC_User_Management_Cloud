@@ -88,7 +88,8 @@
                 ➕ Created: ${summary.created}<br>
                 🔄 Updated: ${summary.updated}<br>
                 ➖ Deleted: ${summary.deleted}<br>
-                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}
+                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}<br>
+                ${summary.skippedInherited ? `🔒 Skipped (Inherited): ${summary.skippedInherited}<br>` : ''}
             </div>
         `;
 
@@ -138,6 +139,17 @@
             `;
         }
 
+        if ((summary.inheritedConflicts || []).length > 0) {
+            html += `
+                <div style="margin-bottom: 15px;">
+                    <strong>Skipped — higher access already inherited from parent folder:</strong><br>
+                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e8eaf6; border-radius: 4px;">
+                        ${summary.inheritedConflicts.map(c => `<div style="padding: 2px 0; font-size: 13px;">🔒 ${escapeHtml(c)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         if (summary.errors.length > 0) {
             html += `
                 <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;">
@@ -178,12 +190,33 @@
     }
 
     /**
+     * Convert ACC actions array to numeric permission level (1-6)
+     */
+    function actionsToLevel(actions) {
+        if (!actions || actions.length === 0) return 0;
+        const s = new Set(actions.map(a => a.toUpperCase()));
+        if (s.has('CONTROL')) return 6;
+        if (s.has('EDIT')) return 5;
+        if (s.has('PUBLISH')) return 4;
+        if (s.has('PUBLISH_MARKUP')) return 3;
+        if (s.has('DOWNLOAD')) return 2;
+        if (s.has('VIEW') || s.has('COLLABORATE')) return 1;
+        return 0;
+    }
+
+    function levelName(level) {
+        const names = { 1: 'View Only', 2: 'View+Download', 3: 'View+Download+Markup', 4: 'Upload', 5: 'Edit', 6: 'Full Control' };
+        return names[level] || `Level ${level}`;
+    }
+
+    /**
      * Fetch current folder permissions from ACC
      */
     async function fetchFolderPermissions(projectId, folderId, accessToken) {
         try {
+            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
             const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions`;
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions`;
             
             log(`📥 Fetching permissions for folder: ${folderId}`);
             
@@ -209,6 +242,7 @@
                 subjectId: perm.subjectId,
                 subjectType: perm.subjectType,
                 actions: perm.actions || [],
+                inheritActions: perm.inheritActions || [],
                 name: perm.name,
                 email: perm.email
             }));
@@ -275,10 +309,19 @@
         if (permissions.length === 0) return { success: true, results: [] };
 
         try {
+            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
             const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-create`;
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-create`;
             
-            log(`📤 Creating ${permissions.length} permissions...`);
+            // Strip non-API fields before sending
+            const apiPayload = permissions.map(p => ({
+                subjectId: p.subjectId,
+                subjectType: p.subjectType,
+                actions: p.actions
+            }));
+            
+            log(`📤 Creating ${apiPayload.length} permissions...`);
+            log(`📤 Payload:`, JSON.stringify(apiPayload));
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -286,7 +329,7 @@
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(permissions)
+                body: JSON.stringify(apiPayload)
             });
 
             if (!response.ok) {
@@ -309,10 +352,19 @@
         if (permissions.length === 0) return { success: true, results: [] };
 
         try {
+            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
             const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-update`;
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-update`;
             
-            log(`📤 Updating ${permissions.length} permissions...`);
+            // Strip non-API fields before sending
+            const apiPayload = permissions.map(p => ({
+                subjectId: p.subjectId,
+                subjectType: p.subjectType,
+                actions: p.actions
+            }));
+            
+            log(`📤 Updating ${apiPayload.length} permissions...`);
+            log(`📤 Payload:`, JSON.stringify(apiPayload));
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -320,7 +372,7 @@
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(permissions)
+                body: JSON.stringify(apiPayload)
             });
 
             if (!response.ok) {
@@ -343,12 +395,19 @@
         if (permissions.length === 0) return { success: true, results: [] };
 
         try {
+            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
             const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${projectId}/folders/${folderUrn}/permissions:batch-delete`;
+            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-delete`;
             
-            log(`📤 Deleting ${permissions.length} permissions...`);
+            // Strip non-API fields before sending
+            const apiPayload = permissions.map(p => ({
+                subjectId: p.subjectId,
+                subjectType: p.subjectType
+            }));
+            
+            log(`📤 Deleting ${apiPayload.length} permissions...`);
             log(`📤 DELETE API URL: ${apiUrl}`);
-            log(`📤 DELETE Request Body:`, JSON.stringify(permissions, null, 2));
+            log(`📤 DELETE Request Body:`, JSON.stringify(apiPayload, null, 2));
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -356,7 +415,7 @@
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(permissions)
+                body: JSON.stringify(apiPayload)
             });
 
             log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
@@ -428,6 +487,10 @@
                     const folderId = row.getAttribute('data-folder-id');
                     if (!folderId) return;
 
+                    // Skip root container folders (depth 0, e.g. "Project Files") - ACC API doesn't support permissions on them
+                    const folderDepth = row.getAttribute('data-folder-depth');
+                    if (folderDepth === '0') return;
+
                     const level1 = row.getAttribute('data-level1-name');
                     const level2 = row.getAttribute('data-level2-name');
                     const folderNameCell = row.querySelector('td.folder-name-cell');
@@ -440,6 +503,7 @@
 
                     userRows.forEach(userRow => {
                         const userName = userRow.getAttribute('data-user');
+                        const displayName = userRow.getAttribute('data-display-name') || userName;
                         const subjectId = userRow.getAttribute('data-subject-id');
                         const subjectType = userRow.getAttribute('data-subject-type');
                         const permInput = userRow.querySelector('.cell-permission-level');
@@ -449,7 +513,7 @@
                             permissions[`column${colIdx}`] = {
                                 subjectId: subjectId,
                                 subjectType: subjectType,
-                                user: userName,
+                                user: displayName,
                                 level: permissionLevel
                             };
                             colIdx++;
@@ -488,12 +552,14 @@
                 skippedAdmins: 0,
                 skippedNonExistent: 0,
                 skippedIncomplete: 0,
+                skippedInherited: 0,
                 errors: [],
                 createdUsers: [],
                 updatedUsers: [],
                 deletedUsers: [],
                 nonExistentUsers: [],
-                incompleteUsers: []
+                incompleteUsers: [],
+                inheritedConflicts: []
             };
 
             // Process folders in PARALLEL batches for speed
@@ -552,7 +618,7 @@
                             const userName = perm.name || perm.email || perm.subjectId;
                             const hasExplicitPermissions = perm.actions && perm.actions.length > 0;
                             
-                            log(`    📄 ACC: ${userName} | Key: ${key} | Explicit: ${hasExplicitPermissions} | Actions: ${perm.actions?.length || 0}`);
+                            log(`    📄 ACC: ${userName} | Key: ${key} | Explicit: ${hasExplicitPermissions} | Actions: ${perm.actions?.length || 0} | InheritActions: ${perm.inheritActions?.length || 0}`);
                             
                             if (hasExplicitPermissions) {
                                 accPermMap.set(key, {
@@ -564,6 +630,17 @@
                             }
                         });
 
+                        // Build inherited permissions map (subjects that have inherited access)
+                        const inheritedLevelMap = new Map();
+                        currentPermissions.forEach(perm => {
+                            if (perm.inheritActions && perm.inheritActions.length > 0) {
+                                const key = `${perm.subjectId}_${perm.subjectType}`;
+                                const inheritedLevel = actionsToLevel(perm.inheritActions);
+                                const userName = perm.name || perm.email || perm.subjectId;
+                                inheritedLevelMap.set(key, { level: inheritedLevel, user: userName });
+                            }
+                        });
+
                         // Determine operations
                         const toCreate = [];
                         const toUpdate = [];
@@ -571,6 +648,9 @@
 
                         // Check for CREATE and UPDATE
                         jsonPermMap.forEach((jsonPerm, key) => {
+                            const requestedLevel = actionsToLevel(jsonPerm.actions);
+                            const inherited = inheritedLevelMap.get(key);
+                            
                             if (!accPermMap.has(key)) {
                                 // Check if user exists in project
                                 if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
@@ -581,6 +661,10 @@
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                     log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
+                                } else if (inherited && inherited.level >= requestedLevel) {
+                                    log(`  ⚠️ SKIP CREATE: ${jsonPerm.user} (${jsonPerm.subjectType}) already has inherited level ${inherited.level} >= requested level ${requestedLevel} in ${folderName}`);
+                                    syncSummary.skippedInherited++;
+                                    syncSummary.inheritedConflicts.push(`${jsonPerm.user} in ${folderName}: already has "${levelName(inherited.level)}" from parent folder (requested "${levelName(requestedLevel)}")`);
                                 } else {
                                     toCreate.push({
                                         subjectId: jsonPerm.subjectId,
@@ -604,6 +688,10 @@
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                         log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
+                                    } else if (inherited && inherited.level >= requestedLevel) {
+                                        log(`  ⚠️ SKIP UPDATE: ${jsonPerm.user} (${jsonPerm.subjectType}) already has inherited level ${inherited.level} >= requested level ${requestedLevel} in ${folderName}`);
+                                        syncSummary.skippedInherited++;
+                                        syncSummary.inheritedConflicts.push(`${jsonPerm.user} in ${folderName}: already has "${levelName(inherited.level)}" from parent folder (requested "${levelName(requestedLevel)}")`);
                                     } else {
                                         toUpdate.push({
                                             subjectId: jsonPerm.subjectId,
@@ -665,7 +753,8 @@
                                         results.created += permissions.length;
                                         results.createdUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
                                     } else {
-                                        results.errors.push(`${folderName}: Create ${type} failed`);
+                                        console.error(`Create ${type} failed for ${folderName}:`, result.error);
+                                        results.errors.push(`${folderName}: Create ${type} failed - ${result.error}`);
                                     }
                                 }
                             }
@@ -691,7 +780,8 @@
                                         results.updated += permissions.length;
                                         results.updatedUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
                                     } else {
-                                        results.errors.push(`${folderName}: Update ${type} failed`);
+                                        console.error(`Update ${type} failed for ${folderName}:`, result.error);
+                                        results.errors.push(`${folderName}: Update ${type} failed - ${result.error}`);
                                     }
                                 }
                             }
@@ -717,7 +807,8 @@
                                         results.deleted += permissions.length;
                                         results.deletedUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
                                     } else {
-                                        results.errors.push(`${folderName}: Delete ${type} failed`);
+                                        console.error(`Delete ${type} failed for ${folderName}:`, result.error);
+                                        results.errors.push(`${folderName}: Delete ${type} failed - ${result.error}`);
                                     }
                                 }
                             }
@@ -789,7 +880,8 @@
             log(`  ➕ Created: ${syncSummary.created}`);
             log(`  🔄 Updated: ${syncSummary.updated}`);
             log(`  ➖ Deleted: ${syncSummary.deleted}`);
-            log(`  ⚠️ Skipped (admins): ${syncSummary.skipped}`);
+            log(`  ⚠️ Skipped (admins): ${syncSummary.skippedAdmins}`);
+            log(`  🔒 Skipped (inherited): ${syncSummary.skippedInherited}`);
             log(`  ❌ Errors: ${syncSummary.errors.length}`);
             
             if (syncSummary.errors.length > 0) {
