@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Folder Permissions Management Module
  * Handles folder hierarchy retrieval and display for ACC projects
  */
@@ -2746,11 +2746,11 @@
                             </div>
                         </div>
                         <div class="folders-content-wrapper">
-                            <div id="foldersTableContainer" style="display: none; overflow-x: auto;">
-                                <!-- Table will be inserted here -->
-                            </div>
                             <div id="foldersUserList" class="folders-user-list" style="display: none;">
                                 <!-- User list will be inserted here -->
+                            </div>
+                            <div id="foldersTableContainer" style="display: none; overflow-x: auto;">
+                                <!-- Table will be inserted here -->
                             </div>
                         </div>
                     </div>
@@ -3131,7 +3131,7 @@
 
                 .folders-user-list {
                     width: 352px;
-                    border-left: 2px solid #ddd;
+                    border-right: 2px solid #ddd;
                     background-color: #f8f9fa;
                     overflow-y: auto;
                     flex-shrink: 0;
