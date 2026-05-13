@@ -197,9 +197,6 @@ class UserTableManager extends TableCellInteraction {
             console.warn('⚠️ No hub selected when opening modal');
         }
         
-        // Update hub info display
-        this.updateHubInfoDisplay();
-        
         // Apply mode: toggle CSS class and set title before making modal visible
         const titleEl = document.getElementById('modalTitle');
         const saveSyncBtn = document.getElementById('modalSaveSyncBtn');
@@ -223,6 +220,9 @@ class UserTableManager extends TableCellInteraction {
             if (titleEl) titleEl.textContent = 'User Management';
             if (saveSyncBtn) { saveSyncBtn.textContent = 'Save & Sync'; saveSyncBtn.onclick = () => saveAndSync(); }
         }
+        
+        // Update hub info display (after mode is set so multi-new check works)
+        this.updateHubInfoDisplay();
         
         modal.style.display = 'block';
         log('🎯 Calling loadTableData()...');
@@ -255,11 +255,19 @@ class UserTableManager extends TableCellInteraction {
         }
         
         // Update project info
-        if (this.modalProjectId) {
+        const projectLabelEl = document.getElementById('modalProjectLabel');
+        if (this.modalMode === 'multi-new' && this.modalProjectIds && this.modalProjectIds.length > 1) {
+            const names = this.modalProjectIds.map(p => p.name).join(', ');
+            if (projectLabelEl) projectLabelEl.textContent = 'Projects Selected:';
+            if (projectNameEl) projectNameEl.textContent = names;
+            if (projectIdEl) projectIdEl.textContent = '';
+        } else if (this.modalProjectId) {
+            if (projectLabelEl) projectLabelEl.textContent = 'Project:';
             if (projectNameEl) projectNameEl.textContent = this.modalProjectName;
             if (projectIdEl) projectIdEl.textContent = '';
             if (modalTitleEl) modalTitleEl.textContent = 'Project users list';
         } else {
+            if (projectLabelEl) projectLabelEl.textContent = 'Project:';
             if (projectNameEl) projectNameEl.textContent = 'Not selected';
             if (projectIdEl) projectIdEl.textContent = '';
             if (modalTitleEl) modalTitleEl.textContent = 'User Management';

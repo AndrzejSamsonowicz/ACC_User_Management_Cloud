@@ -120,10 +120,15 @@ async function updateProjectUsersFromMainList(projectId, accountId, accessToken,
             }
         });
         
+        // DELETE is only enabled in manage mode ("Existing Users") — when adding new users, skip it
+        if (userTableManager?.modalMode !== 'manage') {
+            listToDelete.length = 0;
+        }
+
         log('Analysis complete:');
         log(`- To PATCH (update): ${listToPatch.length}`, listToPatch);
         log(`- To POST (add): ${listToPost.length}`, listToPost);
-        log(`- To DELETE (remove): ${listToDelete.length}`, listToDelete);
+        log(`- To DELETE (remove): ${listToDelete.length} (${userTableManager?.modalMode === 'manage' ? 'enabled in manage mode' : 'disabled'}`);
         
         // Hide progress immediately before showing dialog
         if (progressEl) progressEl.style.display = 'none';
@@ -221,162 +226,68 @@ async function syncOnly() {
 }
 
 /**
- * Show sync analysis dialog with 3 lists
- * Displays PATCH, POST, DELETE lists with checkboxes
+ * Directly run sync and show the summary results modal (consistent with multi-project flow).
  * @param {Object} cachedData - OPTIMIZATION: Cached data to avoid duplicate API calls
  */
-function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
-    // Detect manage mode (Existing Users) — hide ADD section
+async function showUserListsDialog(listToPatch, listToPost, listToDelete, projectId, accountId, accessToken, cachedData = null) {
+    // Detect manage mode (Existing Users)
     const isManageMode = userTableManager?.modalMode === 'manage';
-    // Use user lists as-is
+    const projectName = userTableManager?.modalProjectName || 'Project';
     const enrichedPatchList = listToPatch;
     const enrichedPostList = listToPost;
     
-    // Calculate dynamic modal height based on total number of users
-    const totalUsers = listToPatch.length + listToPost.length + listToDelete.length;
-    let modalMaxHeight, tableMaxHeight;
-    
-    if (totalUsers <= 5) {
-        modalMaxHeight = '50vh';  // Small modal for few users
-        tableMaxHeight = '150px';
-    } else if (totalUsers <= 15) {
-        modalMaxHeight = '70vh';  // Medium modal
-        tableMaxHeight = '200px';
-    } else if (totalUsers <= 30) {
-        modalMaxHeight = '85vh';  // Large modal
-        tableMaxHeight = '250px';
-    } else {
-        modalMaxHeight = '95vh';  // Nearly full screen for many users
-        tableMaxHeight = '350px'; // Taller tables for many users
-    }
-    
-    // Build table HTML for a user list
-    const buildUserTable = (users, tableId, emptyMessage) => {
-        if (users.length === 0) {
-            return `<div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;"><div style="color: #999; font-style: italic;">${emptyMessage}</div></div>`;
-        }
-        
-        return `
-            <div style="max-height: ${tableMaxHeight}; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
-                <table id="${tableId}" style="width: 100%; border-collapse: collapse; font-size: 13px; font-family: 'Artifact Elements', Arial, sans-serif;">
-                    <thead>
-                        <tr style="background: #e8e8e8; position: sticky; top: 0;">
-                            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ccc;">Email</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${users.map((user, idx) => `
-                            <tr data-user-index="${idx}" style="border-bottom: 1px solid #eee;">
-                                <td style="padding: 6px 8px;">${user.email}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    };
-    
-    // Create modal HTML
-    const modalHTML = `
-        <div id="userListsModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
-            <div style="background-color: white; padding: 0; border-radius: 8px; width: 90%; max-width: 700px; max-height: ${modalMaxHeight}; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <div style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
-                    <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">User Sync Analysis</h2>
-                    <span class="sync-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
-                </div>
-                <div style="padding: 20px; overflow-y: auto; flex: 1;">
-                    <div style="margin-bottom: 30px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="color: #0696D7; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
-                                Users to UPDATE - ${enrichedPatchList.length}
-                            </h3>
-                            <input type="checkbox" id="enableUpdate" checked style="width: 18px; height: 18px; cursor: pointer;">
-                        </div>
-                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
-                            These users exist in both the project and Users Main List. They will be updated.
-                        </p>
-                        ${buildUserTable(enrichedPatchList, 'syncTablePatch', 'No users to update')}
-                    </div>
-                    
-                    ${!isManageMode ? `<div style="margin-bottom: 30px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="color: #28a745; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
-                                Users to ADD - ${enrichedPostList.length}
-                            </h3>
-                            <input type="checkbox" id="enableAdd" checked style="width: 18px; height: 18px; cursor: pointer;">
-                        </div>
-                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
-                            These users exist in Users Main List but not in the project. They will be added.
-                        </p>
-                        ${buildUserTable(enrichedPostList, 'syncTablePost', 'No users to add')}
-                    </div>` : ''}
-                    
-                    <div style="margin-bottom: 20px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="color: #dc3545; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0;">
-                                Users to DELETE - ${listToDelete.length}
-                            </h3>
-                            <input type="checkbox" id="enableDelete" checked style="width: 18px; height: 18px; cursor: pointer;">
-                        </div>
-                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">These users exist in the project but not in Users Main List. They will be removed.</p>
-                        <div style="max-height: ${tableMaxHeight}; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
-                            ${listToDelete.length > 0 ? listToDelete.map(u => `<div style="padding: 4px 0; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 13px;">- ${u.email}</div>`).join('') : '<div style="color: #999; font-style: italic;">No users to delete</div>'}
-                        </div>
-                    </div>
-                    
-                    <!-- Results section (hidden initially) -->
-                    <div id="syncResults" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;">
-                        <h4 style="margin: 0 0 10px 0; font-family: 'Artifact Elements', Arial, sans-serif;">Sync completed!</h4>
-                        <div id="syncResultsContent" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; line-height: 1.6;"></div>
-                    </div>
-                </div>
-                <div style="padding: 20px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; gap: 20px;">
-                    <div style="color: #666; font-size: 13px; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">
-                        ⏱️ Be patient, synchronization might take a while depending on the number of users
-                    </div>
-                    <button id="syncButton" style="padding: 10px 20px; background: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; white-space: nowrap;">Sync</button>
+    // Show progress overlay (same style as multi-project)
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="singleSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${projectName}</h3>
+                <div id="singleSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Processing...</div>
+                <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                    <div id="singleSyncBar" style="background:#0696D7;height:100%;width:30%;transition:width 0.3s;"></div>
                 </div>
             </div>
         </div>
-    `;
-    
-    // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add event listeners
-    const closeBtn = document.querySelector('.sync-modal-close');
-    if (closeBtn) {
-        closeBtn.onclick = function() {
-            document.getElementById('userListsModal').remove();
-        };
-        
-        // Add hover effect
-        closeBtn.addEventListener('mouseenter', function() {
-            this.style.color = '#000';
-        });
-        closeBtn.addEventListener('mouseleave', function() {
-            this.style.color = '#aaa';
-        });
-    }
-    
-    // Close on Escape key
-    document.addEventListener('keydown', function escapeHandler(e) {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('userListsModal');
-            if (modal) {
-                modal.remove();
-                document.removeEventListener('keydown', escapeHandler);
+    `);
+
+    let result = null;
+    let syncError = null;
+    try {
+        result = await executeSyncOperations(
+            enrichedPatchList, enrichedPostList, listToDelete,
+            projectId, accountId, accessToken, cachedData,
+            {
+                directMode: true,
+                enableUpdate: true,
+                enableAdd: !isManageMode,
+                enableDelete: isManageMode
             }
-        }
-    });
-    
-    // Add Sync button event listener
-    const syncButton = document.getElementById('syncButton');
-    if (syncButton) {
-        syncButton.onclick = async function() {
-            await executeSyncOperations(enrichedPatchList, enrichedPostList, listToDelete, projectId, accountId, accessToken, cachedData);
-        };
+        );
+    } catch (err) {
+        console.error('Sync error:', err);
+        syncError = err.message;
     }
+
+    // Complete progress bar
+    const barEl = document.getElementById('singleSyncBar');
+    if (barEl) barEl.style.width = '100%';
+    await new Promise(resolve => setTimeout(resolve, 300));
+    document.getElementById('singleSyncOverlay')?.remove();
+
+    // Handle invalid roles warning (same as multi-project)
+    if (result?.invalidRoles?.size > 0) {
+        let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed:</div>';
+        for (const [role, emails] of result.invalidRoles) {
+            errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+            errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+            errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => { errorHTML += `<li>${email} - processed without this role</li>`; });
+            errorHTML += '</ul></div>';
+        }
+        showInvalidRolesModal(errorHTML);
+    }
+
+    // Show summary in the same style as multi-project
+    _showMultiSyncResults([{ project: { name: projectName }, result, error: syncError }]);
 }
 
 /**
@@ -478,7 +389,11 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
     const isDirectMode = !!options.directMode;
     const enableUpdate = options.enableUpdate ?? (document.getElementById('enableUpdate')?.checked ?? true);
     const enableAdd = options.enableAdd ?? (document.getElementById('enableAdd')?.checked ?? false);
-    const enableDelete = options.enableDelete ?? (document.getElementById('enableDelete')?.checked ?? true);
+    // DELETE only enabled in manage mode ("Existing Users"); always disabled for add-new flows
+    const isManageMode = userTableManager?.modalMode === 'manage';
+    const enableDelete = isManageMode
+        ? (options.enableDelete ?? (document.getElementById('enableDelete')?.checked ?? true))
+        : false;
     
     log('Sync initiated:', { enableUpdate, enableAdd, enableDelete, projectId, accountId, isDirectMode });
     
@@ -711,6 +626,31 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     if (accountUser.default_role_id) {
                         patchPayload.roleIds = [accountUser.default_role_id];
                         log(`✓ Adding role ID ${accountUser.default_role_id} for ${userToPatch.email}`);
+                    }
+                    
+                    // === CHANGE DETECTION: skip PATCH if nothing has actually changed ===
+                    const hasChanges = (() => {
+                        // Compare products
+                        const currentProductMap = new Map(
+                            (projectUser.products || []).map(p => [p.key, p.access])
+                        );
+                        for (const p of patchPayload.products) {
+                            if (currentProductMap.get(p.key) !== p.access) return true;
+                        }
+                        // Compare roleIds
+                        const currentRoles = (projectUser.roleIds || []).slice().sort().join(',');
+                        const newRoles = (patchPayload.roleIds || []).slice().sort().join(',');
+                        if (currentRoles !== newRoles) return true;
+                        // Compare companyId
+                        if (patchPayload.companyId && patchPayload.companyId !== projectUser.companyId) return true;
+                        return false;
+                    })();
+                    
+                    if (!hasChanges) {
+                        log(`⏭ No changes for ${userToPatch.email}, skipping PATCH`);
+                        completedOperations++;
+                        updateProgress();
+                        return { success: true, email: userToPatch.email, skipped: true };
                     }
                     
                     log(`PATCH user ${userToPatch.email}:`, patchPayload);
@@ -1213,20 +1153,22 @@ async function saveAndSyncMultiProject(projects) {
  * Show a summary dialog after multi-project sync completes.
  */
 function _showMultiSyncResults(allResults) {
+    const title = allResults.length === 1 ? 'Sync Complete' : 'Multi-Project Sync Complete';
     const rows = allResults.map(({ project, result, error }) => {
         if (error) {
             return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifact Elements',Arial,sans-serif;">Error: ${error}</td></tr>`;
         }
         const r = result || {};
+        const deletedPart = r.deleted > 0 ? ` &bull; <span style="color:#dc3545;">Deleted: ${r.deleted}</span>` : '';
         const errNote = r.errors?.length ? ` &bull; <span style="color:#dc3545;">${r.errors.length} error(s)</span>` : '';
-        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${errNote}</td></tr>`;
+        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
     }).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
         <div id="multiSyncResultsModal" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
             <div style="background:#fff;border-radius:8px;padding:0;width:90%;max-width:620px;max-height:80vh;display:flex;flex-direction:column;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
                 <div style="padding:20px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
-                    <h3 style="margin:0;font-family:'Artifact Elements',Arial,sans-serif;">Multi-Project Sync Complete</h3>
+                    <h3 style="margin:0;font-family:'Artifact Elements',Arial,sans-serif;">${title}</h3>
                     <span id="multiSyncResultsClose" style="color:#aaa;font-size:26px;line-height:1;cursor:pointer;">&times;</span>
                 </div>
                 <div style="overflow-y:auto;flex:1;padding:20px;">

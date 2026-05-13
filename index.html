@@ -446,7 +446,7 @@
                     </div>
 
                     <!-- Project Filter -->
-                    <div id="projectFilterContainer" style="margin-bottom: 20px; display: none;">
+                    <div id="projectFilterContainer" style="margin-bottom: 20px; display: none; align-items: center; flex-wrap: wrap; gap: 0;">
                         <label for="projectFilter" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #333; margin-right: 10px;">Filter projects:</label>
                         <input 
                             type="text" 
@@ -464,6 +464,10 @@
                             oninput="filterProjects()"
                         />
                         <span id="projectCount" style="margin-left: 15px; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #666;"></span>
+                        <label id="showOnlySelectedLabel" style="margin-left: 18px; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #333; display: none; align-items: center; gap: 6px; cursor: pointer; user-select: none; vertical-align: middle;">
+                            <input type="checkbox" id="showOnlySelectedCb" onchange="filterProjects()" style="width:15px; height:15px; cursor:pointer;">
+                            Show only selected
+                        </label>
                     </div>
                     
                     <!-- Button Explanations -->
@@ -1585,7 +1589,7 @@
             window.currentHubId = hubId;
             
             // Show filter container, button explanations, admin note, and clear filter
-            projectFilterContainer.style.display = 'block';
+            projectFilterContainer.style.display = 'flex';
             buttonExplanations.style.display = 'block';
             if (adminNote) adminNote.style.display = 'block';
             projectFilter.value = '';
@@ -1664,6 +1668,12 @@
             const warning = document.getElementById('addNewUsersBtnWarning');
             if (btn) btn.disabled = !anyChecked;
             if (warning) warning.style.visibility = anyChecked ? 'hidden' : 'visible';
+            // Refresh count and re-render if 'show only selected' is active
+            const showOnlyCb = document.getElementById('showOnlySelectedCb');
+            if (!anyChecked && showOnlyCb?.checked) {
+                showOnlyCb.checked = false;
+            }
+            filterProjects();
         }
 
         function toggleProjectCheckbox(event, projectId) {
@@ -1688,11 +1698,17 @@
         // Function to update project count display
         function updateProjectCount(showing, total) {
             const projectCount = document.getElementById('projectCount');
-            if (showing === total) {
-                projectCount.textContent = `Showing ${total} project${total !== 1 ? 's' : ''}`;
-            } else {
-                projectCount.textContent = `Showing ${showing} of ${total} project${total !== 1 ? 's' : ''}`;
+            const selectedCount = (window.checkedProjectIds || new Set()).size;
+            let text = showing === total
+                ? `Showing ${total} project${total !== 1 ? 's' : ''}`
+                : `Showing ${showing} of ${total} project${total !== 1 ? 's' : ''}`;
+            if (selectedCount > 0) {
+                text += `, ${selectedCount} selected`;
             }
+            projectCount.textContent = text;
+            // Show/hide the 'show only selected' checkbox
+            const label = document.getElementById('showOnlySelectedLabel');
+            if (label) label.style.display = selectedCount > 0 ? 'inline-flex' : 'none';
         }
 
         // Function to filter projects
@@ -1700,21 +1716,20 @@
             if (!window.originalProjectsData) return;
 
             const filterText = document.getElementById('projectFilter').value.toLowerCase();
-            
-            // If filter is empty, show all projects
-            if (!filterText.trim()) {
-                renderProjectsList(window.originalProjectsData);
-                updateProjectCount(window.originalProjectsData.length, window.originalProjectsData.length);
-                return;
+            const showOnlySelected = document.getElementById('showOnlySelectedCb')?.checked || false;
+            const checkedIds = window.checkedProjectIds || new Set();
+
+            let filtered = window.originalProjectsData;
+
+            if (showOnlySelected) {
+                // 'Show only selected' takes full priority — ignore text filter
+                filtered = filtered.filter(p => checkedIds.has(p.id));
+            } else if (filterText.trim()) {
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(filterText));
             }
 
-            // Filter projects by name (case-insensitive, substring match)
-            const filteredProjects = window.originalProjectsData.filter(project => 
-                project.name.toLowerCase().includes(filterText)
-            );
-
-            renderProjectsList(filteredProjects);
-            updateProjectCount(filteredProjects.length, window.originalProjectsData.length);
+            renderProjectsList(filtered);
+            updateProjectCount(filtered.length, window.originalProjectsData.length);
         }
 
         // Function to filter hubs
@@ -2761,7 +2776,7 @@
                 <strong>Current Hub:</strong> <span id="modalHubName">Not selected</span>
                 <span id="modalHubId" style="display: none;"></span>
                 <br>
-                <strong>Project:</strong> <span id="modalProjectName">Not selected</span>
+                <strong id="modalProjectLabel">Project:</strong> <span id="modalProjectName">Not selected</span>
                 <span id="modalProjectId" style="display: none;"></span>
             </div>
             <div class="user-modal-body">
