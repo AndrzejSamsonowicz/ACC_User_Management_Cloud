@@ -2,17 +2,34 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
 
-const serviceAccountPath = path.join(__dirname, 'service-account.json');
+// Check if we should use VM service account (no key file needed)
+const useVMServiceAccount = process.env.USE_VM_SERVICE_ACCOUNT === 'true';
 
-if (fs.existsSync(serviceAccountPath)) {
-    console.log('✅ Using service-account.json file');
-    const serviceAccount = require('./service-account.json');
+if (useVMServiceAccount) {
+    console.log('✅ Using VM Service Account (Application Default Credentials)');
+    console.log('   No service-account.json file needed');
+    
+    // When running on GCP VM, automatically uses the VM's service account
     admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.applicationDefault()
     });
 } else {
-    console.error('❌ service-account.json not found!');
-    process.exit(1);
+    // Traditional method: use service-account.json file
+    const serviceAccountPath = path.join(__dirname, 'service-account.json');
+    
+    if (fs.existsSync(serviceAccountPath)) {
+        console.log('✅ Using service-account.json file');
+        const serviceAccount = require('./service-account.json');
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+    } else {
+        console.error('❌ service-account.json not found!');
+        console.error('   Either:');
+        console.error('   1. Add service-account.json file, OR');
+        console.error('   2. Set USE_VM_SERVICE_ACCOUNT=true in .env to use VM credentials');
+        process.exit(1);
+    }
 }
 
 const db = admin.firestore();
