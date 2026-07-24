@@ -1399,8 +1399,8 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
     }
 });
 
-app.listen(port, '127.0.0.1', () => {
-    console.log(`Server running at http://localhost:${port} (localhost only)`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${port}`);
     console.log('Available endpoints:');
     console.log('  GET  /load-credentials');
     console.log('  POST /save-credentials');
