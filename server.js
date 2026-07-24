@@ -133,13 +133,14 @@ const inputValidation = {
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Force HTTPS redirect (except for localhost)
+// Force HTTPS redirect (except for localhost or when disabled via env var)
 app.use((req, res, next) => {
     const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
     const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const httpsRedirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === 'true';
     
-    // Redirect HTTP to HTTPS in production
-    if (!isLocalhost && !isHttps) {
+    // Redirect HTTP to HTTPS in production (unless explicitly disabled)
+    if (!isLocalhost && !isHttps && !httpsRedirectDisabled) {
         return res.redirect(301, `https://${req.hostname}${req.url}`);
     }
     next();
