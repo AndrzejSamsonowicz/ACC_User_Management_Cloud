@@ -1349,11 +1349,9 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
         const isAdmin = adminDoc.exists;
         
         // Get user data
-        console.log('DEBUG validate-login: userId =', userId);
         const userDoc = await db.collection('users').doc(userId).get();
-        console.log('DEBUG validate-login: userDoc.exists =', userDoc.exists);
         if (!userDoc.exists) {
-            return res.status(404).json({ error: 'User data not found', debug_userId: userId });
+            return res.status(404).json({ error: 'User data not found' });
         }
         
         const userData = userDoc.data();
