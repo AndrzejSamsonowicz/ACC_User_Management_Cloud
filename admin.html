@@ -768,10 +768,19 @@
             }
             
             try {
-                // Check if user is admin in Firestore admins collection
-                const adminDoc = await db.collection('admins').doc(user.uid).get();
+                // Get auth token and verify admin status via backend API
+                authToken = await user.getIdToken();
                 
-                if (!adminDoc.exists) {
+                const response = await fetch(`${serverURL}/api/validate-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || !data.success || !data.isAdmin) {
                     // User is authenticated but NOT an admin - deny access
                     console.warn('Access denied: User is not an admin');
                     await auth.signOut();
@@ -781,7 +790,6 @@
                 
                 // User is verified admin - grant access
                 currentUser = user;
-                authToken = await user.getIdToken();
                 document.getElementById('adminEmail').textContent = user.email;
                 
                 // Load all data
