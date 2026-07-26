@@ -10,8 +10,13 @@ if (useVMServiceAccount) {
     console.log('   No service-account.json file needed');
     
     // When running on GCP VM, automatically uses the VM's service account
+    // Explicitly specify the Firebase project ID to avoid project mismatch
+    const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'forma-user-management-b0656';
+    console.log(`   Using Firebase Project: ${firebaseProjectId}`);
+    
     admin.initializeApp({
-        credential: admin.credential.applicationDefault()
+        credential: admin.credential.applicationDefault(),
+        projectId: firebaseProjectId
     });
 } else {
     // Traditional method: use service-account.json file
