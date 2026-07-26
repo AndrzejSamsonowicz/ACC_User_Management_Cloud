@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { Firestore } = require('@google-cloud/firestore');
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const fs = require('fs');
 const path = require('path');
 
@@ -49,4 +49,4 @@ const db = new Firestore({
     databaseId: firestoreDatabaseId
 });
 
-module.exports = { admin, db };
+module.exports = { admin, db, FieldValue };

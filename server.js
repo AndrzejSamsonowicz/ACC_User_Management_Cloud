@@ -1,4 +1,4 @@
-const { admin, db } = require('./firebase-init');
+const { admin, db, FieldValue } = require('./firebase-init');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -1375,14 +1375,14 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
         
         // Update last login
         await db.collection('users').doc(userId).update({
-            lastLogin: admin.firestore.FieldValue.serverTimestamp()
+            lastLogin: FieldValue.serverTimestamp()
         });
         
         // Log analytics
         await db.collection('analytics').add({
             userId: userId,
             action: 'login',
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             metadata: {
                 email: userData.email,
                 userAgent: req.headers['user-agent']
