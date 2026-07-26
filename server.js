@@ -208,14 +208,16 @@ app.use((req, res, next) => {
     res.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     
     // Strict Transport Security - Force HTTPS
-    // Apply in production mode (non-localhost)
-    if (isProduction) {
+    // Only apply when HTTPS redirect is enabled (not disabled)
+    const httpsRedirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === 'true';
+    if (isProduction && !httpsRedirectDisabled) {
         res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
     
     // Content Security Policy - Enhanced for XSS protection
     // Note: Firebase requires 'unsafe-eval' and 'unsafe-inline' for scripts
     // We've added upgrade-insecure-requests and form-action to improve security
+    const httpsRedirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === 'true';
     const cspDirectives = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
@@ -228,9 +230,13 @@ app.use((req, res, next) => {
         "form-action 'self'", // Prevent forms from posting to external sites
         "base-uri 'self'",
         "object-src 'none'",
-        "media-src 'self'",
-        "upgrade-insecure-requests" // Always upgrade HTTP to HTTPS
+        "media-src 'self'"
     ];
+    
+    // Only add upgrade-insecure-requests if HTTPS redirect is not disabled
+    if (!httpsRedirectDisabled) {
+        cspDirectives.push("upgrade-insecure-requests");
+    }
     
     res.header('Content-Security-Policy', cspDirectives.join('; '));
     
