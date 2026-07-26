@@ -217,7 +217,6 @@ app.use((req, res, next) => {
     // Content Security Policy - Enhanced for XSS protection
     // Note: Firebase requires 'unsafe-eval' and 'unsafe-inline' for scripts
     // We've added upgrade-insecure-requests and form-action to improve security
-    const httpsRedirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === 'true';
     const cspDirectives = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
