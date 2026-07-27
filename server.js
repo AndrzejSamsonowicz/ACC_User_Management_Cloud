@@ -400,7 +400,7 @@ app.use('/api/', rateLimit({ max: 100, prefix: 'api' }));
 
 // Stricter rate limit for auth endpoints (5 attempts per 15 minutes)
 const authLimiter = rateLimit({ 
-    max: 5, 
+    max: 20, // Increased from 5 - this endpoint is called for validation, not just failed logins
     prefix: 'auth',
     message: 'Too many login attempts, please try again in 15 minutes.'
 });
