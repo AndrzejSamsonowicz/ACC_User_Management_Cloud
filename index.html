@@ -586,82 +586,57 @@
             // Email verification removed - users can access immediately after registration
             
             try {
-                // Check if user is admin first
-                const adminDoc = await db.collection('admins').doc(user.uid).get();
-                const isAdmin = adminDoc.exists;
+                // Validate login and check admin/license status via backend API
+                authToken = await user.getIdToken();
                 
-                if (isAdmin) {
-                    // Admin users don't need license validation
-                    authToken = await user.getIdToken();
-                    currentUser = user;
-                    
-                    // Load encrypted credentials from database
-                    await loadEncryptedCredentials();
-                    
-                    // Show admin info in UI
-                    displayLicenseInfo(null, user.email, true);
-                    
-                    // Add logout button
-                    addLogoutButton();
-                    
-                    // Remove loading overlay - auth verified
-                    document.body.classList.add('auth-verified');
-                    
-                    log('✓ Admin authenticated successfully');
-                } else {
-                    // Regular user - check license
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    
-                    if (!userDoc.exists) {
-                        alert('User data not found. Please contact support.');
+                const response = await fetch(`${window.location.origin}/api/validate-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || !data.success) {
+                    if (data.redirectTo) {
+                        alert(data.error || 'License validation failed');
+                        await auth.signOut();
+                        window.location.replace(data.redirectTo);
+                    } else {
+                        alert(data.error || 'Login validation failed');
                         await auth.signOut();
                         window.location.replace('login.html');
-                        return;
                     }
-                    
-                    const userData = userDoc.data();
-                    
-                    // Check license expiry and trial status
-                    const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
-                    const trialEndDate = userData.trialEndDate ? userData.trialEndDate.toDate() : null;
-                    const isTrial = userData.isTrial || false;
-                    const now = new Date();
-                    
-                    // Check if user has valid license OR valid trial
-                    const hasValidLicense = licenseExpiry && licenseExpiry > now;
-                    const hasValidTrial = isTrial && trialEndDate && trialEndDate > now;
-                    
-                    if (!hasValidLicense && !hasValidTrial) {
-                        const message = isTrial 
-                            ? 'Your free trial has expired. Please purchase a license to continue.' 
-                            : 'Your license has expired. Please renew to continue.';
-                        alert(message);
-                        await auth.signOut();
-                        window.location.replace('purchase.html');
-                        return;
-                    }
-                    
-                    // Get Firebase authentication token for API calls
-                    authToken = await user.getIdToken();
-                    currentUser = user;
-                    
-                    // Load encrypted credentials from database
-                    await loadEncryptedCredentials();
-                    
-                    // Show license/trial info in UI
-                    displayLicenseInfo(licenseExpiry, user.email, false, isTrial, trialEndDate);
-                    
-                    // Add logout button
-                    addLogoutButton();
-                    
-                    // Remove loading overlay - auth verified
-                    document.body.classList.add('auth-verified');
-                    
-                    log('✓ User authenticated successfully');
-                    if (isTrial && hasValidTrial) {
+                    return;
+                }
+                
+                // Set current user
+                currentUser = user;
+                
+                // Load encrypted credentials from database
+                await loadEncryptedCredentials();
+                
+                // Show license/admin info in UI
+                const licenseExpiry = data.licenseExpiry ? new Date(data.licenseExpiry) : null;
+                const trialEndDate = data.trialEndDate ? new Date(data.trialEndDate) : null;
+                displayLicenseInfo(licenseExpiry, user.email, data.isAdmin, data.isTrial, trialEndDate);
+                
+                // Add logout button
+                addLogoutButton();
+                
+                // Remove loading overlay - auth verified
+                document.body.classList.add('auth-verified');
+                
+                log(`✓ ${data.isAdmin ? 'Admin' : 'User'} authenticated successfully`);
+                
+                // Log trial/license status for non-admins
+                if (!data.isAdmin) {
+                    if (data.isTrial && trialEndDate) {
+                        const now = new Date();
                         const daysLeft = Math.ceil((trialEndDate - now) / (1000 * 60 * 60 * 24));
                         log(`✓ Trial active - ${daysLeft} day(s) remaining until ${trialEndDate.toLocaleDateString()}`);
-                    } else if (hasValidLicense) {
+                    } else if (licenseExpiry) {
                         log('✓ License valid until:', licenseExpiry.toLocaleDateString());
                     }
                 }
