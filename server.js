@@ -1339,6 +1339,59 @@ function generateLicenseKey() {
     return key;
 }
 
+// Create user profile document after Firebase Auth signup (requires authentication + rate limiting)
+app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const email = inputValidation.validateEmail(req.body.email, 'email');
+        const licenseKey = req.body.licenseKey
+            ? inputValidation.validateAlphanumeric(req.body.licenseKey, 'licenseKey', false)
+            : null;
+
+        const existingDoc = await db.collection('users').doc(userId).get();
+        if (existingDoc.exists) {
+            return res.status(409).json({ success: false, error: 'User profile already exists' });
+        }
+
+        const now = new Date();
+        const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
+
+        await db.collection('users').doc(userId).set({
+            email: email,
+            licenseKey: licenseKey,
+            licenseExpiry: null,
+            emailVerified: true,
+            createdAt: FieldValue.serverTimestamp(),
+            lastLogin: null,
+            clientId: '',
+            clientSecret: '',
+            encryptionIV: '',
+            // Trial period fields
+            isTrial: licenseKey ? false : true,
+            trialStartDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(now),
+            trialEndDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(trialEndDate),
+            trialUsed: true,
+            hasActiveAccess: true
+        });
+
+        try {
+            await db.collection('analytics').add({
+                userId: userId,
+                action: 'registration',
+                timestamp: FieldValue.serverTimestamp(),
+                metadata: { email, licenseKey }
+            });
+        } catch (analyticsError) {
+            console.error('Analytics logging failed (non-critical):', analyticsError);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to create user profile');
+        res.status(400).json({ success: false, ...sanitized });
+    }
+});
+
 // Validate user login and get user info (requires authentication + rate limiting)
 app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) => {
     try {

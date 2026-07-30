@@ -293,7 +293,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js"></script>
     
     <!-- Firebase Config -->
@@ -308,8 +307,7 @@
         appCheck.activate('6Ley13ksAAAAAIiV7cKfFDe7udghxbXTYt8EkhrG', true);
         
         const auth = firebase.auth();
-        const db = firebase.firestore();
-        
+
         const serverURL = window.location.origin;
         
         // Format license key input
@@ -366,7 +364,6 @@
             try {
                 // Step 1: Validate license key with server (if provided)
                 // DISABLED: Manual license activation required via admin dashboard
-                let licenseData = null;
                 /*
                 if (licenseKey) {
                     const licenseResponse = await fetch(`${serverURL}/api/validate-license`, {
@@ -374,40 +371,34 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ licenseKey, email })
                     });
-                    
-                    licenseData = await licenseResponse.json();
-                    
+
+                    const licenseData = await licenseResponse.json();
+
                     if (!licenseResponse.ok) {
                         throw new Error(licenseData.error || 'Invalid license key');
                     }
                 }
                 */
-                
+
                 // Step 2: Create Firebase user
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 const user = userCredential.user;
-                
-                // Step 3: Create user document in Firestore with 3-day trial
-                const now = new Date();
-                const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
-                
-                await db.collection('users').doc(user.uid).set({
-                    email: email,
-                    licenseKey: licenseKey || null,
-                    licenseExpiry: licenseData ? new Date(licenseData.expiryDate) : null,
-                    emailVerified: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    lastLogin: null,
-                    clientId: '',
-                    clientSecret: '',
-                    encryptionIV: '',
-                    // Trial period fields
-                    isTrial: licenseKey ? false : true,
-                    trialStartDate: licenseKey ? null : firebase.firestore.Timestamp.fromDate(now),
-                    trialEndDate: licenseKey ? null : firebase.firestore.Timestamp.fromDate(trialEndDate),
-                    trialUsed: true,
-                    hasActiveAccess: true
+
+                // Step 3: Create user profile document via backend (writes to the correct Firestore database)
+                const idToken = await user.getIdToken();
+                const registerResponse = await fetch(`${serverURL}/api/register-user`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({ email, licenseKey: licenseKey || null })
                 });
+
+                const registerData = await registerResponse.json();
+                if (!registerResponse.ok || !registerData.success) {
+                    throw new Error(registerData.error || registerData.message || 'Failed to create user profile');
+                }
                 
                 // Step 5: Update license with user ID (if license provided)
                 // DISABLED: Manual license activation required via admin dashboard
@@ -425,23 +416,7 @@
                 }
                 */
                 
-                // Step 6: Log analytics (non-blocking - don't fail registration if this fails)
-                try {
-                    await db.collection('analytics').add({
-                        userId: user.uid,
-                        action: 'registration',
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                        metadata: {
-                            email: email,
-                            licenseKey: licenseKey
-                        }
-                    });
-                } catch (analyticsError) {
-                    // Analytics logging failed, but registration succeeded - don't show error
-                    console.log('Analytics logging failed (non-critical):', analyticsError);
-                }
-                
-                const successMessage = licenseKey 
+                const successMessage = licenseKey
                     ? '✅ Account created successfully! You can now log in.' 
                     : '✅ Account created! You have 3 days of free access. You can now log in.';
                 showAlert(successMessage, 'success');
