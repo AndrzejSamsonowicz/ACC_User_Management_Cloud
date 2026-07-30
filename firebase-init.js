@@ -9,9 +9,9 @@ const useVMServiceAccount = process.env.USE_VM_SERVICE_ACCOUNT === 'true';
 // Firebase Auth project (for token verification)
 const firebaseAuthProjectId = process.env.FIREBASE_PROJECT_ID || 'forma-user-management-b0656';
 
-// Firestore project (for database - uses VM's own project for native permissions)
-const firestoreProjectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'apps-503111';
-const firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID || 'forma-user-management-firebase';
+// Firestore project (same project as Firebase Auth)
+const firestoreProjectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'forma-user-management-b0656';
+const firestoreDatabaseId = process.env.FIRESTORE_DATABASE_ID || '(default)';
 
 if (useVMServiceAccount) {
     console.log('✅ Using VM Service Account (Application Default Credentials)');
@@ -42,8 +42,6 @@ if (useVMServiceAccount) {
     }
 }
 
-// Separate Firestore client pointing to the VM's own project database
-// This avoids cross-project permission issues
 const db = new Firestore({
     projectId: firestoreProjectId,
     databaseId: firestoreDatabaseId
