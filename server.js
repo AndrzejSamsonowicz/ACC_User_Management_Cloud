@@ -1256,8 +1256,13 @@ app.post('/api/admin/delete-users', authenticateUser, async (req, res) => {
                 try {
                     await admin.auth().deleteUser(userId);
                 } catch (authError) {
-                    console.error(`Failed to delete user from Auth: ${userId}`, authError);
-                    // Continue with Firestore deletion even if Auth deletion fails
+                    if (authError.code !== 'auth/user-not-found') {
+                        // Re-throw so this user is reported as an error and Firestore
+                        // cleanup below is skipped, avoiding an orphaned Auth account
+                        // with no matching Firestore profile.
+                        throw new Error(`Failed to delete user from Authentication: ${authError.message}`);
+                    }
+                    // Already gone from Auth - safe to continue with Firestore cleanup
                 }
                 
                 // 2. Delete user document from Firestore
@@ -1360,7 +1365,7 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
             email: email,
             licenseKey: licenseKey,
             licenseExpiry: null,
-            emailVerified: true,
+            emailVerified: false,
             createdAt: FieldValue.serverTimestamp(),
             lastLogin: null,
             clientId: '',

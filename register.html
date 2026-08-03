@@ -399,7 +399,14 @@
                 if (!registerResponse.ok || !registerData.success) {
                     throw new Error(registerData.error || registerData.message || 'Failed to create user profile');
                 }
-                
+
+                // Step 4: Send email verification (non-blocking - don't fail registration if this fails)
+                try {
+                    await user.sendEmailVerification();
+                } catch (verificationError) {
+                    console.log('Sending verification email failed (non-critical):', verificationError);
+                }
+
                 // Step 5: Update license with user ID (if license provided)
                 // DISABLED: Manual license activation required via admin dashboard
                 /*

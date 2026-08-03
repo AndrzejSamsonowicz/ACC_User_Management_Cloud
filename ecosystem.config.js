@@ -1,11 +1,13 @@
 module.exports = {
   apps: [{
-    name: 'acc-user-management',
+    name: 'forma-user-management',
     script: 'server.js',
     instances: 1,
+    exec_mode: 'fork',
     autorestart: true,
     watch: false,
     max_memory_restart: '500M',
+    node_args: '-r dotenv/config',
     env: {
       NODE_ENV: 'production',
       PORT: 3000
