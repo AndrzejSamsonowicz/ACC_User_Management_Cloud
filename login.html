@@ -317,13 +317,8 @@
         // Check if user is already logged in
         auth.onAuthStateChanged(async (user) => {
             if (user) {
-                // Check if email is verified
-                if (!user.emailVerified) {
-                    showAlert('Please verify your email before logging in. Check your inbox.', 'error');
-                    await auth.signOut();
-                    return;
-                }
-
+                // Email verification is enforced server-side in /api/validate-login,
+                // which also correctly exempts admin accounts.
                 try {
                     // Get auth token - check if user object is still valid
                     const token = await user.getIdToken(/* forceRefresh */ false);
@@ -397,16 +392,9 @@
             try {
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 const user = userCredential.user;
-                
-                // Check email verification
-                if (!user.emailVerified) {
-                    showAlert('Please verify your email before logging in. Check your inbox.', 'error');
-                    await auth.signOut();
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = 'Log In';
-                    return;
-                }
 
+                // Email verification is enforced server-side in /api/validate-login,
+                // which also correctly exempts admin accounts.
                 console.log('Login successful! Email verified:', user.emailVerified);
                 
                 // Reset login attempts on success
