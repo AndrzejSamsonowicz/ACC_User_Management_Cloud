@@ -1417,12 +1417,25 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
         const trialEndDate = userData.trialEndDate ? userData.trialEndDate.toDate() : null;
         const isTrial = userData.isTrial || false;
         const now = new Date();
-        
+
+        // Require email verification for non-admin users
+        if (!isAdmin && !req.user.email_verified) {
+            return res.json({
+                success: false,
+                error: 'Please verify your email before logging in. Check your inbox for the verification link.'
+            });
+        }
+
+        // Keep Firestore in sync with the actual Auth verification status (display-only field)
+        if (req.user.email_verified && !userData.emailVerified) {
+            await db.collection('users').doc(userId).update({ emailVerified: true });
+        }
+
         // Check access for non-admin users
         // Allow access if: 1) User has valid license OR 2) User is in trial period
         const hasValidLicense = licenseExpiry && licenseExpiry > now;
         const hasValidTrial = isTrial && trialEndDate && trialEndDate > now;
-        
+
         if (!isAdmin && !hasValidLicense && !hasValidTrial) {
             return res.json({ 
                 success: false, 

@@ -317,14 +317,13 @@
         // Check if user is already logged in
         auth.onAuthStateChanged(async (user) => {
             if (user) {
-                // TEMPORARILY DISABLED for debugging
                 // Check if email is verified
-                // if (!user.emailVerified) {
-                //     showAlert('Please verify your email before logging in. Check your inbox.', 'error');
-                //     await auth.signOut();
-                //     return;
-                // }
-                
+                if (!user.emailVerified) {
+                    showAlert('Please verify your email before logging in. Check your inbox.', 'error');
+                    await auth.signOut();
+                    return;
+                }
+
                 try {
                     // Get auth token - check if user object is still valid
                     const token = await user.getIdToken(/* forceRefresh */ false);
@@ -399,16 +398,15 @@
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 const user = userCredential.user;
                 
-                // TEMPORARILY DISABLED for debugging
                 // Check email verification
-                // if (!user.emailVerified) {
-                //     showAlert('Please verify your email before logging in. Check your inbox.', 'error');
-                //     await auth.signOut();
-                //     loginBtn.disabled = false;
-                //     loginBtn.innerHTML = 'Log In';
-                //     return;
-                // }
-                
+                if (!user.emailVerified) {
+                    showAlert('Please verify your email before logging in. Check your inbox.', 'error');
+                    await auth.signOut();
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = 'Log In';
+                    return;
+                }
+
                 console.log('Login successful! Email verified:', user.emailVerified);
                 
                 // Reset login attempts on success
