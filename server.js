@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { admin, db, FieldValue } = require('./firebase-init');
 const express = require('express');
 const fs = require('fs');
@@ -224,7 +225,7 @@ app.use((req, res, next) => {
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: https: blob:",
         "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net https://www.gstatic.com",
-        "frame-src https://www.google.com https://www.recaptcha.net",
+        "frame-src https://www.google.com https://www.recaptcha.net https://*.firebaseapp.com",
         "frame-ancestors 'none'",
         "form-action 'self'", // Prevent forms from posting to external sites
         "base-uri 'self'",

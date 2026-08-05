@@ -5,13 +5,13 @@
 // you should still rotate this key after it was exposed in git history.
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBZs-p0860rlQVlIgqq8ZpS0MM_Wvb62zI",
-    authDomain: "accusermanagement.firebaseapp.com",
-    projectId: "accusermanagement",
-    storageBucket: "accusermanagement.firebasestorage.app",
-    messagingSenderId: "8286394417",
-    appId: "1:8286394417:web:6e129a206122bc7dc89d10",
-    measurementId: "G-LSLL8FN7TG"
+    apiKey: "AIzaSyCywKDs0c29BWDTa2o92ELyO0Q7iHZguOU",
+    authDomain: "forma-user-management-b0656.firebaseapp.com",
+    projectId: "forma-user-management-b0656",
+    storageBucket: "forma-user-management-b0656.firebasestorage.app",
+    messagingSenderId: "626738725437",
+    appId: "1:626738725437:web:2bb34a1a747921e6136054",
+    measurementId: "G-W4B4N3YTLX"
 };
 
 // Initialize Firebase (loaded in HTML files)

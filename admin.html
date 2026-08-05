@@ -739,6 +739,11 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         
+        // Use App Check debug token for local development (reCAPTCHA key is domain-restricted to production)
+        if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+            self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        }
+
         // Initialize App Check with reCAPTCHA v3
         const appCheck = firebase.appCheck();
         appCheck.activate('6LfmUW0tAAAAADW2ftclIE1gW-ve6rTPPNYt4w4n', true);
