@@ -1722,16 +1722,18 @@ class UserTableManager extends TableCellInteraction {
             
             if (email) {
                 log(`💾 Processing user: ${email}`);
+                const roleFields = this._extractRoleFields(cells[3]);
                 const user = {
                     email: email.toLowerCase(), // Always save email in lowercase for consistency
                     metadata: {
                         company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
-                        role: (cells[3]?.textContent || cells[3]?.innerText || '').trim()
+                        role: roleFields.role,
+                        allRoles: roleFields.allRoles
                     },
                     products: []
                 };
-                
-                log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}"`);
+
+                log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}" (all roles: "${user.metadata.allRoles}")`);
                 
                 // Product keys and their corresponding cell indices
                 // Note: 'insight' is not in the UI but access level matches other products to avoid mixing
@@ -2447,9 +2449,10 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             log('📋   Setting company cell to:', companyValue);
             row.appendChild(companyCell);
 
-            // Role cell
+            // Role cell — display all roles (falls back to the single "role" field for
+            // data saved before multi-role support existed).
             const roleCell = this.createEditableCell();
-            const roleValue = (user.metadata && user.metadata.role) || '';
+            const roleValue = (user.metadata && (user.metadata.allRoles || user.metadata.role)) || '';
             roleCell.textContent = roleValue;
             log('📋   Setting role cell to:', roleValue);
             row.appendChild(roleCell);
@@ -2538,16 +2541,16 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
 
             // Map ACC API format → populateTableFromData format
             const users = projectUsers.map(u => {
-                // Role: use the first named role, or empty string
-                const roleName = (u.roles && u.roles.length > 0)
-                    ? u.roles[0].name || ''
-                    : '';
+                // Role: display ALL assigned roles, comma-separated (a project user can have more than one)
+                const roleNames = Array.isArray(u.roles) ? u.roles.map(r => r.name).filter(Boolean) : [];
+                const roleName = roleNames.join(', ');
 
                 return {
                     email: u.email || '',
                     metadata: {
                         company: u.companyName || '',
-                        role: roleName
+                        role: roleName,
+                        allRoles: roleName
                     },
                     products: Array.isArray(u.products) ? u.products : []
                 };
@@ -2559,6 +2562,21 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             alert(`Failed to load existing project users:\n${error.message}`);
             this.addRow();
         }
+    }
+
+    /**
+     * Read a Role cell and split it into the two forms the rest of the app needs:
+     * - role: the first comma-separated name, for the account-level default_role
+     *   update (which only supports one role).
+     * - allRoles: the full cell text (all roles, comma-separated), for project-level
+     *   roleIds updates which support multiple roles per user.
+     * Derived straight from the cell text (not load-time state) so it works the same
+     * whether the row came from a live API load, Firestore, CSV import, or manual edit.
+     */
+    _extractRoleFields(roleCell) {
+        const currentText = (roleCell?.textContent || roleCell?.innerText || '').trim();
+        const firstRole = currentText.split(',')[0].trim();
+        return { role: firstRole, allRoles: currentText };
     }
 
     /**
@@ -2579,11 +2597,14 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const email = (emailCell.textContent || emailCell.innerText || '').trim();
             if (!email) return;
 
+            const roleFields = this._extractRoleFields(cells[3]);
+
             const user = {
                 email: email.toLowerCase(),
                 metadata: {
                     company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
-                    role: (cells[3]?.textContent || cells[3]?.innerText || '').trim()
+                    role: roleFields.role,
+                    allRoles: roleFields.allRoles
                 },
                 products: []
             };

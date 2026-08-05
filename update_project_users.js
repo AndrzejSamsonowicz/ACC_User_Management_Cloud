@@ -6,6 +6,56 @@
 log('🔄 update_project_users.js loaded');
 
 /**
+ * Session-long cache of known project roles (name.toLowerCase() -> id), per projectId.
+ * Confirmed via the real ACC "Members" page's own network traffic: the roles list for
+ * a project comes from the classic BIM 360 Admin API namespace, NOT construction/admin/v1
+ * (which 404s for this resource) — GET /bim360/admin/v1/projects/{projectId}/roles.
+ */
+const projectRoleCache = new Map(); // projectId -> Map(nameLower -> id)
+
+async function fetchProjectRoles(projectId, accessToken) {
+    let allRoles = [];
+    let offset = 0;
+    const limit = 200;
+    let hasMore = true;
+    while (hasMore) {
+        const url = `https://developer.api.autodesk.com/bim360/admin/v1/projects/${projectId}/roles?limit=${limit}&offset=${offset}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '');
+            console.warn(`⚠️ Failed to fetch project roles: ${res.status} - ${errorText}`);
+            return allRoles;
+        }
+        const data = await res.json();
+        const results = data.results || [];
+        allRoles = allRoles.concat(results);
+        const total = data.pagination && data.pagination.totalResults;
+        if (total && allRoles.length < total) {
+            offset += limit;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allRoles;
+}
+
+/**
+ * Get the cached role catalog for a project, fetching it (once per session) if needed.
+ */
+async function getProjectRoleCatalog(projectId, accessToken) {
+    const cached = projectRoleCache.get(projectId);
+    if (cached && cached.size > 0) return cached;
+    const roles = await fetchProjectRoles(projectId, accessToken);
+    const cache = new Map();
+    roles.forEach(r => {
+        if (r.name && r.id) cache.set(r.name.toLowerCase(), r.id);
+    });
+    log(`✅ Fetched ${cache.size} project roles for roleId mapping`);
+    projectRoleCache.set(projectId, cache);
+    return cache;
+}
+
+/**
  * Analyze users and show sync dialog
  * Compares Users Main List with current project users and identifies:
  * - Users to PATCH (update existing)
@@ -286,6 +336,19 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
         showInvalidRolesModal(errorHTML);
     }
 
+    // Handle duplicate roles warning (e.g. "Architect, Investor, Architect" in one cell)
+    if (result?.duplicateRoles?.size > 0) {
+        let dupHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Duplicate roles were found and automatically removed:</div>';
+        for (const [role, emails] of result.duplicateRoles) {
+            dupHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+            dupHTML += `<strong style="color: #856404;">Role "${role}" was listed more than once</strong>`;
+            dupHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => { dupHTML += `<li>${email} - duplicate entry removed, role applied once</li>`; });
+            dupHTML += '</ul></div>';
+        }
+        showInvalidRolesModal(dupHTML);
+    }
+
     // Show summary in the same style as multi-project
     _showMultiSyncResults([{ project: { name: projectName }, result, error: syncError }]);
 }
@@ -422,7 +485,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         added: 0,
         deleted: 0,
         errors: [],
-        invalidRoles: null
+        invalidRoles: new Map(),
+        duplicateRoles: new Map()
     };
     
     // Disable sync button and show progress
@@ -457,7 +521,10 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             const invalidRoleCount = accountUpdateResult.invalidRoles?.size || 0;
             if (invalidRoleCount > 0) {
                 console.warn('⚠️ INVALID ROLES DETECTED - users were processed without roles:', accountUpdateResult.invalidRoles);
-                results.invalidRoles = accountUpdateResult.invalidRoles;
+                accountUpdateResult.invalidRoles.forEach((emails, role) => {
+                    if (!results.invalidRoles.has(role)) results.invalidRoles.set(role, []);
+                    results.invalidRoles.get(role).push(...emails);
+                });
 
                 if (!isDirectMode) {
                     // Build error message HTML for modal
@@ -518,7 +585,60 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         // Always fetch account users (needed for company/role)
         const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
         const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
-        
+
+        // Get this project's role catalog (cached after the first fetch this session)
+        const projectRoleIdByName = await getProjectRoleCatalog(projectId, accessToken);
+
+        // Resolve the roleIds to send for a user: a project user can have multiple roles
+        // (Autodesk Forma), so map every role name in "allRoles"/"role" to its project role ID.
+        // Names that don't match any known project role are reported as invalid and skipped.
+        // Repeated names (e.g. "Architect, Investor, Architect") are deduplicated — Forma's
+        // API rejects a roleIds array containing the same ID twice with a 400 error.
+        // If nothing resolves, fall back to the account's single default_role_id (previous behavior).
+        const resolveRoleIds = (importUser, accountUser) => {
+            const rolesText = (importUser?.metadata?.allRoles || importUser?.metadata?.role || '').trim();
+            const roleNames = rolesText ? rolesText.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+            if (roleNames.length > 0 && projectRoleIdByName.size > 0) {
+                const roleIds = [];
+                const invalidNames = [];
+                const duplicateNames = [];
+                const seenNames = new Set();
+                roleNames.forEach(name => {
+                    const nameLower = name.toLowerCase();
+                    if (seenNames.has(nameLower)) {
+                        duplicateNames.push(name);
+                        return;
+                    }
+                    seenNames.add(nameLower);
+                    const id = projectRoleIdByName.get(nameLower);
+                    if (id) roleIds.push(id); else invalidNames.push(name);
+                });
+                if (roleIds.length > 0) {
+                    return { roleIds, invalidNames, duplicateNames };
+                }
+            }
+
+            if (accountUser?.default_role_id) {
+                return { roleIds: [accountUser.default_role_id], invalidNames: [], duplicateNames: [] };
+            }
+            return { roleIds: [], invalidNames: [], duplicateNames: [] };
+        };
+
+        const recordInvalidProjectRoles = (invalidNames, email) => {
+            invalidNames.forEach(name => {
+                if (!results.invalidRoles.has(name)) results.invalidRoles.set(name, []);
+                results.invalidRoles.get(name).push(email);
+            });
+        };
+
+        const recordDuplicateRoles = (duplicateNames, email) => {
+            duplicateNames.forEach(name => {
+                if (!results.duplicateRoles.has(name)) results.duplicateRoles.set(name, []);
+                results.duplicateRoles.get(name).push(email);
+            });
+        };
+
         // Extract available product keys from existing project users
         // This determines which products are activated for this project
         const availableProductKeys = new Set();
@@ -621,11 +741,20 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     const patchPayload = { products: products };
                     if (accountUser.company_id) patchPayload.companyId = accountUser.company_id;
                     if (accountUser.company_name) patchPayload.companyName = accountUser.company_name;
-                    
-                    // Add role ID from account (roles are account-level, not project-level)
-                    if (accountUser.default_role_id) {
-                        patchPayload.roleIds = [accountUser.default_role_id];
-                        log(`✓ Adding role ID ${accountUser.default_role_id} for ${userToPatch.email}`);
+
+                    // A project user can have multiple roles (Forma) — map every role name to a project roleId
+                    const { roleIds, invalidNames, duplicateNames } = resolveRoleIds(importUser, accountUser);
+                    if (roleIds.length > 0) {
+                        patchPayload.roleIds = roleIds;
+                        log(`✓ Adding role IDs [${roleIds.join(', ')}] for ${userToPatch.email}`);
+                    }
+                    if (invalidNames.length > 0) {
+                        console.warn(`⚠️ Role(s) not found in project for ${userToPatch.email}:`, invalidNames);
+                        recordInvalidProjectRoles(invalidNames, userToPatch.email);
+                    }
+                    if (duplicateNames.length > 0) {
+                        console.warn(`⚠️ Duplicate role(s) removed for ${userToPatch.email}:`, duplicateNames);
+                        recordDuplicateRoles(duplicateNames, userToPatch.email);
                     }
                     
                     // === CHANGE DETECTION: skip PATCH if nothing has actually changed ===
@@ -807,10 +936,19 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                             if (accountUser.company_id) {
                                 userPayload.companyId = accountUser.company_id;
                             }
-                            
-                            // Add role ID from account (roles are account-level, not project-level)
-                            if (accountUser.default_role_id) {
-                                userPayload.roleIds = [accountUser.default_role_id];
+
+                            // A project user can have multiple roles (Forma) — map every role name to a project roleId
+                            const { roleIds, invalidNames, duplicateNames } = resolveRoleIds(importUser, accountUser);
+                            if (roleIds.length > 0) {
+                                userPayload.roleIds = roleIds;
+                            }
+                            if (invalidNames.length > 0) {
+                                console.warn(`⚠️ Role(s) not found in project for ${userToAdd.email}:`, invalidNames);
+                                recordInvalidProjectRoles(invalidNames, userToAdd.email);
+                            }
+                            if (duplicateNames.length > 0) {
+                                console.warn(`⚠️ Duplicate role(s) removed for ${userToAdd.email}:`, duplicateNames);
+                                recordDuplicateRoles(duplicateNames, userToAdd.email);
                             }
                         }
                         

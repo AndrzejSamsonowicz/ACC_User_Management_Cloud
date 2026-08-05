@@ -47,7 +47,7 @@ class ProjectUsersManager {
     async fetchProjectRoles(projectId) {
         try {
             const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/roles`;
-            // log(`Fetching project roles: ${apiUrl}`);
+            console.log(`🔎 Fetching project roles: ${apiUrl}`);
 
             const response = await fetch(apiUrl, {
                 headers: {
@@ -57,15 +57,17 @@ class ProjectUsersManager {
             });
 
             if (!response.ok) {
-                // console.warn(`Failed to fetch project roles: ${response.status} ${response.statusText}`);
+                const errorText = await response.text().catch(() => '');
+                console.warn(`⚠️ Failed to fetch project roles: ${response.status} ${response.statusText} - ${errorText}`);
                 return [];
             }
 
             const rolesData = await response.json();
-            // log('Project roles:', rolesData);
-            return rolesData.results || rolesData || [];
+            const roles = rolesData.results || rolesData || [];
+            console.log(`🔎 Project roles fetched (${roles.length}):`, roles.map(r => r.name));
+            return roles;
         } catch (error) {
-            // console.warn('Error fetching project roles:', error);
+            console.warn('⚠️ Error fetching project roles:', error);
             return [];
         }
     }
@@ -73,17 +75,17 @@ class ProjectUsersManager {
     // Helper to find role ID by role name
     findRoleIdByName(roles, roleName) {
         if (!roles || !roleName) return null;
-        
-        const role = roles.find(r => 
+
+        const role = roles.find(r =>
             r.name && r.name.toLowerCase() === roleName.toLowerCase()
         );
-        
+
         if (role) {
-            // log(`Found role ID ${role.id} for role name "${roleName}"`);
+            console.log(`🔎 Found role ID ${role.id} for role name "${roleName}"`);
             return role.id;
         }
-        
-        // console.warn(`No role found for name "${roleName}"`);
+
+        console.warn(`⚠️ No project role found for name "${roleName}"`);
         return null;
     }
 
