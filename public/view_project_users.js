@@ -1154,31 +1154,13 @@ class ProjectUsersViewer {
             // Show progress modal
             this.showProgressModal(usersToUpdate.length);
             
-            // Step 1: Get 2-legged token with account:write scope
+            // Step 1: Get 2-legged token with account:write scope. Uses the
+            // shared get2LeggedTokenWithWriteScope() (update_account_users.js),
+            // which goes through /api/aps/token server-side instead of calling
+            // Autodesk directly with the client secret in the browser — this
+            // used to duplicate that logic inline with the secret exposed here.
             log('🔑 Getting 2-legged token with account:write scope...');
-            
-            const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
-            const tokenData = new URLSearchParams();
-            tokenData.append('client_id', CLIENT_ID);
-            tokenData.append('client_secret', CLIENT_SECRET);
-            tokenData.append('grant_type', 'client_credentials');
-            tokenData.append('scope', 'account:read account:write data:read');
-            
-            const tokenResponse = await fetch(TOKEN_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: tokenData
-            });
-            
-            if (!tokenResponse.ok) {
-                const errorData = await tokenResponse.json();
-                throw new Error(`Token error: ${errorData.error_description || 'Unknown error'}`);
-            }
-            
-            const tokenResult = await tokenResponse.json();
-            const twoLeggedToken = tokenResult.access_token;
+            const twoLeggedToken = await get2LeggedTokenWithWriteScope();
             log('✅ Got 2-legged token with account:write scope');
             
             // OPTIMIZATION: Fetch all data in parallel (Step 2 & 3)
@@ -1500,7 +1482,7 @@ class ProjectUsersViewer {
                 infoHTML += '<div style="margin-bottom: 10px; color: #333;">The following users exist in the project but NOT in the account. They were updated at the project level only:</div>';
                 infoHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #333;">';
                 projectOnlyUsers.forEach(email => {
-                    infoHTML += `<li>${email}</li>`;
+                    infoHTML += `<li>${escapeHtml(email)}</li>`;
                 });
                 infoHTML += '</ul>';
                 infoHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
@@ -1531,10 +1513,10 @@ class ProjectUsersViewer {
                 
                 for (const [roleName, emails] of roleGroups) {
                     errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-                    errorHTML += `<strong style="color: #856404;">Role "${roleName}" doesn't exist in this account</strong>`;
+                    errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(roleName)}" doesn't exist in this account</strong>`;
                     errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
                     emails.forEach(email => {
-                        errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
+                        errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`;
                     });
                     errorHTML += '</ul></div>';
                 }
@@ -1790,7 +1772,7 @@ class ProjectUsersViewer {
             failedUsers.forEach(fail => {
                 const item = document.createElement('div');
                 item.style.cssText = 'margin: 8px 0; padding: 8px; background: white; border-radius: 3px;';
-                item.innerHTML = `<strong>${fail.email}</strong><br><span style="color: #666; font-size: 13px;">${fail.error}</span>`;
+                item.innerHTML = `<strong>${escapeHtml(fail.email)}</strong><br><span style="color: #666; font-size: 13px;">${escapeHtml(fail.error)}</span>`;
                 list.appendChild(item);
             });
             failList.appendChild(list);

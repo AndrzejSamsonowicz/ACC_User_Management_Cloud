@@ -727,10 +727,10 @@
     </div>
     
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" integrity="sha384-nwX2Qpkhc2sv6L0ZPkLefLGguao67toSowvePuQvGF6cG+8MUphGI2uI94Ls3JF7" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js" integrity="sha384-rxbD+YIVHadImwEcPc07/NNXIMwVf3RtXkQUgI0cE4GzDCFQ9IQ+kLvlefJ/Eb7E" crossorigin="anonymous"></script>
     
     <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
@@ -884,74 +884,138 @@
         }
         
         // Render users table
+        //
+        // Rows are built via DOM APIs (createElement/textContent/dataset), not
+        // innerHTML + template strings — user.email is set by the user themselves
+        // at registration (not something this app controls), so it must never be
+        // interpolated into HTML/attribute/inline-onclick source: a self-registered,
+        // low-privilege user could otherwise run script in the ADMIN's session
+        // just by having their row rendered here (stored XSS -> privilege escalation).
+        // activateUserLicense/deactivateUserLicense now take only userId and look
+        // the rest up from allUsers, so nothing user-controlled is ever embedded
+        // in an onclick string either.
         function renderUsers(filtered = null) {
             const users = filtered || allUsers;
             const container = document.getElementById('usersTableContainer');
-            
+
             if (users.length === 0) {
                 container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><p>No users found</p></div>';
                 return;
             }
-            
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 40px;"><input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)"></th>
-                            <th>Email</th>
-                            <th>License Key</th>
-                            <th>Status</th>
-                            <th>Expiry</th>
-                            <th>Last Login</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+
+            container.innerHTML = '';
+            const table = document.createElement('table');
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)"></th>
+                    <th>Email</th>
+                    <th>License Key</th>
+                    <th>Status</th>
+                    <th>Expiry</th>
+                    <th>Last Login</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
             `;
-            
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
             users.forEach(user => {
                 const expiryDate = user.licenseExpiry ? new Date(user.licenseExpiry) : null;
                 const isExpired = expiryDate && expiryDate < new Date();
                 const statusClass = user.emailVerified ? 'badge-active' : 'badge-pending';
                 const statusText = user.emailVerified ? 'Verified' : 'Unverified';
-                
+
                 // Check if user is on trial - only show trial info if no active license
-                let licenseDisplay = user.licenseKey || 'N/A';
                 const hasActiveLicense = user.licenseKey && expiryDate && !isExpired;
+                let trialState = null; // null | 'active' | 'expired'
+                let trialHoursLeft = 0;
                 if (user.isTrial && user.trialEndDate && !hasActiveLicense) {
                     const trialEnd = new Date(user.trialEndDate);
-                    const now = new Date();
-                    const hoursLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60)));
-                    const isTrialActive = hoursLeft > 0;
-                    
-                    if (isTrialActive) {
-                        licenseDisplay = `<span style="color: #ff9800; font-weight: 600;">🎉 Trial: ${hoursLeft}h left</span>`;
-                    } else {
-                        licenseDisplay = `<span style="color: #dc3545; font-weight: 600;">Trial Expired</span>`;
-                    }
+                    trialHoursLeft = Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60)));
+                    trialState = trialHoursLeft > 0 ? 'active' : 'expired';
                 }
-                
-                html += `
-                    <tr>
-                        <td><input type="checkbox" class="user-checkbox" data-user-id="${user.userId}" data-user-email="${user.email}" onchange="updateDeleteButton()"></td>
-                        <td>${user.email}</td>
-                        <td>${licenseDisplay}</td>
-                        <td><span class="badge ${statusClass}">${statusText}</span></td>
-                        <td>${expiryDate ? formatDate(expiryDate) : 'N/A'} ${isExpired ? '<span class="badge badge-expired">Expired</span>' : ''}</td>
-                        <td>${user.lastLogin ? formatDate(new Date(user.lastLogin)) : 'Never'}</td>
-                        <td>${formatDate(new Date(user.createdAt))}</td>
-                        <td>
-                            ${!user.licenseKey || isExpired ? 
-                                `<button class="btn btn-success btn-sm" onclick="activateUserLicense('${user.userId}', '${user.email}')">Activate License</button>` : 
-                                `<button class="btn btn-warning btn-sm" onclick="deactivateUserLicense('${user.userId}', '${user.email}', '${user.licenseKey}')">Deactivate License</button>`}
-                        </td>
-                    </tr>
-                `;
+
+                const tr = document.createElement('tr');
+
+                const checkboxTd = document.createElement('td');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'user-checkbox';
+                checkbox.dataset.userId = user.userId;
+                checkbox.dataset.userEmail = user.email;
+                checkbox.addEventListener('change', () => updateDeleteButton());
+                checkboxTd.appendChild(checkbox);
+                tr.appendChild(checkboxTd);
+
+                const emailTd = document.createElement('td');
+                emailTd.textContent = user.email;
+                tr.appendChild(emailTd);
+
+                const licenseTd = document.createElement('td');
+                if (trialState === 'active') {
+                    const span = document.createElement('span');
+                    span.style.cssText = 'color: #ff9800; font-weight: 600;';
+                    span.textContent = `🎉 Trial: ${trialHoursLeft}h left`;
+                    licenseTd.appendChild(span);
+                } else if (trialState === 'expired') {
+                    const span = document.createElement('span');
+                    span.style.cssText = 'color: #dc3545; font-weight: 600;';
+                    span.textContent = 'Trial Expired';
+                    licenseTd.appendChild(span);
+                } else {
+                    licenseTd.textContent = user.licenseKey || 'N/A';
+                }
+                tr.appendChild(licenseTd);
+
+                const statusTd = document.createElement('td');
+                const statusBadge = document.createElement('span');
+                statusBadge.className = `badge ${statusClass}`;
+                statusBadge.textContent = statusText;
+                statusTd.appendChild(statusBadge);
+                tr.appendChild(statusTd);
+
+                const expiryTd = document.createElement('td');
+                expiryTd.append(expiryDate ? formatDate(expiryDate) : 'N/A');
+                if (isExpired) {
+                    expiryTd.append(' ');
+                    const expiredBadge = document.createElement('span');
+                    expiredBadge.className = 'badge badge-expired';
+                    expiredBadge.textContent = 'Expired';
+                    expiryTd.appendChild(expiredBadge);
+                }
+                tr.appendChild(expiryTd);
+
+                const lastLoginTd = document.createElement('td');
+                lastLoginTd.textContent = user.lastLogin ? formatDate(new Date(user.lastLogin)) : 'Never';
+                tr.appendChild(lastLoginTd);
+
+                const createdTd = document.createElement('td');
+                createdTd.textContent = formatDate(new Date(user.createdAt));
+                tr.appendChild(createdTd);
+
+                const actionsTd = document.createElement('td');
+                const actionBtn = document.createElement('button');
+                if (!user.licenseKey || isExpired) {
+                    actionBtn.className = 'btn btn-success btn-sm';
+                    actionBtn.textContent = 'Activate License';
+                    actionBtn.addEventListener('click', () => activateUserLicense(user.userId));
+                } else {
+                    actionBtn.className = 'btn btn-warning btn-sm';
+                    actionBtn.textContent = 'Deactivate License';
+                    actionBtn.addEventListener('click', () => deactivateUserLicense(user.userId));
+                }
+                actionsTd.appendChild(actionBtn);
+                tr.appendChild(actionsTd);
+
+                tbody.appendChild(tr);
             });
-            
-            html += '</tbody></table>';
-            container.innerHTML = html;
+
+            table.appendChild(tbody);
+            container.appendChild(table);
         }
         
         // Render licenses table
@@ -1300,9 +1364,10 @@
         
         // Manual license activation
         let currentActivateUser = null;
-        function activateUserLicense(userId, email) {
+        function activateUserLicense(userId) {
+            const user = allUsers.find(u => u.userId === userId);
             currentActivateUser = userId;
-            document.getElementById('activateEmail').textContent = email;
+            document.getElementById('activateEmail').textContent = user ? user.email : '';
             document.getElementById('activateModal').classList.add('active');
         }
         
@@ -1341,11 +1406,12 @@
         // Deactivate license
         let currentDeactivateUser = null;
         let currentDeactivateLicenseKey = null;
-        function deactivateUserLicense(userId, email, licenseKey) {
+        function deactivateUserLicense(userId) {
+            const user = allUsers.find(u => u.userId === userId);
             currentDeactivateUser = userId;
-            currentDeactivateLicenseKey = licenseKey;
-            document.getElementById('deactivateEmail').textContent = email;
-            document.getElementById('deactivateKey').textContent = licenseKey;
+            currentDeactivateLicenseKey = user ? user.licenseKey : null;
+            document.getElementById('deactivateEmail').textContent = user ? user.email : '';
+            document.getElementById('deactivateKey').textContent = currentDeactivateLicenseKey;
             document.getElementById('deactivateModal').classList.add('active');
         }
         

@@ -324,13 +324,15 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     document.getElementById('singleSyncOverlay')?.remove();
 
     // Handle invalid roles warning (same as multi-project)
+    // role/email are operator-typed or ACC-sourced values, not sanitized upstream —
+    // escape before building HTML from them (stored/self XSS via this warning modal).
     if (result?.invalidRoles?.size > 0) {
         let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed:</div>';
         for (const [role, emails] of result.invalidRoles) {
             errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+            errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
             errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
-            emails.forEach(email => { errorHTML += `<li>${email} - processed without this role</li>`; });
+            emails.forEach(email => { errorHTML += `<li>${escapeHtml(email)} - processed without this role</li>`; });
             errorHTML += '</ul></div>';
         }
         showInvalidRolesModal(errorHTML);
@@ -341,9 +343,9 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
         let dupHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Duplicate roles were found and automatically removed:</div>';
         for (const [role, emails] of result.duplicateRoles) {
             dupHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            dupHTML += `<strong style="color: #856404;">Role "${role}" was listed more than once</strong>`;
+            dupHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" was listed more than once</strong>`;
             dupHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
-            emails.forEach(email => { dupHTML += `<li>${email} - duplicate entry removed, role applied once</li>`; });
+            emails.forEach(email => { dupHTML += `<li>${escapeHtml(email)} - duplicate entry removed, role applied once</li>`; });
             dupHTML += '</ul></div>';
         }
         showInvalidRolesModal(dupHTML);
@@ -531,10 +533,10 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
                     for (const [role, emails] of accountUpdateResult.invalidRoles) {
                         errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-                        errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+                        errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
                         errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
                         emails.forEach(email => {
-                            errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
+                            errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`;
                         });
                         errorHTML += '</ul></div>';
                     }
@@ -1271,10 +1273,10 @@ async function saveAndSyncMultiProject(projects) {
         let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
         for (const [role, { emails, projects: pNames }] of allInvalidRoles) {
             errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
-            if (pNames.length > 1) errorHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${pNames.join(', ')}</div>`;
+            errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
+            if (pNames.length > 1) errorHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
             errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
-            emails.forEach(email => { errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`; });
+            emails.forEach(email => { errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`; });
             errorHTML += '</ul></div>';
         }
         errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';

@@ -506,7 +506,7 @@ async function loadHubsForImport() {
 
     } catch (error) {
         console.error('Error loading hubs:', error);
-        hubsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">Error: ${error.message}</div>`;
+        hubsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -602,7 +602,7 @@ async function loadProjectsForImport(hubId) {
 
     } catch (error) {
         console.error('Error loading projects:', error);
-        projectsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">Error: ${error.message}</div>`;
+        projectsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -736,7 +736,7 @@ async function loadUsersForImport(projectId) {
 
     } catch (error) {
         console.error('Error loading users:', error);
-        usersList.innerHTML = `<div style="text-align: center; padding: 40px; color: #dc3545;">Error loading users: ${error.message}<br><br>Try selecting the project again.</div>`;
+        usersList.innerHTML = `<div style="text-align: center; padding: 40px; color: #dc3545;">Error loading users: ${escapeHtml(error.message)}<br><br>Try selecting the project again.</div>`;
     }
 }
 

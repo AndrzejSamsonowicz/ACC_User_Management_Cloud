@@ -4,12 +4,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
+# Environment variables — ignore all real env files, only .env.example is meant to be tracked
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+.env.*
+!.env.example
 
 # Runtime data
 pids

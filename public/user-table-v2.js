@@ -1,10 +1,4 @@
-// Security: HTML escape function to prevent XSS
-function escapeHtml(text) {
-    if (typeof text !== 'string') return text;
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+// (escapeHtml is defined in shared/dom-utils.js, loaded before this file)
 
 // Global variable to hold the user table manager instance
 let userTableManager = null;
@@ -1381,10 +1375,10 @@ class UserTableManager extends TableCellInteraction {
                 let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
                 for (const [role, emails] of results.invalidRoles) {
                     errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-                    errorHTML += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account</strong>`;
+                    errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
                     errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
                     emails.forEach(email => {
-                        errorHTML += `<li>${email} - added/updated without this role (operation succeeded)</li>`;
+                        errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`;
                     });
                     errorHTML += '</ul></div>';
                 }
@@ -1678,7 +1672,7 @@ class UserTableManager extends TableCellInteraction {
                 // Build duplicate email list
                 const displayEmails = duplicateEmails.slice(0, 10);
                 let listHTML = `<strong>Duplicate emails (${duplicateEmails.length}):</strong><br>`;
-                listHTML += displayEmails.map(email => `• ${email}`).join('<br>');
+                listHTML += displayEmails.map(email => `• ${escapeHtml(email)}`).join('<br>');
                 if (duplicateEmails.length > 10) {
                     listHTML += `<br>... and ${duplicateEmails.length - 10} more`;
                 }

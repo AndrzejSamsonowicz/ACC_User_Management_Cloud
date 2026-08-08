@@ -483,21 +483,37 @@
     </div>
 
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" integrity="sha384-nwX2Qpkhc2sv6L0ZPkLefLGguao67toSowvePuQvGF6cG+8MUphGI2uI94Ls3JF7" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js" integrity="sha384-rxbD+YIVHadImwEcPc07/NNXIMwVf3RtXkQUgI0cE4GzDCFQ9IQ+kLvlefJ/Eb7E" crossorigin="anonymous"></script>
     
     <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
+
+    <!-- Shared helpers (escapeHtml, etc.) — loaded once here, relied on globally
+         by every other script this page loads (see public/shared/dom-utils.js) -->
+    <script src="shared/dom-utils.js"></script>
 
     <script>
         // ========================================================================
         // DEBUG MODE CONFIGURATION
         // ========================================================================
-        // Set to true for development, false for production (silences console.log)
-        const DEBUG_MODE = false;
+        // Verbose logging is only enabled when running locally (localhost/127.0.0.1).
+        // On any deployed domain, DEBUG_MODE is false so tenants can't see internal
+        // API/processing details in their browser console.
+        const DEBUG_MODE = ['localhost', '127.0.0.1'].includes(window.location.hostname);
         const log = DEBUG_MODE ? console.log.bind(console) : () => {};
+
+        // Many files call console.log/console.info/console.debug directly (not through
+        // the `log()` helper above) for debugging. Silence those app-wide outside of
+        // local dev by overriding the console methods themselves — console.warn and
+        // console.error are left untouched so real problems stay visible/reportable.
+        if (!DEBUG_MODE) {
+            console.log = () => {};
+            console.info = () => {};
+            console.debug = () => {};
+        }
         
         // ========================================================================
         // GLOBAL VARIABLES
@@ -507,8 +523,13 @@
         let credentialsModal = null;
         
         // APS Credentials (loaded from encrypted storage)
+        // CLIENT_ID is not sensitive (it's part of the public authorize-URL
+        // redirect). The client SECRET is never sent to or stored in the
+        // browser at all — token requests go through /api/aps/token, which
+        // uses the secret server-side. HAS_CLIENT_SECRET only tracks whether
+        // one is configured, for UI/validation purposes.
         let CLIENT_ID = '';
-        let CLIENT_SECRET = '';
+        let HAS_CLIENT_SECRET = false;
         
         // Firebase variables (initialized below)
         let auth = null;
@@ -551,14 +572,8 @@
         
         let currentUser = null;
         let authToken = null;
-        
-        // Security: HTML escape function to prevent XSS
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
+        // (escapeHtml is defined in shared/dom-utils.js, loaded above)
+
         // Security: Secure token manager - NEVER expose token on window object
         window.getAuthToken = function() {
             return authToken;
@@ -681,26 +696,26 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.clientId && data.clientSecret) {
+                    if (data.clientId && data.hasSecret) {
                         CLIENT_ID = data.clientId;
-                        CLIENT_SECRET = data.clientSecret;
+                        HAS_CLIENT_SECRET = true;
                         log('✓ Credentials loaded from secure encrypted storage');
                     } else {
                         // No credentials in Firebase
                         CLIENT_ID = '';
-                        CLIENT_SECRET = '';
+                        HAS_CLIENT_SECRET = false;
                         log('ℹ No credentials saved yet - please enter them');
                     }
                 } else {
                     // Clear credentials on error
                     CLIENT_ID = '';
-                    CLIENT_SECRET = '';
+                    HAS_CLIENT_SECRET = false;
                 }
             } catch (error) {
                 console.error('Error loading encrypted credentials:', error);
                 // Clear credentials on error
                 CLIENT_ID = '';
-                CLIENT_SECRET = '';
+                HAS_CLIENT_SECRET = false;
             }
         }
         
@@ -829,8 +844,9 @@
         const REDIRECT_URI = `${window.location.origin}/index.html`;
 
         // Authentication URLs
+        // (the token endpoint is now only called server-side, via /api/aps/token —
+        // see getAccessToken()/get2LeggedToken() below)
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
-        const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
 
         function createCredentialsModal() {
             if (credentialsModal) return;
@@ -1074,10 +1090,16 @@
                 createCredentialsModal();
                 log('credentialsModal:', credentialsModal);
                 
-                // Pre-fill with current values
+                // Pre-fill Client ID only — the secret is never sent to the browser
+                // (see /api/aps/token), so there is nothing to pre-fill it with.
+                // Leave it blank with a placeholder; only fill it in to replace it.
+                const secretInput = document.getElementById('clientSecretInput');
                 document.getElementById('clientIdInput').value = CLIENT_ID || '';
-                document.getElementById('clientSecretInput').value = CLIENT_SECRET || '';
-                
+                secretInput.value = '';
+                secretInput.placeholder = HAS_CLIENT_SECRET
+                    ? 'Saved — leave blank to keep, or enter a new secret to replace it'
+                    : 'Enter your APS Client Secret';
+
                 credentialsModal.style.display = 'block';
                 document.getElementById('clientIdInput').focus();
                 log('Modal displayed');
@@ -1096,10 +1118,12 @@
 
         async function saveCredentials() {
             const clientId = document.getElementById('clientIdInput').value.trim();
+            // Blank means "keep the existing saved secret" (see showCredentialsModal) —
+            // only required the first time, when nothing is saved yet.
             const clientSecret = document.getElementById('clientSecretInput').value.trim();
             const messageDiv = document.getElementById('credentialsMessage');
 
-            if (!clientId || !clientSecret) {
+            if (!clientId || (!clientSecret && !HAS_CLIENT_SECRET)) {
                 messageDiv.textContent = 'Both Client ID and Client Secret are required.';
                 messageDiv.style.backgroundColor = '#f8d7da';
                 messageDiv.style.color = '#721c24';
@@ -1115,14 +1139,14 @@
                 messageDiv.style.color = '#0c5460';
                 messageDiv.style.border = '1px solid #bee5eb';
                 messageDiv.style.display = 'block';
-                
+
                 // Save to encrypted server storage (primary)
                 const saved = await saveEncryptedCredentials(clientId, clientSecret);
-                
+
                 if (saved) {
-                    // Update global variables
+                    // Update global variables (the secret itself is never held client-side)
                     CLIENT_ID = clientId;
-                    CLIENT_SECRET = clientSecret;
+                    HAS_CLIENT_SECRET = true;
 
                     // Show success message
                     messageDiv.textContent = '✓ Credentials saved securely! You can now login with Autodesk.';
@@ -1378,14 +1402,19 @@
         // Function to handle login
         function login() {
             // Check if credentials are configured
-            if (!CLIENT_ID || !CLIENT_SECRET) {
+            if (!CLIENT_ID || !HAS_CLIENT_SECRET) {
                 showError('Client credentials not configured. Please click "Enter Client Credentials" first.');
                 return;
             }
             
             // Updated scopes to include construction admin access
             const scopes = encodeURIComponent('data:read data:write data:create account:read account:write user:read');
-            const state = Math.random().toString(36).substring(7);
+            // crypto.randomUUID() (not Math.random(), which is not a CSPRNG) — stored
+            // so the callback can verify the returned state matches what THIS browser
+            // tab initiated, before ever exchanging the code. See the state check in
+            // window.onload below.
+            const state = crypto.randomUUID();
+            sessionStorage.setItem('oauthState', state);
             const authUrl = `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${scopes}&state=${state}`;
             
             // Debug information
@@ -1397,29 +1426,29 @@
             window.location.href = authUrl;
         }
 
-        // Function to get access token from code
+        // Function to get access token from code. Goes through /api/aps/token
+        // (server-side) instead of calling Autodesk directly — the browser
+        // never sees or sends the APS client secret.
         async function getAccessToken(code) {
-            const data = new URLSearchParams();
-            data.append('client_id', CLIENT_ID);
-            data.append('client_secret', CLIENT_SECRET);
-            data.append('grant_type', 'authorization_code');
-            data.append('code', code);
-            data.append('redirect_uri', REDIRECT_URI);
-
             try {
-                const response = await fetch(TOKEN_URL, {
+                const response = await fetch(`${window.location.origin}/api/aps/token`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
                     },
-                    body: data
+                    body: JSON.stringify({
+                        grantType: 'authorization_code',
+                        code: code,
+                        redirectUri: REDIRECT_URI
+                    })
                 });
-                
+
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(`Token error: ${errorData.error_description || 'Unknown error'}`);
+                    throw new Error(`Token error: ${errorData.message || 'Unknown error'}`);
                 }
-                
+
                 const tokenData = await response.json();
                 currentAccessToken = tokenData.access_token; // Store the access token
                 return tokenData.access_token;
@@ -1594,46 +1623,100 @@
             const addWarning = document.getElementById('addNewUsersBtnWarning');
             if (addWarning) addWarning.style.visibility = anyChecked ? 'hidden' : 'visible';
 
-            if (projects && projects.length > 0) {
-                const projectsHtml = projects.map(project => `
-                    <div class="project-item" style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa; cursor: pointer;" onclick="toggleProjectCheckbox(event, '${project.id}')">
-                        <div style="display: flex; align-items: flex-start; gap: 12px;">
-                            <input type="checkbox" class="project-select-cb"
-                                data-project-id="${project.id}"
-                                data-project-name="${project.name.replace(/"/g, '&quot;')}"
-                                onchange="onProjectCheckboxChange()"
-                                ${checkedIds.has(project.id) ? 'checked' : ''}
-                                style="margin-top: 3px; cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
-                            <div style="flex: 1;">
-                                <div style="margin-bottom: 15px;">
-                                    <strong style="font-size: 16px; color: #333;">${project.name}</strong>
-                                </div>
-                                <div style="display: flex; gap: 10px; flex-direction: column;">
-                                    <div style="display:flex; gap:10px;">
-                                        <button class="project-btn project-btn-update" onclick="openManageExistingUsersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}')">
-                                            Existing Users
-                                        </button>
-                                        <button class="project-btn project-btn-update" onclick="showFoldersModal('${project.id}', '${project.name.replace(/'/g, "\\'")}', window.currentHubId, currentAccessToken)">
-                                            Manage Access to Folders
-                                        </button>
-                                    </div>
+            // Built via DOM APIs (not innerHTML + template strings) so that project
+            // names — set by any project admin in the ACC hub, not something this app
+            // controls — can never break out of an HTML attribute or inline onclick
+            // and execute script (stored XSS). textContent/dataset/addEventListener
+            // are injection-proof by construction; escapeHtml() alone is not enough
+            // here because it doesn't neutralize quotes for attribute contexts.
+            projectsList.innerHTML = '';
 
-                                    <!-- Per-project progress indicator -->
-                                    <div class="project-progress" id="projectProgress-${project.id}" style="display:none; margin-top:8px;">
-                                        <div style="width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;">
-                                            <div id="projectProgressBar-${project.id}" style="width:0%;height:10px;background:#0696D7;border-radius:6px;"></div>
-                                        </div>
-                                        <div id="projectProgressText-${project.id}" style="font-size:12px;color:#666;margin-top:6px;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-                projectsList.innerHTML = projectsHtml;
-            } else {
+            if (!projects || projects.length === 0) {
                 projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No projects match your filter.</div>';
+                return;
             }
+
+            projects.forEach(project => {
+                const item = document.createElement('div');
+                item.className = 'project-item';
+                item.style.cssText = 'margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa; cursor: pointer;';
+                item.addEventListener('click', (event) => toggleProjectCheckbox(event, project.id));
+
+                const row = document.createElement('div');
+                row.style.cssText = 'display: flex; align-items: flex-start; gap: 12px;';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'project-select-cb';
+                checkbox.dataset.projectId = project.id;
+                checkbox.dataset.projectName = project.name;
+                checkbox.checked = checkedIds.has(project.id);
+                checkbox.style.cssText = 'margin-top: 3px; cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;';
+                checkbox.addEventListener('change', onProjectCheckboxChange);
+                row.appendChild(checkbox);
+
+                const contentCol = document.createElement('div');
+                contentCol.style.flex = '1';
+
+                const nameRow = document.createElement('div');
+                nameRow.style.marginBottom = '15px';
+                const strong = document.createElement('strong');
+                strong.style.cssText = 'font-size: 16px; color: #333;';
+                strong.textContent = project.name;
+                nameRow.appendChild(strong);
+                contentCol.appendChild(nameRow);
+
+                const btnCol = document.createElement('div');
+                btnCol.style.cssText = 'display: flex; gap: 10px; flex-direction: column;';
+
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex; gap:10px;';
+
+                const existingUsersBtn = document.createElement('button');
+                existingUsersBtn.className = 'project-btn project-btn-update';
+                existingUsersBtn.textContent = 'Existing Users';
+                existingUsersBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    openManageExistingUsersModal(project.id, project.name);
+                });
+                btnRow.appendChild(existingUsersBtn);
+
+                const foldersBtn = document.createElement('button');
+                foldersBtn.className = 'project-btn project-btn-update';
+                foldersBtn.textContent = 'Manage Access to Folders';
+                foldersBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showFoldersModal(project.id, project.name, window.currentHubId, currentAccessToken);
+                });
+                btnRow.appendChild(foldersBtn);
+
+                btnCol.appendChild(btnRow);
+
+                // Per-project progress indicator
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'project-progress';
+                progressDiv.id = `projectProgress-${project.id}`;
+                progressDiv.style.cssText = 'display:none; margin-top:8px;';
+
+                const barTrack = document.createElement('div');
+                barTrack.style.cssText = 'width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;';
+                const bar = document.createElement('div');
+                bar.id = `projectProgressBar-${project.id}`;
+                bar.style.cssText = 'width:0%;height:10px;background:#0696D7;border-radius:6px;';
+                barTrack.appendChild(bar);
+                progressDiv.appendChild(barTrack);
+
+                const progressText = document.createElement('div');
+                progressText.id = `projectProgressText-${project.id}`;
+                progressText.style.cssText = 'font-size:12px;color:#666;margin-top:6px;';
+                progressDiv.appendChild(progressText);
+
+                btnCol.appendChild(progressDiv);
+                contentCol.appendChild(btnCol);
+                row.appendChild(contentCol);
+                item.appendChild(row);
+                projectsList.appendChild(item);
+            });
         }
 
         function onProjectCheckboxChange() {
@@ -1788,22 +1871,34 @@
                 return;
             }
 
-            let hubsHTML = '';
+            // Built via DOM APIs, not innerHTML + template strings — hub name/region
+            // come from Autodesk and aren't something this app controls or validates,
+            // so they must never be interpolated into HTML/inline-onclick source (see
+            // the same fix applied to renderProjectsList above).
+            hubsList.innerHTML = '';
             bim360Hubs.forEach(hub => {
                 const hubName = hub.attributes.name;
                 const region = hub.attributes.region;
                 const hubId = hub.id;
-                
-                hubsHTML += `
-                    <div class="hub-item" onclick="selectHub('${hubId}', '${hubName}', '${region}')">
-                        <span class="hub-name">${hubName}</span>
-                        <span class="hub-region">${region}</span>
-                    </div>
-                `;
+
+                const item = document.createElement('div');
+                item.className = 'hub-item';
+                item.addEventListener('click', () => selectHub(hubId, hubName, region));
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'hub-name';
+                nameSpan.textContent = hubName;
+                item.appendChild(nameSpan);
+
+                const regionSpan = document.createElement('span');
+                regionSpan.className = 'hub-region';
+                regionSpan.textContent = region;
+                item.appendChild(regionSpan);
+
+                hubsList.appendChild(item);
             });
 
             log(`Displaying ${hubsData.data.length} hubs`); // Debug log
-            hubsList.innerHTML = hubsHTML;
         }
 
         // Function to get hubs data
@@ -1849,17 +1944,26 @@
             
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            const returnedState = urlParams.get('state');
             const error = urlParams.get('error');
             const errorDescription = urlParams.get('error_description');
-            
+
             if (error) {
                 showError(`Authentication error: ${errorDescription || error}`);
                 // Clean up URL to prevent showing the error again
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return;
             }
-            
+
             if (code) {
+                // Verify the state param matches what THIS browser tab generated in
+                // login() before ever exchanging the code — rejects a code obtained
+                // via a different login flow (e.g. handed to the victim by an
+                // attacker) being bound to this session. One-time use: read+clear
+                // regardless of outcome, whether or not this specific code was new.
+                const expectedState = sessionStorage.getItem('oauthState');
+                sessionStorage.removeItem('oauthState');
+
                 // Check if this code was already processed (to prevent reusing expired codes on refresh)
                 const processedCode = sessionStorage.getItem('processedAuthCode');
                 if (processedCode === code) {
@@ -1867,18 +1971,23 @@
                     window.history.replaceState({}, document.title, window.location.pathname);
                     return;
                 }
-                
+
                 // Clean up URL immediately to prevent reuse on hard refresh
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
+
+                if (!expectedState || returnedState !== expectedState) {
+                    showError('Login could not be verified (state mismatch). Please try logging in again.');
+                    return;
+                }
+
                 // Wait for credentials to be loaded (max 5 seconds)
                 let attempts = 0;
-                while ((!CLIENT_ID || !CLIENT_SECRET) && attempts < 50) {
+                while ((!CLIENT_ID || !HAS_CLIENT_SECRET) && attempts < 50) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     attempts++;
                 }
-                
-                if (!CLIENT_ID || !CLIENT_SECRET) {
+
+                if (!CLIENT_ID || !HAS_CLIENT_SECRET) {
                     showError('Client credentials not configured. Please enter your APS credentials first.');
                     return;
                 }
@@ -2223,29 +2332,24 @@
             return allUsers;
         }
 
-        // Get 2-legged access token for HQ API
+        // Get 2-legged access token for HQ API. Goes through /api/aps/token
+        // (server-side) instead of calling Autodesk directly — the browser
+        // never sees or sends the APS client secret.
         async function get2LeggedToken() {
-            const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
-            
-            const data = new URLSearchParams();
-            data.append('client_id', CLIENT_ID);
-            data.append('client_secret', CLIENT_SECRET);
-            data.append('grant_type', 'client_credentials');
-            data.append('scope', 'account:read');
-
             try {
-                const response = await fetch(TOKEN_URL, {
+                const response = await fetch(`${window.location.origin}/api/aps/token`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
                     },
-                    body: data
+                    body: JSON.stringify({ grantType: 'client_credentials', scope: 'account:read' })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
+
                 const tokenData = await response.json();
                 log('Got 2-legged token for HQ API');
                 return tokenData.access_token;
@@ -2482,38 +2586,9 @@
             }
         }
 
-        // Function to get 2-legged access token for HQ API
-        async function get2LeggedToken() {
-            const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
-            
-            const data = new URLSearchParams();
-            data.append('client_id', CLIENT_ID);
-            data.append('client_secret', CLIENT_SECRET);
-            data.append('grant_type', 'client_credentials');
-            data.append('scope', 'account:read');
-
-            try {
-                const response = await fetch(TOKEN_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: data
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Token error: ${errorData.error_description || 'Unknown error'}`);
-                }
-                
-                const tokenData = await response.json();
-                log('Got 2-legged token for HQ API');
-                return tokenData.access_token;
-            } catch (error) {
-                console.error('Error getting 2-legged token:', error);
-                throw new Error(`Authentication error: ${error.message}`);
-            }
-        }
+        // (get2LeggedToken is defined once, above — this was a duplicate
+        // declaration and has been removed to avoid the two copies drifting
+        // out of sync with each other.)
 
         async function showAccountUsers(accountId, accountName, accessToken) {
             createAccountUsersModal();
@@ -2724,7 +2799,8 @@
     <script src="view_project_users.js?v=20260329172500"></script>
     <script src="manage_project_users.js?v=20260805"></script>
     <script src="update_folder_permission.js?v=2025021817"></script>
-    <script src="read_project_folders.js?v=2026041701"></script>
+    <script src="read_project_folders.js?v=20260807"></script>
+    <script src="folders-treemap.js?v=20260807"></script>
     <script src="folders_permissions.js?v=2026030714"></script>
     <script>
         // Initialize user table management when DOM is ready

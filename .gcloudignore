@@ -8,6 +8,20 @@ node_modules/
 # Ignore local environment files
 .env
 .env.local
+.env.production
+.env.*
+!.env.example
+
+# Ignore credentials
+*service-account*.json
+firebase-adminsdk-*.json
+
+# Ignore deployment scripts, docs, and internal reports (not needed on the server)
+*.ps1
+*.md
+*.pdf
+*.txt
+.claude/
 
 # Ignore logs
 logs/

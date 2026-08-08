@@ -229,7 +229,7 @@
         
         <div class="pricing-card" id="purchaseSection">
             <div class="price-header">
-                <div class="price">€900</div>
+                <div class="price" id="priceDisplay">&nbsp;</div>
                 <div class="price-period">per year</div>
             </div>
             
@@ -299,13 +299,42 @@
         </div>
     </div>
     
-    <!-- PayPal SDK -->
-    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"></script>
-    
     <script>
         const serverURL = window.location.origin;
-        let generatedLicenseKey = '';
-        
+        let currentOrderId = '';
+
+        // Fetch PayPal client ID + current price from the server (server is the
+        // source of truth for price/currency; the client ID itself is meant to be
+        // public and is only usable together with the server-held secret).
+        (async function init() {
+            try {
+                const response = await fetch(`${serverURL}/api/purchase-config`);
+                const config = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(config.error || 'Purchasing is currently unavailable');
+                }
+
+                document.getElementById('priceDisplay').textContent =
+                    `${formatCurrency(config.currency)}${Number(config.price).toFixed(0)}`;
+
+                const sdkScript = document.createElement('script');
+                sdkScript.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(config.clientId)}&currency=${encodeURIComponent(config.currency)}`;
+                sdkScript.onload = renderPayPalButtons;
+                sdkScript.onerror = () => showAlert('Failed to load PayPal. Please try again later.', 'error');
+                document.body.appendChild(sdkScript);
+            } catch (error) {
+                console.error('Failed to load purchase config:', error);
+                showAlert(error.message, 'error');
+            }
+        })();
+
+        function formatCurrency(currency) {
+            const symbols = { EUR: '€', USD: '$', GBP: '£' };
+            return symbols[currency] || (currency + ' ');
+        }
+
+        function renderPayPalButtons() {
         // PayPal Button Configuration
         paypal.Buttons({
             createOrder: async function(data, actions) {
@@ -325,13 +354,13 @@
                     });
                     
                     const data = await response.json();
-                    
+
                     if (!response.ok) {
                         throw new Error(data.error || 'Failed to create order');
                     }
-                    
-                    generatedLicenseKey = data.licenseKey;
-                    
+
+                    currentOrderId = data.orderId;
+
                     // Return PayPal order ID
                     return data.orderId;
                     
@@ -350,9 +379,8 @@
                     const response = await fetch(`${serverURL}/api/capture-license-payment`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            orderId: data.orderID,
-                            licenseKey: generatedLicenseKey,
+                        body: JSON.stringify({
+                            orderId: currentOrderId || data.orderID,
                             email: document.getElementById('customerEmail').value.trim()
                         })
                     });
@@ -387,7 +415,8 @@
             }
             
         }).render('#paypal-button-container');
-        
+        }
+
         // Helper Functions
         function validateEmail(email) {
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

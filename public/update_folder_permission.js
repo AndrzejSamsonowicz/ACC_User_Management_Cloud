@@ -6,13 +6,7 @@
 (function() {
     'use strict';
 
-    // Security: HTML escape function to prevent XSS
-    function escapeHtml(text) {
-        if (typeof text !== 'string') return text;
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    // (escapeHtml is defined in shared/dom-utils.js, loaded before this file)
 
     /**
      * Show folder sync modal with progress

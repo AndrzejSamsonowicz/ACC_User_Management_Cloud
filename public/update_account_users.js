@@ -3,13 +3,7 @@
 // and prepares lists for PATCH (update) and POST (add) operations.
 
 log('🔁 update_account_users.js loaded');
-
-// Security: HTML escape function to prevent XSS
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+// (escapeHtml is defined in shared/dom-utils.js, loaded before this file)
 
 async function fetchJSON(url, options = {}) {
     const res = await fetch(url, options);
@@ -20,36 +14,30 @@ async function fetchJSON(url, options = {}) {
     return res.json();
 }
 
-// Get 2-legged token with account:write scope for user management
+// Get 2-legged token with account:write scope for user management. Goes
+// through /api/aps/token (server-side) instead of calling Autodesk directly —
+// the browser never sees or sends the APS client secret.
 async function get2LeggedTokenWithWriteScope() {
-    // Check if we can access the credentials from the global scope
-    if (typeof CLIENT_ID === 'undefined' || typeof CLIENT_SECRET === 'undefined') {
-        throw new Error('CLIENT_ID and CLIENT_SECRET not available');
+    if (typeof CLIENT_ID === 'undefined' || !CLIENT_ID) {
+        throw new Error('CLIENT_ID not available');
     }
-    
-    const TOKEN_URL = 'https://developer.api.autodesk.com/authentication/v2/token';
-    
-    const data = new URLSearchParams();
-    data.append('client_id', CLIENT_ID);
-    data.append('client_secret', CLIENT_SECRET);
-    data.append('grant_type', 'client_credentials');
-    // Based on APS docs, HQ APIs require account:read and account:write scopes
-    data.append('scope', 'account:read account:write data:read');
 
     try {
-        const response = await fetch(TOKEN_URL, {
+        const response = await fetch(`${window.location.origin}/api/aps/token`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
             },
-            body: data
+            // Based on APS docs, HQ APIs require account:read and account:write scopes
+            body: JSON.stringify({ grantType: 'client_credentials', scope: 'account:read account:write data:read' })
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`Token error: ${errorData.error_description || 'Unknown error'}`);
+            throw new Error(`Token error: ${errorData.message || 'Unknown error'}`);
         }
-        
+
         const tokenData = await response.json();
         log('Got 2-legged token with account:write scope');
         return tokenData.access_token;
@@ -1237,10 +1225,10 @@ function showResultsInModal(results) {
         html += '<strong style="color: #d32f2f;">⚠️ INVALID ROLES - Users SKIPPED:</strong><br>';
         html += '<div style="background: #fff3cd; border-left: 3px solid #ffc107; padding: 10px; margin: 10px 0;">';
         for (const [role, emails] of results.invalidRoles) {
-            html += `<strong style="color: #856404;">Role "${role}" doesn't exist in this account:</strong><br>`;
+            html += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account:</strong><br>`;
             html += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
             emails.forEach(email => {
-                html += `<li>${email}</li>`;
+                html += `<li>${escapeHtml(email)}</li>`;
             });
             html += '</ul>';
         }

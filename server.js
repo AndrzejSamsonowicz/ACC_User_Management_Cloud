@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const validator = require('validator');
+const axios = require('axios');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const port = 3000;
@@ -46,10 +48,80 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
 console.log('✅ Encryption key loaded successfully');
 
 // ============================================================================
+// Encryption helpers (AES-256-GCM)
+// ============================================================================
+// Previously, the per-record key was derived from data already sitting next to
+// the ciphertext in the same Firestore document (userId/projectId + a stored
+// salt) — the ENCRYPTION_KEY env var was loaded but never actually used. That
+// meant a Firestore-only compromise (no server access) was enough to decrypt
+// everything: no secret was required beyond what's already in the database.
+// Deriving the key from ENCRYPTION_KEY (kept only in server env, never stored)
+// combined with a per-record salt fixes that. AES-256-GCM (vs the previous
+// CBC) also adds a MAC, so tampered ciphertext is rejected instead of silently
+// decrypting to corrupted data.
+//
+// HARD CUTOVER: this intentionally changes the derivation, so any data
+// encrypted under the old scheme can no longer be decrypted. Confirmed
+// acceptable — no production data to preserve at time of this change.
+function deriveEncryptionKey(context, salt) {
+    return crypto.scryptSync(`${ENCRYPTION_KEY}:${context}`, salt, 32);
+}
+
+function encryptData(plaintext, context) {
+    const salt = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(12); // 12 bytes is the recommended/standard GCM IV size
+    const key = deriveEncryptionKey(context, salt);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return {
+        encrypted,
+        salt: salt.toString('hex'),
+        iv: iv.toString('hex'),
+        authTag: cipher.getAuthTag().toString('hex')
+    };
+}
+
+function decryptData(encrypted, context, saltHex, ivHex, authTagHex) {
+    const salt = Buffer.from(saltHex, 'hex');
+    const iv = Buffer.from(ivHex, 'hex');
+    const key = deriveEncryptionKey(context, salt);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+// Fetch and decrypt a user's stored APS (Autodesk) credentials from Firestore.
+// Returns null if none are saved. Shared by /load-credentials (which only ever
+// returns clientId + whether a secret exists — never the secret itself) and
+// /api/aps/token (which uses the secret server-side to perform the actual
+// OAuth token exchange, so the browser never needs it at all).
+async function getDecryptedCredentials(userId) {
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) return null;
+    const userData = userDoc.data();
+    if (!userData.clientId || !userData.clientSecret
+        || !userData.clientIdSalt || !userData.clientIdIV || !userData.clientIdAuthTag
+        || !userData.clientSecretSalt || !userData.clientSecretIV || !userData.clientSecretAuthTag) {
+        return null;
+    }
+    return {
+        clientId: decryptData(userData.clientId, `credentials:${userId}`, userData.clientIdSalt, userData.clientIdIV, userData.clientIdAuthTag),
+        clientSecret: decryptData(userData.clientSecret, `credentials:${userId}`, userData.clientSecretSalt, userData.clientSecretIV, userData.clientSecretAuthTag)
+    };
+}
+
+// ============================================================================
 // Error Sanitization Utility
 // ============================================================================
 // Prevents information disclosure by hiding implementation details in production
-const isProduction = envVars.NODE_ENV === 'production';
+// Reads process.env directly (set by PM2's ecosystem.config.js in production),
+// not the hand-parsed .env file — that file doesn't define NODE_ENV, so the old
+// check was always false in production and leaked full error messages/stacks
+// to every authenticated client on every failure path.
+const isProduction = process.env.NODE_ENV === 'production';
 
 function sanitizeError(error, userMessage = 'An error occurred') {
     // Always log the full error server-side for debugging
@@ -220,12 +292,12 @@ app.use((req, res, next) => {
     // We've added upgrade-insecure-requests and form-action to improve security
     const cspDirectives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://www.paypal.com https://www.paypalobjects.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: https: blob:",
-        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net https://www.gstatic.com",
-        "frame-src https://www.google.com https://www.recaptcha.net https://*.firebaseapp.com",
+        "connect-src 'self' https://developer.api.autodesk.com https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com wss://*.firebaseio.com https://www.google.com https://www.recaptcha.net https://www.gstatic.com https://www.paypal.com https://www.paypalobjects.com https://www.sandbox.paypal.com",
+        "frame-src https://www.google.com https://www.recaptcha.net https://*.firebaseapp.com https://www.paypal.com https://www.sandbox.paypal.com",
         "frame-ancestors 'none'",
         "form-action 'self'", // Prevent forms from posting to external sites
         "base-uri 'self'",
@@ -258,8 +330,11 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serve static files from current directory
-app.use(express.static(__dirname));
+// Serve static files ONLY from the public/ subdirectory — never the project root.
+// The root contains credentials (service-account*.json, .env*), deployment scripts,
+// logs, and internal docs; express.static(__dirname) previously served all of that
+// over HTTP to anyone. Only files actually needed by the browser live in public/.
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
 // ============================================================================
 // Rate Limiting with Redis (shared across instances) or in-memory fallback
@@ -445,114 +520,152 @@ app.post('/save-credentials', authenticateUser, async (req, res) => {
     try {
         const { clientId, clientSecret } = req.body;
         const userId = req.user.uid;
-        
-        // Input validation
-        if (!clientId || !clientSecret) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Both clientId and clientSecret are required' 
+
+        // clientId is always required. clientSecret may be omitted/blank to mean
+        // "keep the existing saved secret" — the browser never has the current
+        // secret to redisplay/resend (see /api/aps/token), so the settings form
+        // only sends a new one when the operator actually types a replacement.
+        if (!clientId) {
+            return res.status(400).json({
+                success: false,
+                message: 'clientId is required'
             });
         }
-        
-        // Validate clientId format (alphanumeric with hyphens)
+        if (!clientSecret) {
+            const existing = await getDecryptedCredentials(userId);
+            if (!existing) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'clientSecret is required (no existing secret saved to keep)'
+                });
+            }
+        }
+
         try {
             inputValidation.validateString(clientId, 'clientId', 1, 500);
-            inputValidation.validateString(clientSecret, 'clientSecret', 1, 500);
+            if (clientSecret) {
+                inputValidation.validateString(clientSecret, 'clientSecret', 1, 500);
+            }
         } catch (validationError) {
-            return res.status(400).json({ 
-                success: false, 
-                message: validationError.message 
+            return res.status(400).json({
+                success: false,
+                message: validationError.message
             });
         }
 
-        // Encrypt credentials with unique salt per user
-        const crypto = require('crypto');
-        const algorithm = 'aes-256-cbc';
-        const salt = crypto.randomBytes(16);
-        const key = crypto.scryptSync(userId, salt, 32);
-        const iv = crypto.randomBytes(16);
-        
-        const cipherClientId = crypto.createCipheriv(algorithm, key, iv);
-        let encryptedClientId = cipherClientId.update(clientId, 'utf8', 'hex');
-        encryptedClientId += cipherClientId.final('hex');
-        
-        const cipherSecret = crypto.createCipheriv(algorithm, key, iv);
-        let encryptedSecret = cipherSecret.update(clientSecret, 'utf8', 'hex');
-        encryptedSecret += cipherSecret.final('hex');
-        
-        // Save to Firestore user document
-        await db.collection('users').doc(userId).update({
-            clientId: encryptedClientId,
-            clientSecret: encryptedSecret,
-            credentialsSalt: salt.toString('hex'),
-            encryptionIV: iv.toString('hex'),
+        // Encrypt clientId and clientSecret SEPARATELY (each gets its own random
+        // salt/IV) — encrypting two different plaintexts under the same key+IV,
+        // as this used to do, breaks GCM's security guarantees entirely.
+        const encClientId = encryptData(clientId, `credentials:${userId}`);
+        const update = {
+            clientId: encClientId.encrypted,
+            clientIdSalt: encClientId.salt,
+            clientIdIV: encClientId.iv,
+            clientIdAuthTag: encClientId.authTag,
             credentialsUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        
+        };
+        if (clientSecret) {
+            const encClientSecret = encryptData(clientSecret, `credentials:${userId}`);
+            update.clientSecret = encClientSecret.encrypted;
+            update.clientSecretSalt = encClientSecret.salt;
+            update.clientSecretIV = encClientSecret.iv;
+            update.clientSecretAuthTag = encClientSecret.authTag;
+        }
+
+        // Save to Firestore user document (set+merge so a first-time save with no
+        // prior document works, same as an update to an existing one)
+        await db.collection('users').doc(userId).set(update, { merge: true });
+
         res.json({ success: true, message: 'Credentials saved successfully' });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to save credentials');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error saving credentials', 
+        res.status(500).json({
+            success: false,
+            message: 'Error saving credentials',
             ...sanitized
         });
     }
 });
 
-// Endpoint to load credentials from Firestore
+// Endpoint to load credentials from Firestore. Returns clientId (not secret —
+// it's needed client-side to build the Autodesk authorize-URL redirect, which
+// is not sensitive) and whether a secret is saved. The secret itself never
+// leaves the server; see /api/aps/token for how it's actually used.
 app.get('/load-credentials', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.uid;
-        
-        // Get user document from Firestore
-        const userDoc = await db.collection('users').doc(userId).get();
-        
-        if (!userDoc.exists) {
-            return res.json({
-                success: true,
-                clientId: '',
-                clientSecret: ''
-            });
-        }
-        
-        const userData = userDoc.data();
-        
-        if (!userData.clientId || !userData.clientSecret || !userData.encryptionIV || !userData.credentialsSalt) {
-            return res.json({
-                success: true,
-                clientId: '',
-                clientSecret: ''
-            });
-        }
-        
-        // Decrypt credentials using stored salt
-        const crypto = require('crypto');
-        const algorithm = 'aes-256-cbc';
-        const salt = Buffer.from(userData.credentialsSalt, 'hex');
-        const key = crypto.scryptSync(userId, salt, 32);
-        const iv = Buffer.from(userData.encryptionIV, 'hex');
-        
-        const decipherClientId = crypto.createDecipheriv(algorithm, key, iv);
-        let clientId = decipherClientId.update(userData.clientId, 'hex', 'utf8');
-        clientId += decipherClientId.final('utf8');
-        
-        const decipherSecret = crypto.createDecipheriv(algorithm, key, iv);
-        let clientSecret = decipherSecret.update(userData.clientSecret, 'hex', 'utf8');
-        clientSecret += decipherSecret.final('utf8');
-        
+        const credentials = await getDecryptedCredentials(userId);
+
         res.json({
             success: true,
-            clientId: clientId,
-            clientSecret: clientSecret
+            clientId: credentials ? credentials.clientId : '',
+            hasSecret: !!credentials
         });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to load credentials');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error loading credentials', 
+        res.status(500).json({
+            success: false,
+            message: 'Error loading credentials',
             ...sanitized
         });
+    }
+});
+
+// Proxies the Autodesk OAuth token exchange so the APS client secret never has
+// to be sent to, stored in, or used from the browser. Supports the two grant
+// types this app needs: exchanging an authorization code (3-legged login) and
+// client_credentials (2-legged, for HQ/Admin API calls). Only ever returns the
+// resulting token data — never the client secret itself.
+app.post('/api/aps/token', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { grantType, code, redirectUri, scope } = req.body;
+
+        if (grantType !== 'authorization_code' && grantType !== 'client_credentials') {
+            return res.status(400).json({ success: false, message: 'Invalid grantType' });
+        }
+
+        const credentials = await getDecryptedCredentials(userId);
+        if (!credentials) {
+            return res.status(400).json({ success: false, message: 'No APS credentials configured for this account' });
+        }
+
+        const params = new URLSearchParams();
+        params.append('client_id', credentials.clientId);
+        params.append('client_secret', credentials.clientSecret);
+        params.append('grant_type', grantType);
+
+        if (grantType === 'authorization_code') {
+            try {
+                inputValidation.validateString(code, 'code', 1, 2000);
+                inputValidation.validateString(redirectUri, 'redirectUri', 1, 500);
+            } catch (validationError) {
+                return res.status(400).json({ success: false, message: validationError.message });
+            }
+            params.append('code', code);
+            params.append('redirect_uri', redirectUri);
+        } else {
+            params.append('scope', typeof scope === 'string' && scope ? scope : 'account:read');
+        }
+
+        const tokenResponse = await fetch('https://developer.api.autodesk.com/authentication/v2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params
+        });
+
+        const tokenData = await tokenResponse.json();
+        if (!tokenResponse.ok) {
+            return res.status(tokenResponse.status).json({
+                success: false,
+                message: tokenData.error_description || tokenData.error || 'Token request failed'
+            });
+        }
+
+        res.json({ success: true, ...tokenData });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to obtain access token');
+        res.status(500).json({ success: false, message: 'Error obtaining access token', ...sanitized });
     }
 });
 
@@ -562,35 +675,15 @@ app.post('/save', authenticateUser, async (req, res) => {
         const userId = req.user.uid;
         const usersData = req.body;
         
-        // Encrypt the users data
-        const crypto = require('crypto');
-        const algorithm = 'aes-256-cbc';
-        
-        // Check if user already has salt for users_main_list, if not create new one
-        const userDoc = await db.collection('users').doc(userId).get();
-        let salt, key, iv;
-        
-        if (userDoc.exists && userDoc.data().usersMainListSalt) {
-            // Use existing salt (for key derivation consistency)
-            salt = Buffer.from(userDoc.data().usersMainListSalt, 'hex');
-        } else {
-            // Create new salt
-            salt = crypto.randomBytes(16);
-        }
-        
-        // ALWAYS generate new IV for each encryption (security requirement)
-        iv = crypto.randomBytes(16);
-        key = crypto.scryptSync(userId, salt, 32);
-        
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
-        encryptedData += cipher.final('hex');
-        
+        // Encrypt the users data (fresh salt + IV on every save)
+        const enc = encryptData(JSON.stringify(usersData), `mainlist:${userId}`);
+
         // Save encrypted data to Firestore
         await db.collection('users').doc(userId).set({
-            users_main_list_encrypted: encryptedData,
-            usersMainListSalt: salt.toString('hex'),
-            usersMainListIV: iv.toString('hex')
+            users_main_list_encrypted: enc.encrypted,
+            usersMainListSalt: enc.salt,
+            usersMainListIV: enc.iv,
+            usersMainListAuthTag: enc.authTag
         }, { merge: true });
         
         res.json({ success: true, message: 'Users main list saved successfully (encrypted)' });
@@ -615,41 +708,23 @@ app.get('/load', authenticateUser, async (req, res) => {
         const userData = userDoc.data();
         
         // Check for encrypted data first
-        if (userData.users_main_list_encrypted && userData.usersMainListIV && userData.usersMainListSalt) {
-            // Decrypt the data using stored salt
-            const crypto = require('crypto');
-            const algorithm = 'aes-256-cbc';
-            const salt = Buffer.from(userData.usersMainListSalt, 'hex');
-            const key = crypto.scryptSync(userId, salt, 32);
-            const iv = Buffer.from(userData.usersMainListIV, 'hex');
-            
-            const decipher = crypto.createDecipheriv(algorithm, key, iv);
-            let decryptedData = decipher.update(userData.users_main_list_encrypted, 'hex', 'utf8');
-            decryptedData += decipher.final('utf8');
-            
+        if (userData.users_main_list_encrypted && userData.usersMainListIV && userData.usersMainListSalt && userData.usersMainListAuthTag) {
+            const decryptedData = decryptData(userData.users_main_list_encrypted, `mainlist:${userId}`, userData.usersMainListSalt, userData.usersMainListIV, userData.usersMainListAuthTag);
             res.json(JSON.parse(decryptedData));
         } else if (userData.users_main_list) {
             // Legacy: unencrypted data (auto-migrate to encrypted)
             console.log('Migrating unencrypted users_main_list to encrypted format for user:', userId);
-            
-            // Encrypt and save with new salt
-            const crypto = require('crypto');
-            const algorithm = 'aes-256-cbc';
-            const salt = crypto.randomBytes(16);
-            const key = crypto.scryptSync(userId, salt, 32);
-            const iv = crypto.randomBytes(16);
-            
-            const cipher = crypto.createCipheriv(algorithm, key, iv);
-            let encryptedData = cipher.update(JSON.stringify(userData.users_main_list), 'utf8', 'hex');
-            encryptedData += cipher.final('hex');
-            
+
+            const enc = encryptData(JSON.stringify(userData.users_main_list), `mainlist:${userId}`);
+
             await db.collection('users').doc(userId).set({
-                users_main_list_encrypted: encryptedData,
-                usersMainListSalt: salt.toString('hex'),
-                usersMainListIV: iv.toString('hex'),
+                users_main_list_encrypted: enc.encrypted,
+                usersMainListSalt: enc.salt,
+                usersMainListIV: enc.iv,
+                usersMainListAuthTag: enc.authTag,
                 users_main_list: admin.firestore.FieldValue.delete() // Remove old unencrypted data
             }, { merge: true });
-            
+
             res.json(userData.users_main_list);
         } else {
             res.json({ users: [] });
@@ -680,36 +755,16 @@ app.post('/save-project-users/:projectId', authenticateUser, async (req, res) =>
         
         console.log(`Saving project users list for project: ${projectId}, user: ${userId}`);
         
-        // Encrypt the users data
-        const crypto = require('crypto');
-        const algorithm = 'aes-256-cbc';
-        
-        // Check if project doc already has salt, if not create new one
+        // Encrypt the users data (fresh salt + IV on every save)
         const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-        const projectDoc = await projectRef.get();
-        let salt, key, iv;
-        
-        if (projectDoc.exists && projectDoc.data().usersListSalt) {
-            // Use existing salt (for key derivation consistency)
-            salt = Buffer.from(projectDoc.data().usersListSalt, 'hex');
-        } else {
-            // Create new salt
-            salt = crypto.randomBytes(16);
-        }
-        
-        // ALWAYS generate new IV for each encryption (security requirement)
-        iv = crypto.randomBytes(16);
-        key = crypto.scryptSync(userId + projectId, salt, 32);
-        
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        let encryptedData = cipher.update(JSON.stringify(usersData), 'utf8', 'hex');
-        encryptedData += cipher.final('hex');
-        
+        const enc = encryptData(JSON.stringify(usersData), `projectusers:${userId}:${projectId}`);
+
         // Save encrypted data to Firestore subcollection
         await projectRef.set({
-            usersList_encrypted: encryptedData,
-            usersListSalt: salt.toString('hex'),
-            usersListIV: iv.toString('hex'),
+            usersList_encrypted: enc.encrypted,
+            usersListSalt: enc.salt,
+            usersListIV: enc.iv,
+            usersListAuthTag: enc.authTag,
             lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         
@@ -741,18 +796,8 @@ app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => 
         const projectData = projectDoc.data();
         
         // Check for encrypted data
-        if (projectData.usersList_encrypted && projectData.usersListIV && projectData.usersListSalt) {
-            // Decrypt the data using stored salt
-            const crypto = require('crypto');
-            const algorithm = 'aes-256-cbc';
-            const salt = Buffer.from(projectData.usersListSalt, 'hex');
-            const key = crypto.scryptSync(userId + projectId, salt, 32);
-            const iv = Buffer.from(projectData.usersListIV, 'hex');
-            
-            const decipher = crypto.createDecipheriv(algorithm, key, iv);
-            let decryptedData = decipher.update(projectData.usersList_encrypted, 'hex', 'utf8');
-            decryptedData += decipher.final('utf8');
-            
+        if (projectData.usersList_encrypted && projectData.usersListIV && projectData.usersListSalt && projectData.usersListAuthTag) {
+            const decryptedData = decryptData(projectData.usersList_encrypted, `projectusers:${userId}:${projectId}`, projectData.usersListSalt, projectData.usersListIV, projectData.usersListAuthTag);
             console.log(`✅ Project users list loaded successfully for project: ${projectId}`);
             res.json(JSON.parse(decryptedData));
         } else {
@@ -794,43 +839,26 @@ app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
         // Create unique key using hubId_projectId
         const permissionKey = `${hubId}_${projectId}`;
         
-        // Encrypt the folder permissions data
-        const crypto = require('crypto');
-        const algorithm = 'aes-256-cbc';
-        
-        // Check if user already has salt for this project's permissions
+        // Encrypt the folder permissions data (fresh salt + IV on every save)
         const userDoc = await db.collection('users').doc(userId).get();
-        let salt, key, iv;
         const existingIVs = (userDoc.exists && userDoc.data().folderPermissionsIVs) || {};
         const existingSalts = (userDoc.exists && userDoc.data().folderPermissionsSalts) || {};
-        
-        if (existingSalts[permissionKey]) {
-            // Use existing salt (for key derivation consistency)
-            salt = Buffer.from(existingSalts[permissionKey], 'hex');
-        } else {
-            // Create new salt for this project
-            salt = crypto.randomBytes(16);
-            existingSalts[permissionKey] = salt.toString('hex');
-        }
-        
-        // ALWAYS generate new IV for each encryption (security requirement)
-        iv = crypto.randomBytes(16);
-        existingIVs[permissionKey] = iv.toString('hex');
-        
-        key = crypto.scryptSync(userId, salt, 32);
-        
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        let encryptedData = cipher.update(JSON.stringify(data), 'utf8', 'hex');
-        encryptedData += cipher.final('hex');
-        
+        const existingAuthTags = (userDoc.exists && userDoc.data().folderPermissionsAuthTags) || {};
+
+        const enc = encryptData(JSON.stringify(data), `folderperms:${userId}:${permissionKey}`);
+        existingSalts[permissionKey] = enc.salt;
+        existingIVs[permissionKey] = enc.iv;
+        existingAuthTags[permissionKey] = enc.authTag;
+
         // Save to Firestore under user's document
         const folderPermissions = userDoc.exists ? (userDoc.data().folderPermissions || {}) : {};
-        folderPermissions[permissionKey] = encryptedData;
-        
+        folderPermissions[permissionKey] = enc.encrypted;
+
         await db.collection('users').doc(userId).set({
             folderPermissions: folderPermissions,
             folderPermissionsSalts: existingSalts,
-            folderPermissionsIVs: existingIVs
+            folderPermissionsIVs: existingIVs,
+            folderPermissionsAuthTags: existingAuthTags
         }, { merge: true });
         
         console.log(`💾 Saved encrypted folder permissions for user ${userId}, project ${permissionKey}`);
@@ -872,21 +900,19 @@ app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (r
         const folderPermissions = userData.folderPermissions || {};
         const folderPermissionsIVs = userData.folderPermissionsIVs || {};
         const folderPermissionsSalts = userData.folderPermissionsSalts || {};
-        
-        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey] && folderPermissionsSalts[permissionKey]) {
-            // Decrypt the data using stored salt
-            const crypto = require('crypto');
-            const algorithm = 'aes-256-cbc';
-            const salt = Buffer.from(folderPermissionsSalts[permissionKey], 'hex');
-            const key = crypto.scryptSync(userId, salt, 32);
-            const iv = Buffer.from(folderPermissionsIVs[permissionKey], 'hex');
-            
-            const decipher = crypto.createDecipheriv(algorithm, key, iv);
-            let decryptedData = decipher.update(folderPermissions[permissionKey], 'hex', 'utf8');
-            decryptedData += decipher.final('utf8');
-            
-            res.json({ 
-                success: true, 
+        const folderPermissionsAuthTags = userData.folderPermissionsAuthTags || {};
+
+        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey] && folderPermissionsSalts[permissionKey] && folderPermissionsAuthTags[permissionKey]) {
+            const decryptedData = decryptData(
+                folderPermissions[permissionKey],
+                `folderperms:${userId}:${permissionKey}`,
+                folderPermissionsSalts[permissionKey],
+                folderPermissionsIVs[permissionKey],
+                folderPermissionsAuthTags[permissionKey]
+            );
+
+            res.json({
+                success: true,
                 data: JSON.parse(decryptedData),
                 exists: true
             });
@@ -1345,6 +1371,204 @@ function generateLicenseKey() {
     return key;
 }
 
+// ============================================================================
+// PayPal license purchase
+// ============================================================================
+// Server-side PayPal Orders API (v2) integration. The client (public/purchase.html)
+// only ever sees an order ID; the client secret and the actual charge/capture
+// happen here so the amount can't be tampered with from the browser.
+const PAYPAL_MODE = process.env.PAYPAL_MODE === 'live' ? 'live' : 'sandbox';
+const PAYPAL_API_BASE = PAYPAL_MODE === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+const LICENSE_PRICE = process.env.ANNUAL_LICENSE_PRICE || '900.00';
+const LICENSE_CURRENCY = process.env.ANNUAL_LICENSE_CURRENCY || 'EUR';
+const LICENSE_DAYS = 365;
+
+async function getPayPalAccessToken() {
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+        throw new Error('PayPal is not configured on this server (missing PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET)');
+    }
+    const response = await axios.post(
+        `${PAYPAL_API_BASE}/v1/oauth2/token`,
+        'grant_type=client_credentials',
+        {
+            auth: { username: clientId, password: clientSecret },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        }
+    );
+    return response.data.access_token;
+}
+
+async function createPayPalOrder() {
+    const accessToken = await getPayPalAccessToken();
+    const response = await axios.post(
+        `${PAYPAL_API_BASE}/v2/checkout/orders`,
+        {
+            intent: 'CAPTURE',
+            purchase_units: [{
+                amount: { currency_code: LICENSE_CURRENCY, value: LICENSE_PRICE }
+            }]
+        },
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    );
+    return response.data; // { id, status, ... }
+}
+
+async function capturePayPalOrder(orderId) {
+    const accessToken = await getPayPalAccessToken();
+    const response = await axios.post(
+        `${PAYPAL_API_BASE}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
+        {},
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    );
+    return response.data;
+}
+
+// Lazily-created SMTP transporter. Email delivery is best-effort: if SMTP isn't
+// configured or sending fails, the purchase still succeeds (license key is
+// returned in the API response and shown on the success page) — we just log it.
+let mailTransporter;
+function getMailTransporter() {
+    if (mailTransporter) return mailTransporter;
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return null;
+    }
+    mailTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT, 10) || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    return mailTransporter;
+}
+
+async function sendLicenseEmail(email, licenseKey) {
+    const transporter = getMailTransporter();
+    if (!transporter) {
+        console.warn('⚠️ SMTP not configured — skipping license email to', email);
+        return false;
+    }
+    await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: email,
+        subject: 'Your Forma User Management License Key',
+        text: `Thanks for your purchase!\n\nYour license key: ${licenseKey}\n\n` +
+            `Use this key when registering your account to activate your license.`,
+        html: `<p>Thanks for your purchase!</p>` +
+            `<p>Your license key:</p>` +
+            `<p style="font-size:20px;font-weight:bold;letter-spacing:2px;">${validator.escape(licenseKey)}</p>` +
+            `<p>Use this key when registering your account to activate your license.</p>`
+    });
+    return true;
+}
+
+// Public rate limiter for the purchase flow (no auth — customers haven't registered yet)
+const purchaseLimiter = rateLimit({
+    max: 10,
+    windowMs: 15 * 60 * 1000,
+    prefix: 'purchase',
+    message: 'Too many purchase attempts, please try again later.'
+});
+
+// Publicly readable purchase config (client ID is meant to be public; price is
+// server-authoritative so the page never has to hardcode/duplicate it)
+app.get('/api/purchase-config', (req, res) => {
+    if (!process.env.PAYPAL_CLIENT_ID) {
+        return res.status(503).json({ error: 'Purchasing is temporarily unavailable' });
+    }
+    res.json({
+        clientId: process.env.PAYPAL_CLIENT_ID,
+        price: LICENSE_PRICE,
+        currency: LICENSE_CURRENCY
+    });
+});
+
+// Create a PayPal order for a new license (public, rate-limited)
+app.post('/api/create-license-order', purchaseLimiter, async (req, res) => {
+    try {
+        const email = inputValidation.validateEmail(req.body.email, 'email');
+
+        const order = await createPayPalOrder();
+
+        await db.collection('licenseOrders').doc(order.id).set({
+            email,
+            status: 'created',
+            createdAt: FieldValue.serverTimestamp()
+        });
+
+        res.json({ orderId: order.id });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to create order');
+        res.status(500).json({ error: sanitized.message });
+    }
+});
+
+// Capture a previously-created PayPal order and issue the license (public, rate-limited)
+app.post('/api/capture-license-payment', purchaseLimiter, async (req, res) => {
+    try {
+        const orderId = inputValidation.validateAlphanumeric(req.body.orderId, 'orderId', false);
+        const email = inputValidation.validateEmail(req.body.email, 'email');
+
+        const orderDoc = await db.collection('licenseOrders').doc(orderId).get();
+        if (!orderDoc.exists) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        const orderData = orderDoc.data();
+        if (orderData.status === 'captured') {
+            return res.status(409).json({ error: 'Order already captured' });
+        }
+
+        const capture = await capturePayPalOrder(orderId);
+        if (capture.status !== 'COMPLETED') {
+            return res.status(402).json({ error: 'Payment was not completed' });
+        }
+
+        const licenseKey = generateLicenseKey();
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + LICENSE_DAYS);
+
+        await db.collection('licenses').doc(licenseKey).set({
+            licenseKey,
+            email: orderData.email,
+            userId: null,
+            status: 'active',
+            purchaseDate: FieldValue.serverTimestamp(),
+            expiryDate: admin.firestore.Timestamp.fromDate(expiryDate),
+            price: LICENSE_PRICE,
+            currency: LICENSE_CURRENCY,
+            paymentMethod: 'paypal',
+            paypalOrderId: orderId
+        });
+
+        await orderDoc.ref.update({
+            status: 'captured',
+            licenseKey,
+            capturedAt: FieldValue.serverTimestamp()
+        });
+
+        await db.collection('analytics').add({
+            action: 'license_purchase',
+            timestamp: FieldValue.serverTimestamp(),
+            metadata: { email: orderData.email, licenseKey, price: LICENSE_PRICE, currency: LICENSE_CURRENCY, paypalOrderId: orderId }
+        });
+
+        let emailSent = false;
+        try {
+            emailSent = await sendLicenseEmail(orderData.email, licenseKey);
+        } catch (emailError) {
+            console.error('Failed to send license email:', emailError);
+        }
+
+        res.json({ success: true, licenseKey, email: orderData.email, emailSent });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to capture payment');
+        res.status(500).json({ error: sanitized.message });
+    }
+});
+
 // Create user profile document after Firebase Auth signup (requires authentication + rate limiting)
 app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) => {
     try {
@@ -1359,13 +1583,36 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
             return res.status(409).json({ success: false, error: 'User profile already exists' });
         }
 
+        // If a license key was supplied (e.g. from purchase.html), it must exist,
+        // be active, unexpired, and not already claimed by another account.
+        let licenseExpiry = null;
+        let licenseRef = null;
+        if (licenseKey) {
+            licenseRef = db.collection('licenses').doc(licenseKey);
+            const licenseDoc = await licenseRef.get();
+            if (!licenseDoc.exists) {
+                return res.status(400).json({ success: false, error: 'Invalid license key' });
+            }
+            const licenseData = licenseDoc.data();
+            if (licenseData.status !== 'active') {
+                return res.status(400).json({ success: false, error: 'This license key is no longer active' });
+            }
+            if (licenseData.userId) {
+                return res.status(400).json({ success: false, error: 'This license key has already been used' });
+            }
+            if (licenseData.expiryDate && licenseData.expiryDate.toDate() <= new Date()) {
+                return res.status(400).json({ success: false, error: 'This license key has expired' });
+            }
+            licenseExpiry = licenseData.expiryDate;
+        }
+
         const now = new Date();
         const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
 
         await db.collection('users').doc(userId).set({
             email: email,
             licenseKey: licenseKey,
-            licenseExpiry: null,
+            licenseExpiry: licenseExpiry,
             emailVerified: false,
             createdAt: FieldValue.serverTimestamp(),
             lastLogin: null,
@@ -1379,6 +1626,10 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
             trialUsed: true,
             hasActiveAccess: true
         });
+
+        if (licenseRef) {
+            await licenseRef.update({ userId: userId });
+        }
 
         try {
             await db.collection('analytics').add({
@@ -1482,6 +1733,7 @@ app.listen(port, '0.0.0.0', () => {
     console.log('Available endpoints:');
     console.log('  GET  /load-credentials');
     console.log('  POST /save-credentials');
+    console.log('  POST /api/aps/token');
     console.log('  GET  /load');
     console.log('  POST /save');
     console.log('  GET  /load-project-users/:projectId');
@@ -1498,4 +1750,7 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  POST /api/admin/activate-license');
     console.log('  POST /api/admin/deactivate-license');
     console.log('  POST /api/admin/delete-users');
+    console.log('  GET  /api/purchase-config');
+    console.log('  POST /api/create-license-order');
+    console.log('  POST /api/capture-license-payment');
 });
