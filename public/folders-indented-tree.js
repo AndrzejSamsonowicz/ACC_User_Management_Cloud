@@ -34,6 +34,7 @@
     let itExpandedKeys = new Set();
     let itLoadingKeys = new Set(); // folder node keys currently fetching deeper levels
     let itLastVisible = []; // cached from the last full render, reused for cheap column-resize redraws
+    let itUserSortMode = null; // null | 'asc' | 'desc' — sorts "Users → Folders" roots by folder-access count
 
     // User-resizable column widths (px). "Name" holds the indented tree itself
     // (toggle + icon + label); "Level" and "Users" are fixed-position columns
@@ -41,10 +42,35 @@
     let itColWidths = { name: 380, level: 90, users: 90 };
     const IT_COL_MIN = { name: 160, level: 50, users: 50 };
 
+    /**
+     * The 3rd column is repurposed per orientation: in "Folders → Users" it
+     * shows how many subjects are assigned to each folder; in "Users →
+     * Folders" it shows how many folders each user has access to (sortable
+     * there — see itUserSortMode); in "Roles/Companies → Users → Folders" it
+     * shows how many folders that role/company itself has access to (member
+     * rows underneath stay blank — the count belongs to the group, not each
+     * person).
+     */
+    function itUsersColumnVisible() {
+        return itMode === 'folders' || itMode === 'users' || itMode === 'subjects';
+    }
+
+    /**
+     * The Level column doesn't apply in "Roles/Companies → Users → Folders"
+     * — that view shows a role/company's own folder access once (shared by
+     * the whole group) rather than a per-user grant, so there's no single
+     * level to show per row there.
+     */
+    function itLevelColumnVisible() {
+        return itMode !== 'subjects';
+    }
+
     function itGetColBoundaries() {
         const levelStart = itColWidths.name;
-        const usersStart = levelStart + itColWidths.level;
-        const end = usersStart + itColWidths.users;
+        const levelWidth = itLevelColumnVisible() ? itColWidths.level : 0;
+        const usersStart = levelStart + levelWidth;
+        const usersWidth = itUsersColumnVisible() ? itColWidths.users : 0;
+        const end = usersStart + usersWidth;
         return { nameStart: 0, levelStart, usersStart, end };
     }
 
@@ -131,13 +157,35 @@
     }
 
     /**
+     * Recolor a row's already-drawn icon circle in place after a level edit —
+     * called alongside the Level input's own live color update so the two
+     * never fall out of sync (previously the circle only picked up the new
+     * shade on the next full row rebuild, e.g. via expand/collapse).
+     */
+    function itUpdateIconColorsInPlace(rowEl, node) {
+        if (!rowEl || (node.type !== 'user' && node.type !== 'company' && node.type !== 'role')) return;
+        const iconGroup = rowEl.querySelector('.it-icon-group');
+        if (!iconGroup) return;
+        const colors = itIconColorsFor(node);
+        const circle = iconGroup.querySelector('circle');
+        if (circle) circle.setAttribute('fill', colors.background);
+        if (node.type === 'user') {
+            const text = iconGroup.querySelector('text');
+            if (text) text.setAttribute('fill', colors.color);
+        } else {
+            const miniSvg = iconGroup.querySelector('svg');
+            if (miniSvg) miniSvg.style.color = colors.color;
+        }
+    }
+
+    /**
      * Draw the leading icon for a row at local x=offsetX (avatar circle for
      * user/company/role, plain monochrome icon for folders/groups). Returns
      * the absolute x where the icon's space ends, so the caller can position
      * the name label right after it.
      */
     function itDrawIcon(sel, d, offsetX) {
-        const g = sel.append('g').attr('transform', `translate(${offsetX},0)`);
+        const g = sel.append('g').attr('class', 'it-icon-group').attr('transform', `translate(${offsetX},0)`);
         if (d.type === 'user') {
             const initials = itInitialsFor(d.realName || d.name, d.email);
             const colors = itIconColorsFor(d);
@@ -197,28 +245,67 @@
     // ---------- Shared helpers ----------
 
     /**
-     * Folder IDs where the given user email has a permission entry (direct or inherited).
+     * Folder IDs a user has access to — direct, or effectively via their
+     * company's or any of their roles' assignment on that folder.
      */
-    function itCollectFolderIdsForUser(email) {
+    function itCollectFolderIdsForUser(u) {
         const ids = new Set();
+        const roleIds = u.roleIds || [];
         for (const [folderId, entries] of folderUserAssignments) {
-            if (entries.some(e => e.subjectType === 'USER' && e.user === email)) ids.add(folderId);
+            const has = entries.some(e => {
+                if (e.subjectType === 'USER') return e.user === u.email;
+                if (e.subjectType === 'COMPANY') return !!u.companyId && e.subjectId === u.companyId;
+                if (e.subjectType === 'ROLE') return roleIds.includes(e.subjectId);
+                return false;
+            });
+            if (has) ids.add(folderId);
         }
         return ids;
     }
 
-    function itLevelForUserAtFolder(email, folderId) {
+    /**
+     * A user's EFFECTIVE access at a folder: the highest-level grant among
+     * their own direct entry, their company's entry, and any of their roles'
+     * entries — mirroring how ACC itself resolves access from multiple
+     * sources. Reports which one won (via: null | 'COMPANY' | 'ROLE') so the
+     * UI can label it, and so editing targets the actual underlying entry —
+     * when access comes from a role/company there's no separate per-user
+     * entry to edit; editing there would edit that role/company's own level
+     * and affect every member, so those are shown read-only instead.
+     */
+    function itEffectiveAccessForUser(u, folderId) {
         const entries = folderUserAssignments.get(folderId);
         if (!entries) return null;
-        const e = entries.find(en => en.subjectType === 'USER' && en.user === email);
-        return e ? { level: e.level, isInherited: !!e.isInherited } : null;
+
+        const candidates = [];
+        const direct = entries.find(e => e.subjectType === 'USER' && e.user === u.email);
+        if (direct) candidates.push({ entry: direct, via: null });
+        if (u.companyId) {
+            const viaCompany = entries.find(e => e.subjectType === 'COMPANY' && e.subjectId === u.companyId);
+            if (viaCompany) candidates.push({ entry: viaCompany, via: 'COMPANY' });
+        }
+        (u.roleIds || []).forEach(rid => {
+            const viaRole = entries.find(e => e.subjectType === 'ROLE' && e.subjectId === rid);
+            if (viaRole) candidates.push({ entry: viaRole, via: 'ROLE' });
+        });
+        if (candidates.length === 0) return null;
+
+        candidates.sort((a, b) => parseInt(b.entry.level) - parseInt(a.entry.level));
+        const best = candidates[0];
+        return {
+            level: best.entry.level,
+            isInherited: !!best.entry.isInherited,
+            via: best.via,
+            viaName: best.via ? (best.entry.displayName || best.entry.user) : null,
+            entryUser: best.entry.user
+        };
     }
 
     /**
      * Build a nested folder tree (mirroring currentHierarchy) containing only
      * folders in folderIds plus whatever ancestors are needed to reach them.
      */
-    function itBuildFilteredFolderNodes(rows, depth, folderIds, email) {
+    function itBuildFilteredFolderNodes(rows, depth, folderIds, user) {
         const key = levelKeyForDepth(depth);
         const nextKey = levelKeyForDepth(depth + 1);
         const groups = new Map();
@@ -232,7 +319,7 @@
         const nodes = [];
         for (const { folder, rows: groupRows } of sorted) {
             const hasChildren = groupRows.some(r => r[nextKey]);
-            const childNodes = hasChildren ? itBuildFilteredFolderNodes(groupRows, depth + 1, folderIds, email) : [];
+            const childNodes = hasChildren ? itBuildFilteredFolderNodes(groupRows, depth + 1, folderIds, user) : [];
             const direct = folderIds.has(folder.id);
             if (direct || childNodes.length > 0) {
                 const node = { name: folder.name, type: 'folder', folderId: folder.id };
@@ -245,10 +332,23 @@
                 node.__userEmails = emails;
                 node.userCount = emails.size;
                 if (direct) {
-                    const info = itLevelForUserAtFolder(email, folder.id);
+                    const info = itEffectiveAccessForUser(user, folder.id);
                     if (info) {
                         node.level = info.level;
                         node.isInherited = info.isInherited;
+                        node.email = user.email;
+                        if (info.via) {
+                            // Access via role/company membership, not a personal
+                            // grant — badge takes that type's color, and it's
+                            // editable only from the folder's own role/company
+                            // row (editing here would silently change everyone
+                            // in that role/company).
+                            node.subjectType = info.via;
+                            node.viaLabel = `via ${info.via === 'COMPANY' ? 'Company' : 'Role'}: ${info.viaName}`;
+                        } else {
+                            node.__folderId = folder.id;
+                            node.__entryUser = info.entryUser;
+                        }
                     }
                 }
                 if (childNodes.length > 0) node.children = childNodes;
@@ -259,7 +359,7 @@
     }
 
     function itUserChildNode(u) {
-        const folderIds = itCollectFolderIdsForUser(u.email);
+        const folderIds = itCollectFolderIdsForUser(u);
         const node = {
             name: (u.name && u.name !== u.email) ? `${u.name} (${u.email})` : (u.email || u.name || 'Unknown user'),
             type: 'user',
@@ -268,13 +368,26 @@
             accessCount: folderIds.size
         };
         const folderNodes = (currentHierarchy && currentHierarchy.length)
-            ? itBuildFilteredFolderNodes(currentHierarchy, 0, folderIds, u.email)
+            ? itBuildFilteredFolderNodes(currentHierarchy, 0, folderIds, u)
             : [];
         if (folderNodes.length > 0) node.children = folderNodes;
         return node;
     }
 
     // ---------- Data builders (one per orientation) ----------
+
+    /**
+     * Project Admins have automatic full access in ACC regardless of any
+     * explicit folder permission entry (the sync logic elsewhere already
+     * skips creating/updating/deleting permissions for them for the same
+     * reason) — so a numeric level next to their name would be misleading.
+     */
+    function itIsProjectAdmin(email) {
+        if (!email || !currentProjectUsersRaw) return false;
+        const u = currentProjectUsersRaw.find(pu => pu.email === email);
+        if (!u || !u.products) return false;
+        return u.products.some(p => p.key === 'projectAdministration' && p.access === 'administrator');
+    }
 
     /**
      * Project users belonging to a COMPANY or ROLE subject (by id) — used to
@@ -326,7 +439,7 @@
         };
     }
 
-    function itUserLeafNode(entry) {
+    function itUserLeafNode(entry, folderId) {
         const subjectType = entry.subjectType || 'USER';
         let realName = null;
         if (subjectType === 'USER' && currentProjectUsersRaw) {
@@ -340,7 +453,11 @@
             email: subjectType === 'USER' ? entry.user : undefined,
             realName,
             level: entry.level,
-            isInherited: !!entry.isInherited
+            isInherited: !!entry.isInherited,
+            // Identifies the underlying folderUserAssignments entry so the
+            // Level column can edit it in place (see itCommitLevelChange).
+            __folderId: folderId,
+            __entryUser: entry.user
         };
         if (subjectType === 'COMPANY' || subjectType === 'ROLE') {
             const members = itMembersOfSubject(subjectType, entry.subjectId)
@@ -403,7 +520,7 @@
                         if (!!a.isInherited !== !!b.isInherited) return a.isInherited ? 1 : -1;
                         return naturalSort(a.displayName || a.user, b.displayName || b.user);
                     })
-                    .map(itUserLeafNode);
+                    .map(entry => itUserLeafNode(entry, folder.id));
                 node.children.push(...leaves);
             }
             node.children.push(...childFolderNodes);
@@ -518,6 +635,141 @@
         }
     }
 
+    /** Every folder id currently present anywhere in currentHierarchy. */
+    function itCollectAllKnownFolderIds() {
+        const ids = new Set();
+        currentHierarchy.forEach(row => {
+            for (let d = 0; d < 20; d++) {
+                const f = row[levelKeyForDepth(d)];
+                if (f) ids.add(f.id);
+            }
+        });
+        return ids;
+    }
+
+    /** Folder ids that are leaves of the currently-loaded hierarchy AND have
+     * never actually been checked for children (as opposed to genuinely
+     * having none) — i.e. exactly what a real "expand everything" needs to
+     * go fetch next. */
+    function itFindUnfetchedFolderIds() {
+        const allIds = new Set();
+        const idsWithLoadedChildren = new Set();
+        currentHierarchy.forEach(row => {
+            for (let d = 0; d < 20; d++) {
+                const f = row[levelKeyForDepth(d)];
+                if (!f) continue;
+                allIds.add(f.id);
+                if (row[levelKeyForDepth(d + 1)]) idsWithLoadedChildren.add(f.id);
+            }
+        });
+        const unfetched = new Set();
+        allIds.forEach(id => {
+            if (!idsWithLoadedChildren.has(id) && folderChildrenCache[id] === undefined) unfetched.add(id);
+        });
+        return unfetched;
+    }
+
+    /**
+     * Drain itFindUnfetchedFolderIds() round by round until nothing's left
+     * unfetched (or the safety cap trips). Deliberately gentle (modest
+     * concurrency + a pause between batches) — read_project_folders.js's
+     * fetchFolderContents() treats ANY non-OK response, including a rate
+     * limit, as "folder has no contents" and caches that verdict, so hammering
+     * the API here doesn't just risk failures, it risks silently-wrong
+     * "this folder is empty" answers baked into the cache. See the
+     * verification sweep in itFetchEntireFolderTree for the other half of
+     * the fix.
+     */
+    async function itDrainUnfetchedFolders(onProgress, maxRounds, concurrency, batchDelayMs) {
+        let round = 0;
+        while (true) {
+            round++;
+            const toFetch = itFindUnfetchedFolderIds();
+            if (toFetch.size === 0 || round > maxRounds) break;
+
+            const ids = Array.from(toFetch);
+            for (let i = 0; i < ids.length; i += concurrency) {
+                const batch = ids.slice(i, i + concurrency);
+                await Promise.all(batch.map(id =>
+                    loadChildrenForFolder(id).catch(err => {
+                        console.error('[IndentedTree] expand-all fetch failed for', id, err);
+                    })
+                ));
+                if (onProgress) onProgress();
+                if (batchDelayMs) await new Promise(r => setTimeout(r, batchDelayMs));
+            }
+        }
+    }
+
+    /**
+     * Fully fetch the ENTIRE project folder tree (every level, not just
+     * whatever's been lazily loaded so far) and its permissions, then mark
+     * every folder "visible" so loadExistingACCPermissions actually covers
+     * all of it. This is what "Expand All" now does first — the previous
+     * version only expanded whatever data already happened to be loaded, so
+     * it silently stopped wherever the last lazy-load left off (not a fixed
+     * depth, just however far anyone had clicked before). Mirrors the same
+     * progressive-fetch pattern folders-treemap.js's own expand-all uses.
+     */
+    async function itFetchEntireFolderTree(onProgress) {
+        if (!currentProjectData || !currentHierarchy) return;
+
+        await itDrainUnfetchedFolders(onProgress, 60, 4, 100);
+
+        // Verification sweep: a folder cached as "empty" might genuinely have
+        // no children, OR its request may have failed (rate-limited, etc.) —
+        // fetchFolderContents can't tell the two apart and silently treats
+        // both as "no contents". Clear those cache entries and re-check once
+        // so a transient failure can't masquerade as a real dead end (this is
+        // exactly what was cutting the tree short before: a deep branch got
+        // silently marked empty and, since its cache was no longer
+        // "unfetched", never retried).
+        const emptyIds = Array.from(itCollectAllKnownFolderIds()).filter(id => {
+            const cached = folderChildrenCache[id];
+            return Array.isArray(cached) && cached.length === 0;
+        });
+        if (emptyIds.length > 0) {
+            for (let i = 0; i < emptyIds.length; i += 3) {
+                const batch = emptyIds.slice(i, i + 3);
+                await Promise.all(batch.map(async id => {
+                    delete folderChildrenCache[id];
+                    try {
+                        await loadChildrenForFolder(id);
+                    } catch (err) {
+                        console.error('[IndentedTree] expand-all re-check failed for', id, err);
+                    }
+                }));
+                if (onProgress) onProgress();
+                await new Promise(r => setTimeout(r, 150));
+            }
+            // Anything the re-check actually revealed needs its own children
+            // fetched too, going as deep as it takes.
+            await itDrainUnfetchedFolders(onProgress, 30, 4, 100);
+        }
+
+        const allIds = itCollectAllKnownFolderIds();
+        allIds.forEach(id => expandedFolderIds.add(id));
+
+        if (window.FolderPermissions?.fetchAllFolderPermissions) {
+            const idsArr = Array.from(allIds);
+            const BATCH = 30;
+            for (let i = 0; i < idsArr.length; i += BATCH) {
+                const batchIds = new Set(idsArr.slice(i, i + BATCH));
+                try {
+                    await loadExistingACCPermissions(
+                        currentProjectData.projectId, currentHierarchy,
+                        currentProjectUsers, currentProjectData.accessToken,
+                        { onlyFolderIds: batchIds }
+                    );
+                } catch (err) {
+                    console.error('[IndentedTree] expand-all permission load error:', err);
+                }
+                if (onProgress) onProgress();
+            }
+            propagatePermissionsToEmptyRows();
+        }
+    }
+
     /**
      * Row click handler — expand/collapse, lazy-loading deeper folder levels
      * (and peeking one level further) on demand.
@@ -549,10 +801,73 @@
     function itBuildUsersData() {
         const users = (currentProjectUsersRaw || []).slice()
             .sort((a, b) => naturalSort(a.email || '', b.email || ''));
+        let nodes = users.map(itUserChildNode);
+        if (itUserSortMode === 'asc' || itUserSortMode === 'desc') {
+            const dir = itUserSortMode === 'asc' ? 1 : -1;
+            nodes = nodes.sort((a, b) => (a.accessCount - b.accessCount) * dir || naturalSort(a.name, b.name));
+        }
         return {
             name: 'All Users',
-            children: users.map(itUserChildNode)
+            children: nodes
         };
+    }
+
+    /** Folder IDs a ROLE or COMPANY subject has a direct entry on. */
+    function itCollectFolderIdsForSubject(subjectType, subjectId) {
+        const ids = new Set();
+        for (const [folderId, entries] of folderUserAssignments) {
+            if (entries.some(e => e.subjectType === subjectType && e.subjectId === subjectId)) ids.add(folderId);
+        }
+        return ids;
+    }
+
+    /**
+     * Nested folder tree (mirroring currentHierarchy) containing only folders
+     * a ROLE/COMPANY subject has access to, plus whatever ancestors are
+     * needed to reach them. No level info — the Level column doesn't apply
+     * in this orientation (see itBuildSubjectsData).
+     */
+    function itBuildSubjectFolderNodes(rows, depth, folderIds) {
+        const key = levelKeyForDepth(depth);
+        const nextKey = levelKeyForDepth(depth + 1);
+        const groups = new Map();
+        for (const row of rows) {
+            const f = row[key];
+            if (!f) continue;
+            if (!groups.has(f.id)) groups.set(f.id, { folder: f, rows: [] });
+            groups.get(f.id).rows.push(row);
+        }
+        const sorted = [...groups.values()].sort((a, b) => naturalSort(a.folder.name, b.folder.name));
+        const nodes = [];
+        for (const { folder, rows: groupRows } of sorted) {
+            const hasChildren = groupRows.some(r => r[nextKey]);
+            const childNodes = hasChildren ? itBuildSubjectFolderNodes(groupRows, depth + 1, folderIds) : [];
+            if (folderIds.has(folder.id) || childNodes.length > 0) {
+                const node = { name: folder.name, type: 'folder', folderId: folder.id };
+                if (childNodes.length > 0) node.children = childNodes;
+                nodes.push(node);
+            }
+        }
+        return nodes;
+    }
+
+    /**
+     * A role/company's own subtree: its folder access first (expandable,
+     * shared by the whole group instead of being repeated under every
+     * member), then its members as a flat, non-expandable list — there's
+     * nothing further to drill into per-member here since their access is
+     * exactly what's already shown above.
+     */
+    function itBuildSubjectChildren(subjectType, subjectId) {
+        const folderIds = itCollectFolderIdsForSubject(subjectType, subjectId);
+        const folderNodes = (currentHierarchy && currentHierarchy.length)
+            ? itBuildSubjectFolderNodes(currentHierarchy, 0, folderIds)
+            : [];
+        const memberNodes = itMembersOfSubject(subjectType, subjectId)
+            .slice()
+            .sort((a, b) => naturalSort(a.email || '', b.email || ''))
+            .map(itMemberLeafNode);
+        return { children: [...folderNodes, ...memberNodes], accessCount: folderIds.size };
     }
 
     function itBuildSubjectsData() {
@@ -576,21 +891,19 @@
             });
         });
 
-        const companyNodes = [...companyMap.values()]
-            .sort((a, b) => naturalSort(a.name, b.name))
-            .map(c => ({
-                name: c.name,
-                type: 'company',
-                children: c.users.slice().sort((a, b) => naturalSort(a.email || '', b.email || '')).map(itUserChildNode)
-            }));
+        const companyNodes = [...companyMap.entries()]
+            .sort((a, b) => naturalSort(a[1].name, b[1].name))
+            .map(([id, c]) => {
+                const built = itBuildSubjectChildren('COMPANY', id);
+                return { name: c.name, type: 'company', children: built.children, accessCount: built.accessCount };
+            });
 
-        const roleNodes = [...roleMap.values()]
-            .sort((a, b) => naturalSort(a.name, b.name))
-            .map(r => ({
-                name: r.name,
-                type: 'role',
-                children: r.users.slice().sort((a, b) => naturalSort(a.email || '', b.email || '')).map(itUserChildNode)
-            }));
+        const roleNodes = [...roleMap.entries()]
+            .sort((a, b) => naturalSort(a[1].name, b[1].name))
+            .map(([id, r]) => {
+                const built = itBuildSubjectChildren('ROLE', id);
+                return { name: r.name, type: 'role', children: built.children, accessCount: built.accessCount };
+            });
 
         return {
             name: 'Roles & Companies',
@@ -668,6 +981,87 @@
         return visible;
     }
 
+    // ---------- Editing (access level) ----------
+    // Mirrors read_project_folders.js's own level-editing logic (arrow keys,
+    // typed digit 1-6, readonly for inherited entries, live inheritance
+    // propagation) so editing here behaves identically to the main table. The
+    // one deliberate difference: descendant lookup is done from currentHierarchy
+    // (data) rather than the main table's DOM, since this tree can lazy-load
+    // folders the main table was never expanded to — see the earlier fixes to
+    // itFetchAndPeek for the same class of DOM-visibility gating bug.
+
+    function itGetDescendantFolderIds(parentFolderId) {
+        const ids = new Set();
+        for (const row of currentHierarchy) {
+            let foundDepth = -1;
+            for (let d = 0; d < 20; d++) {
+                if (row[levelKeyForDepth(d)]?.id === parentFolderId) { foundDepth = d; break; }
+            }
+            if (foundDepth < 0) continue;
+            for (let d = foundDepth + 1; d < 20; d++) {
+                const id = row[levelKeyForDepth(d)]?.id;
+                if (id) ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Commit a new access level for a leaf entry: updates the shared
+     * folderUserAssignments model (the same data the main table reads), then
+     * patches every currently-rendered row in THIS tree that's an inherited
+     * copy of the same entry — in place, no full re-render, so the input the
+     * user is actively editing never loses focus.
+     */
+    function itCommitLevelChange(node, newLevel) {
+        if (!node.__folderId || !node.__entryUser) return;
+
+        const entries = folderUserAssignments.get(node.__folderId);
+        const entry = entries && entries.find(e => e.user === node.__entryUser);
+        if (entry) entry.level = newLevel;
+        node.level = newLevel;
+
+        const descendantIds = itGetDescendantFolderIds(node.__folderId);
+        descendantIds.forEach(descId => {
+            const descEntries = folderUserAssignments.get(descId);
+            if (!descEntries) return;
+            const inheritedEntry = descEntries.find(e => e.user === node.__entryUser && e.isInherited);
+            if (inheritedEntry) inheritedEntry.level = newLevel;
+        });
+
+        // Patch any visible rows in THIS tree that are inherited copies —
+        // D3 stores each row's bound datum on the DOM node as __data__.
+        document.querySelectorAll('#itContainer g.it-row').forEach(rowEl => {
+            const bound = rowEl.__data__;
+            const rowNode = bound && bound.data;
+            if (!rowNode || !rowNode.isInherited) return;
+            if (rowNode.__entryUser !== node.__entryUser) return;
+            if (!descendantIds.has(rowNode.__folderId)) return;
+            rowNode.level = newLevel;
+            const input = rowEl.querySelector('.it-level-input');
+            if (input) {
+                const colors = rowNode.subjectType ? getSubjectColor(rowNode.subjectType, newLevel) : getPermissionLevelColor(newLevel);
+                input.value = newLevel;
+                input.style.background = colors.background;
+                input.style.color = colors.color;
+            }
+            itUpdateIconColorsInPlace(rowEl, rowNode);
+        });
+
+        // Best-effort: also patch the main table's own DOM/model if it has
+        // this folder rendered, so "Sync with the project" (which reads that
+        // table) picks up the change even for folders only ever opened here.
+        try { updateInheritedPermissions(node.__folderId, node.__entryUser, newLevel); } catch (err) { /* main table may not have this row */ }
+    }
+
+    /** Re-render the main table so folders only ever expanded in this tree
+     * still show up (and thus get included) when the user hits "Sync with
+     * the project" over there. Only called on commit (blur/change), not on
+     * every keystroke, to avoid rebuilding that table repeatedly while typing. */
+    function itSyncMainTableAfterEdit() {
+        try { reRenderFromModel(); } catch (err) { /* main table may not be initialized */ }
+    }
+
     // ---------- Rendering ----------
 
     function itBuildRowContent(sel, d, rowX) {
@@ -718,45 +1112,136 @@
             .attr('font-style', d.isInherited ? 'italic' : 'normal')
             .attr('fill', d.__matched ? '#ff6b00' : (d.isInherited ? '#999' : '#222'))
             .text(displayName);
-        label.append('title').text(d.name);
-
-        if (typeof d.accessCount === 'number') {
-            sel.append('text')
-                .attr('x', nameX + displayName.length * 6.6 + 12).attr('y', 3)
-                .attr('font-size', '10.5px').attr('fill', '#999')
-                .text(`(${d.accessCount} folder${d.accessCount === 1 ? '' : 's'})`);
-        }
+        const accessCountText = typeof d.accessCount === 'number'
+            ? `${d.accessCount} folder${d.accessCount === 1 ? '' : 's'}`
+            : null;
+        label.append('title').text(accessCountText ? `${d.name} — ${accessCountText}` : d.name);
 
         // ----- Level column: fixed x regardless of depth, so it lines up as
-        // a real column instead of trailing the (variable-length) name. -----
-        if (d.level) {
+        // a real column instead of trailing the (variable-length) name. A
+        // real <input> (via foreignObject) so editing behaves exactly like
+        // the main table: arrow keys step 1-6, typed digits are clamped,
+        // inherited entries are readonly. -----
+        if (itLevelColumnVisible() && d.level && itIsProjectAdmin(d.email)) {
+            // Project Admins have automatic full access regardless of any
+            // explicit entry — a numeric level would be misleading here.
+            const colX = boundaries.levelStart - rowX + 8;
+            sel.append('text')
+                .attr('x', colX).attr('y', 3)
+                .attr('font-size', '10.5px')
+                .attr('fill', '#aaa')
+                .text('Admin');
+        } else if (itLevelColumnVisible() && d.level) {
             const colX = boundaries.levelStart - rowX + 8;
             const colors = d.subjectType ? getSubjectColor(d.subjectType, d.level) : getPermissionLevelColor(d.level);
-            sel.append('rect')
-                .attr('x', colX).attr('y', -9).attr('width', 18).attr('height', 16).attr('rx', 3)
-                .attr('fill', colors.background);
-            sel.append('text')
-                .attr('x', colX + 9).attr('y', 3)
-                .attr('text-anchor', 'middle')
-                .attr('font-size', '10px').attr('font-weight', 'bold')
-                .attr('fill', colors.color)
-                .text(d.level);
-            if (d.isInherited) {
-                sel.append('text')
-                    .attr('x', colX + 26).attr('y', 3)
-                    .attr('font-size', '9.5px').attr('font-style', 'italic')
-                    .attr('fill', '#999')
-                    .text('inherited');
+            const editable = !d.isInherited && !!d.__folderId;
+
+            const input = sel.append('foreignObject')
+                .attr('x', colX).attr('y', -9).attr('width', 22).attr('height', 18)
+                .append('xhtml:input')
+                .attr('type', 'text')
+                .attr('maxlength', 1)
+                .attr('class', 'it-level-input')
+                .property('value', d.level)
+                .property('readOnly', !editable)
+                .property('title', !editable
+                    ? (d.isInherited
+                        ? 'Inherited from parent folder (read-only)'
+                        : (d.viaLabel ? `${d.viaLabel} — edit it from the folder's own Role/Company row (read-only here)` : ''))
+                    : '')
+                .style('width', '20px').style('height', '16px')
+                .style('box-sizing', 'border-box')
+                .style('text-align', 'center')
+                .style('font-size', '10px').style('font-weight', 'bold')
+                .style('font-family', "'Artifact Elements', Arial, sans-serif")
+                .style('border', 'none').style('border-radius', '3px').style('padding', '0')
+                .style('background', colors.background).style('color', colors.color)
+                .style('outline', 'none')
+                .style('cursor', editable ? 'text' : 'default')
+                .style('opacity', editable ? 1 : 0.85);
+
+            if (editable) {
+                const applyColors = (el, level) => {
+                    const c = d.subjectType ? getSubjectColor(d.subjectType, level) : getPermissionLevelColor(level);
+                    el.style.background = c.background;
+                    el.style.color = c.color;
+                };
+                input
+                    .on('click', (event) => event.stopPropagation())
+                    .on('mousedown', (event) => event.stopPropagation())
+                    .on('keydown', function(event) {
+                        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                        event.preventDefault();
+                        let level = parseInt(this.value) || 1;
+                        level = event.key === 'ArrowLeft' ? Math.max(1, level - 1) : Math.min(6, level + 1);
+                        this.value = level;
+                        applyColors(this, level);
+                        itCommitLevelChange(d, String(level));
+                        itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
+                    })
+                    .on('input', function() {
+                        const value = this.value;
+                        if (value && (value < '1' || value > '6' || isNaN(value))) {
+                            this.value = value.slice(0, -1);
+                            return;
+                        }
+                        if (value && value >= '1' && value <= '6') {
+                            applyColors(this, value);
+                            itCommitLevelChange(d, value);
+                            itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
+                        }
+                    })
+                    .on('change', function() {
+                        const level = this.value || '6';
+                        this.value = level;
+                        applyColors(this, level);
+                        itCommitLevelChange(d, level);
+                        itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
+                        itSyncMainTableAfterEdit();
+                    });
+            }
+
+            const noteParts = [];
+            if (d.isInherited) noteParts.push('inherited');
+            if (d.viaLabel) noteParts.push(d.viaLabel);
+            if (noteParts.length > 0) {
+                // Clip against whichever column comes next (Folders/Users if
+                // shown, else the row's own right edge) instead of letting it
+                // run on indefinitely and overlap that column's content.
+                const noteFull = noteParts.join(' · ');
+                const noteX = colX + 26;
+                const clipBoundary = itUsersColumnVisible() ? boundaries.usersStart : boundaries.end;
+                const availableForNote = clipBoundary - rowX - noteX - 6;
+                const maxNoteChars = Math.floor(availableForNote / 6);
+                if (maxNoteChars > 0) {
+                    const noteDisplay = itTruncate(noteFull, maxNoteChars);
+                    const noteText = sel.append('text')
+                        .attr('x', noteX).attr('y', 3)
+                        .attr('font-size', '9.5px').attr('font-style', 'italic')
+                        .attr('fill', '#999')
+                        .text(noteDisplay);
+                    if (noteDisplay !== noteFull) noteText.append('title').text(noteFull);
+                }
             }
         }
 
-        // ----- Users column: how many subjects are assigned to this folder. -----
-        if (typeof d.userCount === 'number') {
+        // ----- 3rd column: subjects-per-folder ("Folders → Users") or
+        // folders-per-user ("Users → Folders"). A user with 0 access is
+        // flagged in orange — the whole point of being able to sort by this. -----
+        if (itUsersColumnVisible() && typeof d.userCount === 'number') {
             const colX = boundaries.usersStart - rowX + 8;
             sel.append('text')
                 .attr('x', colX).attr('y', 3)
                 .attr('font-size', '11px').attr('fill', d.userCount > 0 ? '#444' : '#bbb')
                 .text(d.userCount);
+        } else if (itUsersColumnVisible() && accessCountText) {
+            const colX = boundaries.usersStart - rowX + 8;
+            sel.append('text')
+                .attr('x', colX).attr('y', 3)
+                .attr('font-size', '11px')
+                .attr('font-weight', d.accessCount === 0 ? 'bold' : 'normal')
+                .attr('fill', d.accessCount === 0 ? '#e67e22' : '#444')
+                .text(accessCountText);
         }
     }
 
@@ -776,7 +1261,9 @@
 
         // Column divider lines behind the rows, spanning the full row height —
         // purely visual, they don't affect hit-testing or row positions.
-        const colLineX = [boundaries.levelStart, boundaries.usersStart];
+        const colLineX = [];
+        if (itLevelColumnVisible()) colLineX.push(boundaries.levelStart);
+        if (itUsersColumnVisible()) colLineX.push(boundaries.usersStart);
         const colLines = svg.select('g.it-col-lines').selectAll('line').data(colLineX);
         colLines.enter().append('line').merge(colLines)
             .attr('x1', x => x).attr('x2', x => x)
@@ -854,15 +1341,18 @@
     }
 
     /**
-     * Auto-expand the top-level folder(s) ("Project Files" etc.) so the first
-     * level of subfolders is visible immediately instead of requiring a click
-     * — mirrors ACC's own folder browser, which always opens with the root
-     * expanded. Only applies to "folders" mode; the other two orientations
-     * don't have an equivalent "root container" concept.
+     * Auto-expand the top level so the next level down is visible immediately
+     * instead of requiring a click — mirrors ACC's own folder browser, which
+     * always opens with the root expanded. In "folders" mode that's the
+     * top-level folder(s) ("Project Files" etc.); in "subjects" mode it's the
+     * "Companies (N)" / "Roles (N)" group headers, so the actual company/role
+     * list is visible right away. Doesn't apply to "users" mode — there the
+     * top level is every project user, and auto-expanding all of them at
+     * once would mean fetching everyone's folder access up front.
      */
     function itAutoExpandFirstLevel() {
-        if (itMode !== 'folders') return;
-        const data = itBuildFoldersData();
+        if (itMode !== 'folders' && itMode !== 'subjects') return;
+        const data = itBuildData();
         itAssignKeys(data.children || [], '', []);
         (data.children || []).forEach(n => itExpandedKeys.add(n.__key));
     }
@@ -894,6 +1384,43 @@
             const col = cell.dataset.col;
             cell.style.width = itColWidths[col] + 'px';
         });
+    }
+
+    /** Show/hide the Users/Level header cells to match their visibility functions. */
+    function itUpdateColumnVisibility(overlay) {
+        const usersCell = overlay.querySelector('.it-col-cell[data-col="users"]');
+        if (usersCell) usersCell.style.display = itUsersColumnVisible() ? '' : 'none';
+        const levelCell = overlay.querySelector('.it-col-cell[data-col="level"]');
+        if (levelCell) levelCell.style.display = itLevelColumnVisible() ? '' : 'none';
+        const levelLabel = overlay.querySelector('#itLevelColLabel');
+        if (levelLabel) levelLabel.textContent = itMode === 'users' ? 'Accessed' : 'Level';
+        itUpdateUsersColumnHeader(overlay);
+    }
+
+    /**
+     * Label + sort indicator for the 3rd column, and whether it's clickable —
+     * sorting only applies in "Users → Folders" (sorting "assigned per
+     * folder" in the other mode wouldn't mean much since row order there is
+     * the folder tree itself).
+     */
+    function itUpdateUsersColumnHeader(overlay) {
+        const cell = overlay.querySelector('#itUsersColHeader');
+        const label = overlay.querySelector('#itUsersColLabel');
+        if (!cell || !label) return;
+        if (itMode === 'users') {
+            const arrow = itUserSortMode === 'asc' ? ' ↑' : itUserSortMode === 'desc' ? ' ↓' : '';
+            label.textContent = 'Folders' + arrow;
+            cell.style.cursor = 'pointer';
+            cell.title = 'Click to sort by folder access count — ascending shows users with no access first';
+        } else if (itMode === 'subjects') {
+            label.textContent = 'Folders';
+            cell.style.cursor = 'default';
+            cell.title = '';
+        } else {
+            label.textContent = 'Users';
+            cell.style.cursor = 'default';
+            cell.title = '';
+        }
     }
 
     /**
@@ -1048,13 +1575,13 @@
                     <span class="it-legend-item"><span class="it-swatch it-swatch-circle" style="background:#90caf9"></span>User (initials)</span>
                     <span class="it-legend-item"><span class="it-swatch it-swatch-circle" style="background:#a5d6a7"></span>Role</span>
                     <span class="it-legend-item"><span class="it-swatch it-swatch-circle" style="background:#ffcc80"></span>Company</span>
-                    <span class="it-legend-note">Click a row with + to expand — the Level column shows access 1–6, Users shows how many are assigned to that folder. Drag a column's right edge to resize.</span>
+                    <span class="it-legend-note">Click a row with + to expand — Level is editable (type 1–6 or use arrow keys; grayed = inherited, read-only). Users shows how many are assigned. Drag a column's right edge to resize.</span>
                 </div>
                 <div class="it-modal-body-wrap">
                     <div class="it-col-header" id="itColHeader">
                         <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name"></span></div>
-                        <div class="it-col-cell" data-col="level">Level<span class="it-col-resizer" data-col="level"></span></div>
-                        <div class="it-col-cell" data-col="users">Users</div>
+                        <div class="it-col-cell" data-col="level"><span id="itLevelColLabel">Level</span><span class="it-col-resizer" data-col="level"></span></div>
+                        <div class="it-col-cell" data-col="users" id="itUsersColHeader"><span id="itUsersColLabel">Users</span></div>
                     </div>
                     <div class="it-modal-body" id="itContainer"></div>
                 </div>
@@ -1064,13 +1591,24 @@
         document.body.appendChild(overlay);
 
         itApplyColumnWidths(overlay);
+        itUpdateColumnVisibility(overlay);
         itSetupColumnResize(overlay);
+
+        overlay.querySelector('#itUsersColHeader').addEventListener('click', () => {
+            if (itMode !== 'users') return;
+            itUserSortMode = itUserSortMode === null ? 'asc' : itUserSortMode === 'asc' ? 'desc' : null;
+            itUpdateUsersColumnHeader(overlay);
+            const container = document.getElementById('itContainer');
+            if (container) itRenderTree(container);
+        });
 
         overlay.querySelectorAll('input[name="itModeRadio"]').forEach(radio => {
             radio.addEventListener('change', () => {
                 itMode = radio.value;
                 itExpandedKeys = new Set();
+                itUserSortMode = null;
                 itAutoExpandFirstLevel();
+                itUpdateColumnVisibility(overlay);
                 const container = document.getElementById('itContainer');
                 if (container) itRenderTree(container);
             });
@@ -1087,7 +1625,24 @@
             }, 200);
         });
 
-        document.getElementById('itExpandAllBtn').addEventListener('click', () => {
+        const expandAllBtn = document.getElementById('itExpandAllBtn');
+        let expandAllInFlight = false;
+        expandAllBtn.addEventListener('click', async () => {
+            if (expandAllInFlight) return;
+            expandAllInFlight = true;
+            const originalLabel = expandAllBtn.textContent;
+            expandAllBtn.disabled = true;
+
+            try {
+                await itFetchEntireFolderTree(() => {
+                    expandAllBtn.textContent = `Expanding... (${itCollectAllKnownFolderIds().size} folders)`;
+                });
+            } finally {
+                expandAllBtn.textContent = originalLabel;
+                expandAllBtn.disabled = false;
+                expandAllInFlight = false;
+            }
+
             const data = itBuildData();
             itAssignKeys(data.children || [], '', []);
             const allKeys = [];
