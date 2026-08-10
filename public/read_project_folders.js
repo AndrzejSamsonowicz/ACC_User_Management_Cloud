@@ -2722,6 +2722,7 @@
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search users..." />
                         <button id="openTreemapBtn" class="treemap-btn" title="Open treemap visualization">Open Treemap</button>
+                        <button id="openIndentedTreeBtn" class="treemap-btn" title="Open expandable indented tree visualization">Indented Tree</button>
                         <button id="cleanTableBtn" class="clean-table-btn">Clean Folders</button>
                         <button id="expandAllBtn" class="expand-all-btn" title="Expand all folders one level deeper">Expand All</button>
                         <button id="collapseAllBtn" class="collapse-all-btn" title="Collapse all folders to root level">Collapse All</button>
@@ -3822,6 +3823,14 @@
         if (treemapBtn) {
             treemapBtn.addEventListener('click', () => {
                 openTreemapModal();
+            });
+        }
+
+        // Indented Tree button
+        const indentedTreeBtn = document.getElementById('openIndentedTreeBtn');
+        if (indentedTreeBtn) {
+            indentedTreeBtn.addEventListener('click', () => {
+                openIndentedTreeModal();
             });
         }
 
