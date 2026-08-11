@@ -31,7 +31,7 @@
             progressModal = document.createElement('div');
             progressModal.id = 'folderLoadingProgress';
             progressModal.innerHTML = `
-                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10200; display: flex; align-items: center; justify-content: center;">
                     <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); min-width: 400px;">
                         <h4 id="folderLoadingMessage" style="margin: 0 0 20px 0; color: #333; font-size: 16px; text-align: center;"></h4>
                         <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
@@ -93,22 +93,20 @@
         expandedFolderIds = new Set();
         folderUserAssignments = new Map();
 
-        // Create modal if it doesn't exist
-        createFoldersModal();
+        // Open the indented tree — the primary (and only) UI for managing
+        // folder access. It creates its own modal, including the left
+        // "Project Users" panel (#foldersUserList) that displayUserList()
+        // below renders into, unchanged.
+        openIndentedTreeModal();
 
-        // Show modal
-        const modalTitle = document.getElementById('foldersModalTitle');
-        const loadingMessage = document.getElementById('foldersLoadingMessage');
-        const tableContainer = document.getElementById('foldersTableContainer');
-        const userListContainer = document.getElementById('foldersUserList');
-        const errorMessage = document.getElementById('foldersErrorMessage');
+        const modalTitle = document.getElementById('itModalTitle');
+        const contentRow = document.querySelector('#itOverlay .it-content-row');
+        const errorMessage = document.getElementById('itErrorMessage');
+        const itBody = document.getElementById('itContainer');
 
-        modalTitle.textContent = `Folder Structure: ${projectName}`;
-        foldersModal.style.display = 'block';
-        loadingMessage.style.display = 'none'; // Hidden - using progress overlay instead
-        tableContainer.style.display = 'none';
-        userListContainer.style.display = 'none';
-        errorMessage.style.display = 'none';
+        if (modalTitle) modalTitle.textContent = `Folder Access: ${projectName}`;
+        if (contentRow) contentRow.style.display = 'none';
+        if (errorMessage) errorMessage.style.display = 'none';
 
         try {
             // Fetch folder hierarchy and project users in parallel
@@ -125,16 +123,35 @@
             // Auto-expand level1 container folders (e.g. "Project Files") so children are visible
             const level1Ids = new Set(folderHierarchy.map(r => r.level1?.id).filter(Boolean));
             for (const id of level1Ids) expandedFolderIds.add(id);
-            
-            // Display in table and user list
-            displayFolderHierarchy(folderHierarchy);
+
+            // itAutoExpandFirstLevel() was already called once when
+            // openIndentedTreeModal() opened the modal, but currentHierarchy
+            // was still empty at that point — it had nothing to expand. Now
+            // that the real hierarchy is in, call it again so the tree
+            // actually opens with the first level expanded instead of fully
+            // collapsed.
+            itAutoExpandFirstLevel();
+
+            // Auto-expanding like this (rather than a manual click through
+            // itFetchAndPeek) skips the usual peek-ahead, so every level2
+            // folder just revealed shows an optimistic "+" — even ones with
+            // no subfolders at all — until individually clicked. Peek them
+            // all now so the toggle is already correct by the time the tree
+            // is shown, instead of only resolving on click.
+            const level2Ids = new Set(folderHierarchy.map(r => r.level2?.id).filter(Boolean));
+            const level2PeekPromise = itPeekGrandchildren(level2Ids);
+
+            // Populate the users panel and do a first tree render (folder
+            // structure only — permissions arrive a moment later below)
             displayUserList(usersData.displayUsers);
-            
+            if (itBody) itRenderTree(itBody);
+
             // Fetch and pre-populate with existing ACC folder permissions
             // Continue with unified progress (50-100%)
             updateLoadingProgress('Loading folder structure...', 50);
             // log('ðŸ” Fetching existing ACC folder permissions...');
             await loadExistingACCPermissions(projectId, folderHierarchy, usersData.displayUsers, accessToken);
+            await level2PeekPromise;
 
             // Propagate any inherited permissions that the ACC load may have missed
             propagatePermissionsToEmptyRows();
@@ -146,31 +163,27 @@
             // Final progress update
             updateLoadingProgress('Loading folder structure...', 100);
             
-            // Show the table and user list FIRST (while progress is still visible)
-            loadingMessage.style.display = 'none';
-            tableContainer.style.display = 'block';
-            userListContainer.style.display = 'block';
-            
-            // Wait for browser to actually render and paint the table
+            // Show the tree with the now-complete data
+            if (contentRow) contentRow.style.display = 'flex';
+            if (itBody) itRenderTree(itBody);
+
+            // Wait for browser to actually render and paint the tree
             // Use double requestAnimationFrame to ensure painting is complete
             await new Promise(resolve => {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                        // Add extra delay to ensure large tables are fully rendered
+                        // Add extra delay to ensure large trees are fully rendered
                         setTimeout(resolve, 300);
                     });
                 });
             });
-            
+
             hideLoadingProgress();
         } catch (error) {
             // console.error('âŒ Error loading folders:', error);
             
             // Complete progress to 100% before hiding (even on error)
             updateLoadingProgress('Loading folder structure...', 100);
-            
-            // Show error state
-            loadingMessage.style.display = 'none';
             
             // Wait for browser to render error state, then hide progress
             await new Promise(resolve => {
@@ -182,9 +195,7 @@
             });
             
             hideLoadingProgress();
-            
-            loadingMessage.style.display = 'none';
-            
+
             // Provide user-friendly error message based on error type
             let errorHtml = '';
             if (error.message.includes('404')) {
@@ -216,9 +227,11 @@
                     <p style="margin: 10px 0; color: #666; font-size: 13px;">You can close this window using the <strong>Ã—</strong> button in the top-right corner or by pressing <strong>ESC</strong>.</p>
                 `;
             }
-            
-            errorMessage.innerHTML = errorHtml;
-            errorMessage.style.display = 'block';
+
+            if (errorMessage) {
+                errorMessage.innerHTML = errorHtml;
+                errorMessage.style.display = 'block';
+            }
         }
     };
 
@@ -269,6 +282,27 @@
     }
 
     /**
+     * fetch() wrapper that retries on network-level failures only (fetch()
+     * throwing — connection reset, DNS hiccup, etc.) — NOT on HTTP error
+     * responses (404/403 are real answers from the server, not glitches, so
+     * they're returned as-is for the caller to handle). Opening this modal
+     * fires a burst of concurrent requests to developer.api.autodesk.com; on
+     * a cold connection (first request to that host in the tab) one of them
+     * occasionally hits a transient "Failed to fetch" that a simple retry
+     * clears up, rather than aborting the whole load.
+     */
+    async function fetchWithRetry(url, options, retries = 2, delayMs = 300) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await fetch(url, options);
+            } catch (err) {
+                if (attempt >= retries) throw err;
+                await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+            }
+        }
+    }
+
+    /**
      * Fetch top-level folders using Project API
      */
     async function fetchTopFolders(hubId, projectId, accessToken) {
@@ -278,7 +312,7 @@
         
         // log('ðŸ“¡ Fetching top folders from:', url);
 
-        const response = await fetch(url, {
+        const response = await fetchWithRetry(url, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
@@ -315,7 +349,7 @@
         
         // log('ðŸ“¡ Fetching folder contents from:', url);
 
-        const response = await fetch(url, {
+        const response = await fetchWithRetry(url, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
@@ -362,7 +396,7 @@
 
             const url = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
             
-            const response = await fetch(url, {
+            const response = await fetchWithRetry(url, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
@@ -412,8 +446,14 @@
             products: user.products || [] // For admin detection
         }));
         
-        // Extract display user data
-        const displayUsers = allUsers.map(user => {
+        // Extract display user data — Project Admins have automatic full
+        // access to every folder regardless of any explicit entry, so they
+        // don't belong in the "Project Users" drag source at all (rawUsers
+        // above stays complete, since itIsProjectAdmin()/lookupSubjectInfo
+        // still need it to resolve users referenced by existing entries).
+        const displayUsers = allUsers
+            .filter(user => !(user.products || []).some(p => p.key === 'projectAdministration' && p.access === 'administrator'))
+            .map(user => {
             // Extract role name from roles array
             let roleName = 'No Role';
             if (user.roles && user.roles.length > 0) {
@@ -1276,22 +1316,72 @@
     }
 
     /**
+     * Find an existing entry for the same grant, matching either by the
+     * identical raw identifier OR by (subjectType, subjectId) when resolved.
+     * The two matter separately: an ACC-loaded role/company entry is stored
+     * as "role_<id>"/"company_<id>", while a fresh drag-drop of the same
+     * role/company passes its plain display name — different strings for
+     * the same real subject. Without the subjectId fallback, dropping a
+     * role/company that's already assigned (loaded from ACC, or dropped
+     * once before) slips past the "already assigned" guard and adds a
+     * second entry for the same subject, which breaks the tree's keyed
+     * rendering (duplicate keys) and can leave later drops on that folder
+     * silently no-op.
+     */
+    function findExistingEntryIndex(entries, userName, subjectInfo) {
+        return entries.findIndex(e => {
+            if (e.user === userName) return true;
+            if (subjectInfo?.subjectId && e.subjectType === subjectInfo.subjectType && e.subjectId === subjectInfo.subjectId) return true;
+            return false;
+        });
+    }
+
+    /**
+     * Normalize whatever string a drag/drop actually carried (a plain email,
+     * a "Name (email)" combo, a plain company/role display name, ...) to the
+     * one canonical identifier format used everywhere else in the model —
+     * matching what matchPermissionsToUsers stores for the same subject when
+     * loaded fresh from ACC ("role_<id>"/"company_<id>", plain email for
+     * users). Without this, a freshly dropped user/role/company gets stored
+     * under a different-looking identifier than an ACC-loaded entry for the
+     * exact same subject, so nothing recognizes them as duplicates.
+     */
+    function canonicalSubjectIdentifier(rawName, subjectInfo) {
+        if (!subjectInfo) return rawName;
+        if (subjectInfo.subjectType === 'COMPANY') return `company_${subjectInfo.subjectId}`;
+        if (subjectInfo.subjectType === 'ROLE') return `role_${subjectInfo.subjectId}`;
+        if (subjectInfo.subjectType === 'USER' && currentProjectUsersRaw) {
+            const user = currentProjectUsersRaw.find(u => u.id === subjectInfo.subjectId);
+            if (user?.email) return user.email;
+        }
+        return rawName;
+    }
+
+    /**
      * Add a user to a folder in the data model, with inheritance propagation.
      */
     function addUserToFolder(folderId, userName, level, isInherited) {
         const subjectInfo = lookupSubjectInfo(userName);
-        let displayName = userName;
+        const canonicalUser = canonicalSubjectIdentifier(userName, subjectInfo);
+        // Users are always "Name (email)" when a real name is available —
+        // not gated by currentUserDisplayMode, so this stays consistent
+        // regardless of history (see itUserLeafNode in folders-indented-tree.js).
+        // For COMPANY/ROLE, `userName` (minus any "Company: "/"Role: " prefix)
+        // IS already the human-readable name that was dragged — canonicalUser
+        // is only the storage identifier ("company_<id>"/"role_<id>"), never
+        // what should be displayed.
+        let displayName = userName.replace(/^(Company|Role):\s*/, '');
         if (subjectInfo?.subjectType === 'USER' && currentProjectUsersRaw) {
-            const userObj = currentProjectUsersRaw.find(u => u.email === userName);
+            const userObj = currentProjectUsersRaw.find(u => u.email === canonicalUser);
             if (userObj) {
-                displayName = currentUserDisplayMode === 'name'
-                    ? (userObj.name || userObj.email)
+                displayName = (userObj.name && userObj.name !== userObj.email)
+                    ? `${userObj.name} (${userObj.email})`
                     : userObj.email;
             }
         }
 
         const entry = {
-            user: userName,
+            user: canonicalUser,
             displayName: displayName,
             level: level,
             subjectType: subjectInfo?.subjectType || '',
@@ -1304,26 +1394,31 @@
             folderUserAssignments.set(folderId, []);
         }
         const existing = folderUserAssignments.get(folderId);
-        if (existing.some(e => e.user === userName)) return; // already assigned
+        if (findExistingEntryIndex(existing, canonicalUser, subjectInfo) >= 0) return; // already assigned
         existing.push(entry);
 
         // Propagate as inherited to all descendant folders in the model
-        propagateInheritedToDescendants(folderId, userName, level, subjectInfo);
+        propagateInheritedToDescendants(folderId, canonicalUser, level, subjectInfo, displayName);
     }
 
     /**
      * Propagate an inherited user assignment to all descendant folders in the data model.
+     * `displayNameOverride` lets the caller (which usually already has the
+     * correct human-readable name at hand, e.g. from addUserToFolder or a
+     * stored entry) skip re-deriving it here — important for COMPANY/ROLE,
+     * where `userName` is the "company_<id>"/"role_<id>" storage identifier,
+     * not anything displayable.
      */
-    function propagateInheritedToDescendants(parentFolderId, userName, level, subjectInfo) {
+    function propagateInheritedToDescendants(parentFolderId, userName, level, subjectInfo, displayNameOverride) {
         // Find all currently visible descendant folder IDs via the hierarchy
         const descendantIds = getDescendantFolderIds(parentFolderId);
 
-        let displayName = userName;
-        if (subjectInfo?.subjectType === 'USER' && currentProjectUsersRaw) {
+        let displayName = displayNameOverride || userName;
+        if (!displayNameOverride && subjectInfo?.subjectType === 'USER' && currentProjectUsersRaw) {
             const userObj = currentProjectUsersRaw.find(u => u.email === userName);
             if (userObj) {
-                displayName = currentUserDisplayMode === 'name'
-                    ? (userObj.name || userObj.email)
+                displayName = (userObj.name && userObj.name !== userObj.email)
+                    ? `${userObj.name} (${userObj.email})`
                     : userObj.email;
             }
         }
@@ -1333,7 +1428,7 @@
                 folderUserAssignments.set(descId, []);
             }
             const entries = folderUserAssignments.get(descId);
-            const existingIdx = entries.findIndex(e => e.user === userName);
+            const existingIdx = findExistingEntryIndex(entries, userName, subjectInfo);
             if (existingIdx >= 0) {
                 // Already exists - if it was inherited, update the level
                 if (entries[existingIdx].isInherited) {
@@ -1354,20 +1449,25 @@
     }
 
     /**
-     * Get all descendant folder IDs for a given folder using the DOM-rendered table.
+     * Get all descendant folder IDs for a given folder, read directly from
+     * currentHierarchy rather than the rendered table DOM — the indented
+     * tree view can have folders loaded that the table was never expanded
+     * to (or the table may not be rendered at all), so a DOM-based lookup
+     * would silently miss them.
      */
     function getDescendantFolderIds(parentFolderId) {
-        const table = document.querySelector('.folders-table');
         const ids = [];
-        if (!table) return ids;
-        table.querySelectorAll('tr.folder-row').forEach(row => {
-            let ancestor = row.getAttribute('data-parent-id');
-            const visited = new Set();
-            while (ancestor && !visited.has(ancestor)) {
-                visited.add(ancestor);
-                if (ancestor === parentFolderId) { ids.push(row.getAttribute('data-folder-id')); break; }
-                const aRow = table.querySelector(`tr.folder-row[data-folder-id="${ancestor}"]`);
-                ancestor = aRow ? aRow.getAttribute('data-parent-id') : null;
+        if (!currentHierarchy) return ids;
+        const seen = new Set();
+        currentHierarchy.forEach(row => {
+            let foundDepth = -1;
+            for (let d = 0; d < 20; d++) {
+                if (row[levelKeyForDepth(d)]?.id === parentFolderId) { foundDepth = d; break; }
+            }
+            if (foundDepth < 0) return;
+            for (let d = foundDepth + 1; d < 20; d++) {
+                const id = row[levelKeyForDepth(d)]?.id;
+                if (id && !seen.has(id)) { seen.add(id); ids.push(id); }
             }
         });
         return ids;
@@ -1571,6 +1671,30 @@
     }
 
     /**
+     * Copy a direct entry (user/role/company) from one folder onto another —
+     * used for dragging a selected row in the tree itself onto a different
+     * folder. The original assignment is left exactly as-is; the target gets
+     * a new direct assignment with the same level/subjectType/subjectId — no
+     * re-resolution through lookupSubjectInfo needed since the source entry
+     * already carries everything required.
+     */
+    function copyEntryToFolder(sourceFolderId, targetFolderId, entryUser) {
+        if (sourceFolderId === targetFolderId) return;
+        const sourceEntries = folderUserAssignments.get(sourceFolderId);
+        const entry = sourceEntries && sourceEntries.find(e => e.user === entryUser && !e.isInherited);
+        if (!entry) return;
+
+        if (!folderUserAssignments.has(targetFolderId)) {
+            folderUserAssignments.set(targetFolderId, []);
+        }
+        const targetEntries = folderUserAssignments.get(targetFolderId);
+        const subjectInfo = { subjectType: entry.subjectType, subjectId: entry.subjectId };
+        if (findExistingEntryIndex(targetEntries, entryUser, subjectInfo) >= 0) return; // already assigned there
+        targetEntries.push({ ...entry, isInherited: false });
+        propagateInheritedToDescendants(targetFolderId, entryUser, entry.level, subjectInfo, entry.displayName);
+    }
+
+    /**
      * Update display mode (email/name) in the data model, then re-render.
      */
     function updateTableUserDisplay(displayMode) {
@@ -1598,18 +1722,17 @@
     /**
      * Display the user list in the right panel
      */
-    function displayUserList(users, sortOrder = 'asc', displayMode = 'email') {
+    function displayUserList(users, sortOrder = 'asc', displayMode = 'user') {
         const userListContainer = document.getElementById('foldersUserList');
-        
+
         let itemsToDisplay = [];
-        
+
         // Determine what to display based on mode
-        if (displayMode === 'email') {
-            // Show all users with their emails
-            itemsToDisplay = users.map(user => user.email);
-        } else if (displayMode === 'name') {
-            // Show all users with their names
-            itemsToDisplay = users.map(user => user.name || user.email);
+        if (displayMode === 'user') {
+            // Show all users, always as "Name (email)" when a real name is available
+            itemsToDisplay = users.map(user =>
+                (user.name && user.name !== user.email) ? `${user.name} (${user.email})` : user.email
+            );
         } else if (displayMode === 'company') {
             // Show unique companies
             const companies = [...new Set(users.map(user => user.company_name))];
@@ -1636,12 +1759,8 @@
                 </select>
                 <div class="user-display-options">
                     <label class="user-display-option">
-                        <input type="radio" name="userDisplay" value="email" ${displayMode === 'email' ? 'checked' : ''}>
-                        <span>Email</span>
-                    </label>
-                    <label class="user-display-option">
-                        <input type="radio" name="userDisplay" value="name" ${displayMode === 'name' ? 'checked' : ''}>
-                        <span>Name</span>
+                        <input type="radio" name="userDisplay" value="user" ${displayMode === 'user' ? 'checked' : ''}>
+                        <span>Users</span>
                     </label>
                     <label class="user-display-option">
                         <input type="radio" name="userDisplay" value="company" ${displayMode === 'company' ? 'checked' : ''}>
@@ -1703,16 +1822,6 @@
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const newMode = e.target.value;
-                
-                // Remember email/name choice
-                if (newMode === 'email' || newMode === 'name') {
-                    currentUserDisplayMode = newMode;
-                    // Update the table to show users in the selected format
-                    updateTableUserDisplay(newMode);
-                }
-                // For company/role, don't update table but remember last email/name choice
-                
-                // Update the user list display
                 displayUserList(currentProjectUsers, sortOrder, newMode);
             });
         });
@@ -1832,6 +1941,26 @@
             // log(`&#128100; Detected prefixed ROLE: "${actualName}"`);
         }
 
+        // Check if it's "Name (email)" — the format the "Project Users" panel
+        // always drags now (see displayUserList). Extract the embedded email
+        // so this resolves to the exact same subjectId as an ACC-loaded
+        // entry for that user; without this, actualName never equals a real
+        // user's plain email or plain name, lookupSubjectInfo returns null,
+        // and the resulting entry has no subjectId — which both let the same
+        // user be dropped in twice (nothing to de-dupe against) and made
+        // Sync silently skip the entry (it requires a resolved subjectId).
+        if (!forcedType) {
+            const nameEmailMatch = actualName.match(/^.*\(([^()]+@[^()]+)\)$/);
+            if (nameEmailMatch) {
+                const user = currentProjectUsersRaw.find(u => u.email === nameEmailMatch[1]);
+                if (user) {
+                    const result = { subjectId: user.id, subjectType: 'USER' };
+                    if (user.name && user.name !== user.email) result.name = user.name;
+                    return result;
+                }
+            }
+        }
+
         // Check if it's an email (USER)
         if (actualName.includes('@') && !forcedType) {
             // log('âœ‰ï¸ Detected as EMAIL');
@@ -1892,10 +2021,18 @@
             for (const user of currentProjectUsersRaw) {
                 if (user.roles && Array.isArray(user.roles)) {
                     const matchingRole = user.roles.find(r => r.name === actualName);
-                    if (matchingRole && user.roleIds && user.roleIds.length > 0) {
-                        // log(`âœ… Found ROLE - ID: ${user.roleIds[0]}`);
+                    // Use the matched role's own id, not roleIds[0] — a user
+                    // with multiple roles has one roleId per role, and
+                    // roleIds[0] is only correct by coincidence if the
+                    // matched role happens to be first in that array. For
+                    // anyone else, this silently resolved to the WRONG
+                    // role's id, which fetchFolderPermissions' subsequent
+                    // ACC diff would never match, so the assignment could
+                    // never sync as either a create or a delete.
+                    if (matchingRole?.id) {
+                        // log(`âœ… Found ROLE - ID: ${matchingRole.id}`);
                         return {
-                            subjectId: user.roleIds[0],
+                            subjectId: matchingRole.id,
                             subjectType: 'ROLE'
                         };
                     }
@@ -2481,21 +2618,28 @@
     /**
      * Model-based propagation pass: any subfolder that has no user assignments in
      * folderUserAssignments after the ACC load step inherits them from its nearest
-     * ancestor that DOES have assignments. Uses the data-parent-id chain.
+     * ancestor that DOES have assignments. Uses the ancestor chain read from
+     * currentHierarchy (not the rendered table's DOM — the indented tree is
+     * the only view now and doesn't render an HTML table, and even when the
+     * old table did exist, this only ever needed the folder id/parent-id
+     * relationships, which currentHierarchy already has).
      *
      * Called after loadExistingACCPermissions during lazy expansion so that folders
-     * at depth >= 2 get their inherited content filled in.
+     * at depth >= 2 get their inherited content filled in. Callers are
+     * responsible for re-rendering afterward — this only touches the model.
      */
     function propagatePermissionsToEmptyRows() {
-        const table = document.querySelector('.folders-table');
-        if (!table) return;
+        if (!currentHierarchy) return;
 
-        // Build lookup: folderId -> parent-id from DOM folder rows
+        // Build lookup: folderId -> parent folder id, from currentHierarchy
         const parentMap = new Map();
-        table.querySelectorAll('tr.folder-row').forEach(r => {
-            const id = r.getAttribute('data-folder-id');
-            const pid = r.getAttribute('data-parent-id');
-            if (id) parentMap.set(id, pid || null);
+        currentHierarchy.forEach(row => {
+            for (let d = 0; d < 20; d++) {
+                const f = row[levelKeyForDepth(d)];
+                if (!f || parentMap.has(f.id)) continue;
+                const parent = d > 0 ? row[levelKeyForDepth(d - 1)] : null;
+                parentMap.set(f.id, parent ? parent.id : null);
+            }
         });
 
         // Process each folder that has no model entries yet
@@ -2531,9 +2675,6 @@
 
             folderUserAssignments.set(folderId, Array.from(merged.values()));
         }
-
-        // Re-render to show the propagated data
-        reRenderFromModel();
     }
 
     /**
@@ -2721,7 +2862,6 @@
                     <div class="folders-modal-header">
                         <h3 id="foldersModalTitle">Folder Structure</h3>
                         <input type="text" id="userSearchInput" class="user-search-input" placeholder="Search users..." />
-                        <button id="openTreemapBtn" class="treemap-btn" title="Open treemap visualization">Open Treemap</button>
                         <button id="openIndentedTreeBtn" class="treemap-btn" title="Open expandable indented tree visualization">Indented Tree</button>
                         <button id="cleanTableBtn" class="clean-table-btn">Clean Folders</button>
                         <button id="expandAllBtn" class="expand-all-btn" title="Expand all folders one level deeper">Expand All</button>
@@ -3817,14 +3957,6 @@
         cleanTableBtn.addEventListener('click', () => {
             cleanTable();
         });
-
-        // Treemap button
-        const treemapBtn = document.getElementById('openTreemapBtn');
-        if (treemapBtn) {
-            treemapBtn.addEventListener('click', () => {
-                openTreemapModal();
-            });
-        }
 
         // Indented Tree button
         const indentedTreeBtn = document.getElementById('openIndentedTreeBtn');

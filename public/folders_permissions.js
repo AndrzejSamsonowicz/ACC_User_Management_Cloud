@@ -7,6 +7,25 @@
     'use strict';
 
     /**
+     * fetch() wrapper that retries on network-level failures only (fetch()
+     * throwing — connection reset, DNS hiccup, etc.) — NOT on HTTP error
+     * responses, which are a real answer from the server. fetchAllFolderPermissions
+     * fires batches of concurrent requests to developer.api.autodesk.com right
+     * after page load; on a cold connection one occasionally hits a transient
+     * "Failed to fetch" that a short retry clears up.
+     */
+    async function fetchWithRetry(url, options, retries = 2, delayMs = 300) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await fetch(url, options);
+            } catch (err) {
+                if (attempt >= retries) throw err;
+                await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+            }
+        }
+    }
+
+    /**
      * Fetch existing folder permissions from ACC
      * @param {string} projectId - The project ID (without 'b.' prefix for BIM360 API)
      * @param {string} folderId - The folder ID (URN)
@@ -18,11 +37,11 @@
         const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
         const encodedFolderId = encodeURIComponent(folderId);
         const url = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${encodedFolderId}/permissions`;
-        
+
         log('🔐 Fetching permissions for folder:', folderId);
 
         try {
-            const response = await fetch(url, {
+            const response = await fetchWithRetry(url, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
@@ -192,7 +211,10 @@
                             }
                             subjectPermissions[identifier] = {
                                 identifier: perm.email,
-                                displayName: perm.email,
+                                // Always "Name (email)" when a real name is available, so
+                                // this doesn't depend on whatever display-mode toggle was
+                                // active when the entry was created/loaded.
+                                displayName: (perm.name && perm.name !== perm.email) ? `${perm.name} (${perm.email})` : perm.email,
                                 type: 'USER',
                                 level: level,
                                 isInherited: isInherited,

@@ -19,7 +19,7 @@
         }
 
         const modalHTML = `
-            <div id="folderSyncModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+            <div id="folderSyncModal" style="position: fixed; z-index: 10200; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
                 <div style="background-color: white; padding: 0; border-radius: 8px; width: 90%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
                         <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">Folder Permissions Sync</h2>
@@ -457,74 +457,78 @@
         // Start sync immediately
         (async () => {
 
-            // Read permissions data directly from TABLE (not Firebase)
+            // Read permissions data directly from the shared model
+            // (folderUserAssignments + currentHierarchy) rather than scraping
+            // a rendered table's DOM — the indented tree is the only view now
+            // and doesn't render an HTML table, so the model is the single
+            // source of truth regardless of what's currently on screen.
             try {
-                const table = document.querySelector('.folders-table');
-                if (!table) {
-                    updateFolderSyncProgress('Error: No table found', 0);
+                if (typeof currentHierarchy === 'undefined' || !currentHierarchy || currentHierarchy.length === 0) {
+                    updateFolderSyncProgress('Error: No folder data loaded', 0);
                     isSyncing = false;
-                    log('🔓 Sync failed (no table) - button unlocked');
-                    alert('No folder permissions table found. Please reopen the modal.');
+                    log('🔓 Sync failed (no folder data) - button unlocked');
+                    alert('No folder data loaded. Please reopen the modal.');
                     return;
                 }
 
-                log('\n🔄 ========== READING FROM TABLE ==========');
-                
-                // Extract folders and permissions from table
+                log('\n🔄 ========== READING FROM MODEL ==========');
+
+                // Extract folders and permissions from folderUserAssignments,
+                // using currentHierarchy only to find each folder's depth
+                // (to skip root containers) and its own display name.
                 const folders = [];
 
-                // Vertical layout: folder rows are tr.folder-row, users are tr.user-sub-row
-                // Read from user sub-rows, skipping inherited ones
-                const folderRows = table.querySelectorAll('tbody tr.folder-row');
+                const folderMeta = new Map(); // folderId -> { depth, level1Name, name }
+                currentHierarchy.forEach(row => {
+                    for (let d = 0; d < 20; d++) {
+                        const f = row[levelKeyForDepth(d)];
+                        if (!f || folderMeta.has(f.id)) continue;
+                        folderMeta.set(f.id, {
+                            depth: d,
+                            level1Name: row[levelKeyForDepth(0)]?.name || null,
+                            name: f.name
+                        });
+                    }
+                });
 
-                folderRows.forEach(row => {
-                    const folderId = row.getAttribute('data-folder-id');
-                    if (!folderId) return;
+                folderMeta.forEach((meta, folderId) => {
+                    // "Project Files" (depth 0) is a real folder returned by
+                    // the same topFolders API as everything under it, with
+                    // its own folderId — the tree lets you drop permissions
+                    // on it same as any subfolder, and ACC's permissions API
+                    // accepts it the same way. It used to be skipped here on
+                    // the assumption it couldn't carry permissions, which is
+                    // exactly why edits made there never made it into Sync
+                    // while every subfolder synced fine.
 
-                    // Skip root container folders (depth 0, e.g. "Project Files") - ACC API doesn't support permissions on them
-                    const folderDepth = row.getAttribute('data-folder-depth');
-                    if (folderDepth === '0') return;
-
-                    const level1 = row.getAttribute('data-level1-name');
-                    const level2 = row.getAttribute('data-level2-name');
-                    const folderNameCell = row.querySelector('td.folder-name-cell');
-                    const folderDisplayName = folderNameCell ? folderNameCell.textContent.trim() : (level2 || folderId);
-
-                    // Find all direct (non-inherited) user sub-rows for this folder
-                    const userRows = table.querySelectorAll(`tr.user-sub-row[data-folder-parent-id="${CSS.escape(folderId)}"]:not([data-is-inherited="true"])`);
+                    // Direct (non-inherited) entries only.
+                    const entries = (folderUserAssignments.get(folderId) || []).filter(e => !e.isInherited);
                     const permissions = {};
                     let colIdx = 1;
 
-                    userRows.forEach(userRow => {
-                        const userName = userRow.getAttribute('data-user');
-                        const displayName = userRow.getAttribute('data-display-name') || userName;
-                        const subjectId = userRow.getAttribute('data-subject-id');
-                        const subjectType = userRow.getAttribute('data-subject-type');
-                        const permInput = userRow.querySelector('.cell-permission-level');
-                        const permissionLevel = permInput ? permInput.value.trim() : userRow.getAttribute('data-permission-level');
-
-                        if (userName && subjectId && subjectType && permissionLevel) {
+                    entries.forEach(entry => {
+                        if (entry.user && entry.subjectId && entry.subjectType && entry.level) {
                             permissions[`column${colIdx}`] = {
-                                subjectId: subjectId,
-                                subjectType: subjectType,
-                                user: displayName,
-                                level: permissionLevel
+                                subjectId: entry.subjectId,
+                                subjectType: entry.subjectType,
+                                user: entry.displayName || entry.user,
+                                level: entry.level
                             };
                             colIdx++;
                         }
                     });
 
-                    // Include every folder row (even empty) so deletions are sent to ACC
+                    // Include every folder (even empty) so deletions are sent to ACC
                     folders.push({
                         folderId: folderId,
-                        level1: level1,
-                        level2: folderDisplayName,
+                        level1: meta.level1Name,
+                        level2: meta.name,
                         level3: null,
                         permissions: permissions
                     });
                 });
 
-                log(`📊 Extracted ${folders.length} folders from table`);
+                log(`📊 Extracted ${folders.length} folders from model`);
                 
                 const jsonData = {
                     projectName: currentProjectData.projectName,
