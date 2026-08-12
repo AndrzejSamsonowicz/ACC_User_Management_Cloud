@@ -84,4 +84,7 @@ SampleUsers.csv
 # PM2 logs
 .pm2/
 
+# Generated tutorial-video recordings (regenerate via `npm run demo:record`)
+tools/demo-recorder/output/
+
 

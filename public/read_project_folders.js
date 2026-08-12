@@ -1725,106 +1725,207 @@
     function displayUserList(users, sortOrder = 'asc', displayMode = 'user') {
         const userListContainer = document.getElementById('foldersUserList');
 
+        // Each item carries its drag/select identifier (`value` — identical
+        // to what the old plain-string list used) separately from what's
+        // actually shown, so the avatar/name/email layout below doesn't have
+        // to be reverse-parsed out of a single text string.
         let itemsToDisplay = [];
 
-        // Determine what to display based on mode
         if (displayMode === 'user') {
-            // Show all users, always as "Name (email)" when a real name is available
-            itemsToDisplay = users.map(user =>
-                (user.name && user.name !== user.email) ? `${user.name} (${user.email})` : user.email
-            );
+            itemsToDisplay = users.map(user => {
+                const hasName = user.name && user.name !== user.email;
+                const value = hasName ? `${user.name} (${user.email})` : user.email;
+                return {
+                    value,
+                    primary: hasName ? user.name : user.email,
+                    secondary: hasName ? user.email : null,
+                    initials: itInitialsFor(user.name, user.email),
+                    iconType: 'user'
+                };
+            });
         } else if (displayMode === 'company') {
-            // Show unique companies
             const companies = [...new Set(users.map(user => user.company_name))];
-            itemsToDisplay = companies;
+            itemsToDisplay = companies.map(name => ({
+                value: name,
+                primary: name,
+                secondary: null,
+                initials: itInitialsFor(name, null),
+                iconType: 'company'
+            }));
         } else if (displayMode === 'role') {
-            // Show unique roles
             const roles = [...new Set(users.map(user => user.default_role))];
-            itemsToDisplay = roles;
+            itemsToDisplay = roles.map(name => ({
+                value: name,
+                primary: name,
+                secondary: null,
+                initials: itInitialsFor(name, null),
+                iconType: 'role'
+            }));
         }
-        
-        // Sort items based on selected order
-        if (sortOrder === 'desc') {
-            itemsToDisplay.sort((a, b) => b.localeCompare(a));
-        } else {
-            itemsToDisplay.sort((a, b) => a.localeCompare(b));
-        }
-        
+
+        itemsToDisplay.sort((a, b) => sortOrder === 'desc' ? b.value.localeCompare(a.value) : a.value.localeCompare(b.value));
+
+        // Preserve whether the help disclosure was open across a re-render
+        // (sort/mode changes replace the whole panel).
+        const helpWasOpen = !!userListContainer.querySelector('.pu-help')?.open;
+
         let userHTML = `
             <div class="user-list-header">
-                <div>Project Users</div>
-                <select id="userSortSelect" class="user-sort-select">
-                    <option value="asc" ${sortOrder === 'asc' ? 'selected' : ''}>A-Z</option>
-                    <option value="desc" ${sortOrder === 'desc' ? 'selected' : ''}>Z-A</option>
-                </select>
-                <div class="user-display-options">
-                    <label class="user-display-option">
-                        <input type="radio" name="userDisplay" value="user" ${displayMode === 'user' ? 'checked' : ''}>
-                        <span>Users</span>
-                    </label>
-                    <label class="user-display-option">
-                        <input type="radio" name="userDisplay" value="company" ${displayMode === 'company' ? 'checked' : ''}>
-                        <span>Company</span>
-                    </label>
-                    <label class="user-display-option">
-                        <input type="radio" name="userDisplay" value="role" ${displayMode === 'role' ? 'checked' : ''}>
-                        <span>Role</span>
-                    </label>
+                <div class="pu-title">Project Users</div>
+                <div class="pu-controls">
+                    <div class="it-segmented" id="userModeSegmented">
+                        <button type="button" class="it-seg-btn ${displayMode === 'user' ? 'active' : ''}" data-mode="user">Users</button>
+                        <button type="button" class="it-seg-btn ${displayMode === 'company' ? 'active' : ''}" data-mode="company">Company</button>
+                        <button type="button" class="it-seg-btn ${displayMode === 'role' ? 'active' : ''}" data-mode="role">Role</button>
+                    </div>
+                    <button type="button" class="pu-icon-btn" id="userSortToggle" data-order="${sortOrder}" title="Sort ${sortOrder === 'asc' ? 'A–Z' : 'Z–A'} (click to reverse)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h9M4 12h6M4 18h3M15 4v16m0 0l-3-3m3 3l3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
                 </div>
             </div>
-            <div class="user-list-instructions">
-                <strong>&#128161; Tip:</strong> Drag and drop a user, a company, or a role to add them to a folder.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Shift</strong> to select a range of users and apply the same access level.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> to toggle individual user selection.<br>
-                <strong>&#128161; Tip:</strong> Press <strong>Ctrl</strong> and <strong>scroll</strong> the mouse wheel to zoom in and out.<br>
-                <br>
-                Access levels:<br>
-                1 - View Only<br>
-                2 - View/Download<br>
-                3 - View/Download+PublishMarkups<br>
-                4 - View/Download+PublishMarkups+Upload<br>
-                5 - View/Download+PublishMarkups+Upload+Edit<br>
-                6 - Full control<br>
-                <br>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <strong style="font-size: 11px; margin-right: 4px;">Color Legend:</strong>
-                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #90caf9; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">User</span>
-                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #ffcc80; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">Company</span>
-                    <span style="display: inline-block; width: 60px; height: 18px; background-color: #a5d6a7; border-radius: 3px; text-align: center; font-size: 11px; line-height: 18px;">Role</span>
+            <details class="pu-help"${helpWasOpen ? ' open' : ''}>
+                <summary><span class="pu-chev">&#9656;</span> How dragging &amp; access levels work</summary>
+                <div class="pu-help-body">
+                    Drag a user, a company, or a role to add them to a folder.<br>
+                    Press <kbd>Shift</kbd> to select a range of users and apply the same access level.<br>
+                    Press <kbd>Ctrl</kbd> to toggle individual user selection.<br>
+                    Press <kbd>Ctrl</kbd> and <strong>scroll</strong> to zoom the tree in and out.<br>
+                    <div style="margin-top: 10px;"><strong>Access levels:</strong></div>
+                    <div>1 View Only</div>
+                    <div>2 View/Download</div>
+                    <div>3 +Markups</div>
+                    <div>4 +Upload</div>
+                    <div>5 +Edit</div>
+                    <div>6 Full control</div>
+                    <div class="pu-legend-row">
+                        <span class="pu-chip pu-chip-user">User</span>
+                        <span class="pu-chip pu-chip-company">Company</span>
+                        <span class="pu-chip pu-chip-role">Role</span>
+                    </div>
                 </div>
-            </div>
+            </details>
         `;
         userHTML += '<div class="user-list-items">';
-        
+
         itemsToDisplay.forEach(item => {
-            // item is a user email/name/company/role from ACC — escape before
-            // building HTML from it (stored XSS). .textContent reads below decode
-            // entities automatically, so drag/select behavior is unaffected.
-            userHTML += `<div class="user-list-item" draggable="true">${escapeHtml(item || '')}</div>`;
+            // Values come from ACC (user/company/role names) — escape before
+            // building HTML from them (stored XSS). The data-user attribute
+            // decodes back to the original string when read via .dataset,
+            // so drag/select behavior is unaffected.
+            const safeValue = escapeHtml(item.value || '');
+            const safePrimary = escapeHtml(item.primary || '');
+            const safeSecondary = item.secondary ? escapeHtml(item.secondary) : '';
+            const safeInitials = escapeHtml(item.initials || '?');
+            const iconType = item.iconType || 'user';
+            const colors = getSubjectColor(iconType === 'company' ? 'COMPANY' : iconType === 'role' ? 'ROLE' : 'USER', 3);
+            let iconMarkup = '';
+
+            if (iconType === 'company') {
+                iconMarkup = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="display:block;">
+                        <path d="M5 21V5a1 1 0 011-1h8a1 1 0 011 1v16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M15 21v-6a1 1 0 011-1h3a1 1 0 011 1v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M4 21h17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                        <path d="M8 7.5h2M8 11h2M8 14.5h2M11 7.5h2M11 11h2M11 14.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>`;
+            } else if (iconType === 'role') {
+                iconMarkup = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="display:block;">
+                        <circle cx="8" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                        <circle cx="16" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                        <path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                        <path d="M14 14.3c.7-.2 1.3-.3 2-.3 3.3 0 6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>`;
+            }
+
+            userHTML += `
+                <div class="user-list-item" draggable="true" data-user="${safeValue}" title="${safeValue}">
+                    <span class="pu-handle">&#8942;&#8942;</span>
+                    <span class="pu-avatar" style="background: ${colors.background}; color: ${colors.color};">${iconType === 'user' ? safeInitials : iconMarkup}</span>
+                    <span class="pu-item-text">
+                        <span class="pu-item-name">${safePrimary}</span>
+                        ${safeSecondary ? `<span class="pu-item-email">${safeSecondary}</span>` : ''}
+                    </span>
+                </div>`;
         });
-        
+
         userHTML += '</div>';
         userListContainer.innerHTML = userHTML;
-        
-        // Setup drag functionality for user list items
+
         setupUserListDrag();
-        
-        // Add event listener for sort change
-        const sortSelect = document.getElementById('userSortSelect');
-        if (sortSelect) {
-            sortSelect.addEventListener('change', (e) => {
-                displayUserList(currentProjectUsers, e.target.value, displayMode);
+        userListContainer.onclick = (event) => {
+            const item = event.target.closest('.user-list-item');
+            if (!item) {
+                selectedUsers = [];
+                lastSelectedUser = null;
+                userListContainer.querySelectorAll('.user-list-item').forEach(i => i.classList.remove('user-selected'));
+                return;
+            }
+
+            const userName = item.dataset.user;
+            const isSelected = selectedUsers.includes(userName);
+            const inRangeMode = event.shiftKey && lastSelectedUser !== null;
+            const isToggleMode = event.ctrlKey || event.metaKey;
+
+            if (inRangeMode) {
+                const items = Array.from(userListContainer.querySelectorAll('.user-list-item'));
+                const lastIndex = items.findIndex(i => i.dataset.user === lastSelectedUser);
+                const currentIndex = items.findIndex(i => i.dataset.user === userName);
+                if (lastIndex !== -1 && currentIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+                    const rangeNames = items.slice(start, end + 1).map(i => i.dataset.user);
+                    const nextSelection = Array.from(new Set([...selectedUsers, ...rangeNames]));
+                    userListContainer.querySelectorAll('.user-list-item').forEach(i => {
+                        i.classList.toggle('user-selected', nextSelection.includes(i.dataset.user));
+                    });
+                    selectedUsers = nextSelection;
+                    lastSelectedUser = userName;
+                    return;
+                }
+            }
+
+            if (isToggleMode) {
+                if (isSelected) {
+                    selectedUsers = selectedUsers.filter(u => u !== userName);
+                    item.classList.remove('user-selected');
+                    if (selectedUsers.length === 0) lastSelectedUser = null;
+                } else {
+                    selectedUsers.push(userName);
+                    item.classList.add('user-selected');
+                    lastSelectedUser = userName;
+                }
+                return;
+            }
+
+            if (isSelected && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                selectedUsers = [];
+                lastSelectedUser = null;
+                userListContainer.querySelectorAll('.user-list-item').forEach(i => i.classList.remove('user-selected'));
+                return;
+            }
+
+            userListContainer.querySelectorAll('.user-list-item').forEach(i => {
+                i.classList.toggle('user-selected', i.dataset.user === userName);
             });
-        }
-        
-        // Add event listeners for radio buttons
-        const radioButtons = document.querySelectorAll('input[name="userDisplay"]');
-        radioButtons.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const newMode = e.target.value;
-                displayUserList(currentProjectUsers, sortOrder, newMode);
+            selectedUsers = [userName];
+            lastSelectedUser = userName;
+        };
+
+        userListContainer.querySelectorAll('#userModeSegmented .it-seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('active')) return;
+                displayUserList(currentProjectUsers, sortOrder, btn.dataset.mode);
             });
         });
+
+        const sortToggle = document.getElementById('userSortToggle');
+        if (sortToggle) {
+            sortToggle.addEventListener('click', () => {
+                const newOrder = sortToggle.dataset.order === 'asc' ? 'desc' : 'asc';
+                displayUserList(currentProjectUsers, newOrder, displayMode);
+            });
+        }
     }
 
     /**
@@ -1834,58 +1935,11 @@
         const userItems = document.querySelectorAll('.user-list-item');
         const userItemsArray = Array.from(userItems);
         
-        userItems.forEach((item, index) => {
-            // Handle click for selection (with Shift for range selection)
-            item.addEventListener('click', (e) => {
-                const userName = item.textContent;
-                
-                if (e.shiftKey && lastSelectedUser !== null) {
-                    // Range selection mode
-                    const lastIndex = userItemsArray.findIndex(i => i.textContent === lastSelectedUser);
-                    const currentIndex = index;
-                    
-                    if (lastIndex !== -1) {
-                        const startIndex = Math.min(lastIndex, currentIndex);
-                        const endIndex = Math.max(lastIndex, currentIndex);
-                        
-                        // Select all users in the range
-                        for (let i = startIndex; i <= endIndex; i++) {
-                            const rangeItem = userItemsArray[i];
-                            const rangeUserName = rangeItem.textContent;
-                            
-                            if (!selectedUsers.includes(rangeUserName)) {
-                                selectedUsers.push(rangeUserName);
-                                rangeItem.classList.add('user-selected');
-                            }
-                        }
-                    }
-                } else if (e.ctrlKey || e.metaKey) {
-                    // Toggle individual selection (Ctrl/Cmd+Click)
-                    if (selectedUsers.includes(userName)) {
-                        // Deselect
-                        selectedUsers = selectedUsers.filter(u => u !== userName);
-                        item.classList.remove('user-selected');
-                    } else {
-                        // Add to selection
-                        selectedUsers.push(userName);
-                        item.classList.add('user-selected');
-                        lastSelectedUser = userName;
-                    }
-                } else {
-                    // Single select - clear previous selection
-                    document.querySelectorAll('.user-list-item').forEach(i => {
-                        i.classList.remove('user-selected');
-                    });
-                    selectedUsers = [userName];
-                    item.classList.add('user-selected');
-                    lastSelectedUser = userName;
-                }
-            });
-            
+        userItems.forEach((item) => {
             item.addEventListener('dragstart', (e) => {
                 e.dataTransfer.effectAllowed = 'copy';
-                const userName = item.textContent;
-                
+                const userName = item.dataset.user;
+
                 // If this item is part of a multi-selection, drag all selected users
                 if (selectedUsers.length > 1 && selectedUsers.includes(userName)) {
                     // Transfer multiple users as JSON
@@ -3011,7 +3065,7 @@
 
                 .expand-all-btn, .collapse-all-btn {
                     padding: 8px 16px;
-                    background-color: #17a2b8;
+                    background-color: #0696D7;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -3022,11 +3076,11 @@
                 }
 
                 .expand-all-btn:hover, .collapse-all-btn:hover {
-                    background-color: #138496;
+                    background-color: #0057A0;
                 }
 
                 .expand-all-btn:active, .collapse-all-btn:active {
-                    background-color: #117a8b;
+                    background-color: #004d86;
                 }
 
                 .save-btn {
@@ -3052,7 +3106,7 @@
 
                 .sync-btn {
                     padding: 10px 24px;
-                    background-color: #ff6b00;
+                    background-color: #0696D7;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -3064,16 +3118,16 @@
                 }
 
                 .sync-btn:hover {
-                    background-color: #e55d00;
+                    background-color: #0057A0;
                 }
 
                 .sync-btn:active {
-                    background-color: #cc5200;
+                    background-color: #004d86;
                 }
 
                 .treemap-btn {
                     padding: 8px 16px;
-                    background-color: #6f42c1;
+                    background-color: #0696D7;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -3082,8 +3136,8 @@
                     font-size: 14px;
                     transition: background-color 0.2s;
                 }
-                .treemap-btn:hover { background-color: #5a32a3; }
-                .treemap-btn:active { background-color: #4a2887; }
+                .treemap-btn:hover { background-color: #0057A0; }
+                .treemap-btn:active { background-color: #004d86; }
 
                 .treemap-overlay {
                     position: fixed;
@@ -3136,7 +3190,7 @@
                     cursor: pointer;
                     width: 16px;
                     height: 16px;
-                    accent-color: #6f42c1;
+                    accent-color: #0696D7;
                 }
                 .treemap-modal-body {
                     flex: 1;
@@ -3181,7 +3235,7 @@
                     cursor: pointer;
                     width: 14px;
                     height: 14px;
-                    accent-color: #6f42c1;
+                    accent-color: #0696D7;
                 }
                 .treemap-filter-swatch {
                     width: 14px;
@@ -3201,7 +3255,7 @@
                     outline: none;
                     transition: border-color 0.2s;
                 }
-                .treemap-search:focus { border-color: #6f42c1; }
+                .treemap-search:focus { border-color: #0696D7; }
                 .treemap-search::placeholder { color: #aaa; }
                 .treemap-loading-banner {
                     position: sticky;

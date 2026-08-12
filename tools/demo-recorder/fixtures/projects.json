@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "id": "b.4e9a1d6b-demo-atlantic",
+      "name": "Atlantic",
+      "platform": "acc",
+      "status": "active",
+      "type": "Construction"
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "totalResults": 1
+  }
+}

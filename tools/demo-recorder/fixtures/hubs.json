@@ -1,0 +1,20 @@
+{
+  "jsonapi": { "version": "1.0" },
+  "links": {
+    "self": { "href": "https://developer.api.autodesk.com/project/v1/hubs" }
+  },
+  "data": [
+    {
+      "type": "hubs",
+      "id": "b.7d1f2c3a-demo-sevenseas",
+      "attributes": {
+        "name": "SevenSeas",
+        "region": "US",
+        "extension": {
+          "type": "hubs:autodesk.bim360:Account",
+          "version": "1.0"
+        }
+      }
+    }
+  ]
+}

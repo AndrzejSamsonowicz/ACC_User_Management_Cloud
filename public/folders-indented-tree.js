@@ -46,6 +46,8 @@
     let itSelectedKeys = new Set(); // __keys of the currently-selected deletable rows (multi-select via Ctrl/Shift)
     let itSelectionAnchorKey = null; // last plain/shift-clicked key — the anchor a Shift+Click range is measured from
     let itCleaned = false; // true once "Clean Folders" has wiped the local model — suppresses lazy re-loading of ACC permissions until the modal is reopened
+    let itTreeBusy = false;
+    let itTreeBusyLabel = 'Loading folders…';
     // Tombstones for this modal session: deleting a grant only removes it from
     // folders already loaded into the local model. A not-yet-expanded
     // descendant folder still gets its permissions fetched fresh from ACC the
@@ -732,139 +734,38 @@
         }
     }
 
-    /** Every folder id currently present anywhere in currentHierarchy. */
-    function itCollectAllKnownFolderIds() {
-        const ids = new Set();
-        currentHierarchy.forEach(row => {
-            for (let d = 0; d < 20; d++) {
-                const f = row[levelKeyForDepth(d)];
-                if (f) ids.add(f.id);
-            }
-        });
-        return ids;
-    }
-
-    /** Folder ids that are leaves of the currently-loaded hierarchy AND have
-     * never actually been checked for children (as opposed to genuinely
-     * having none) — i.e. exactly what a real "expand everything" needs to
-     * go fetch next. */
-    function itFindUnfetchedFolderIds() {
-        const allIds = new Set();
-        const idsWithLoadedChildren = new Set();
-        currentHierarchy.forEach(row => {
-            for (let d = 0; d < 20; d++) {
-                const f = row[levelKeyForDepth(d)];
-                if (!f) continue;
-                allIds.add(f.id);
-                if (row[levelKeyForDepth(d + 1)]) idsWithLoadedChildren.add(f.id);
-            }
-        });
-        const unfetched = new Set();
-        allIds.forEach(id => {
-            if (!idsWithLoadedChildren.has(id) && folderChildrenCache[id] === undefined) unfetched.add(id);
-        });
-        return unfetched;
-    }
-
     /**
-     * Drain itFindUnfetchedFolderIds() round by round until nothing's left
-     * unfetched (or the safety cap trips). Deliberately gentle (modest
-     * concurrency + a pause between batches) — read_project_folders.js's
-     * fetchFolderContents() treats ANY non-OK response, including a rate
-     * limit, as "folder has no contents" and caches that verdict, so hammering
-     * the API here doesn't just risk failures, it risks silently-wrong
-     * "this folder is empty" answers baked into the cache. See the
-     * verification sweep in itFetchEntireFolderTree for the other half of
-     * the fix.
+     * Expand one more level of depth, everywhere at once: every folder
+     * currently visible (all its ancestors already expanded) that has
+     * children but isn't expanded yet gets expanded — lazily fetching its
+     * contents first if they aren't already known. Clicking "Expand"
+     * repeatedly walks the whole tree deeper one level at a time instead of
+     * recursively fetching every remaining level in a single burst, which on
+     * a large/complex project could take a very long time or hammer the API.
+     * Returns false if there was nothing left to expand (already full depth).
      */
-    async function itDrainUnfetchedFolders(onProgress, maxRounds, concurrency, batchDelayMs) {
-        let round = 0;
-        while (true) {
-            round++;
-            const toFetch = itFindUnfetchedFolderIds();
-            if (toFetch.size === 0 || round > maxRounds) break;
+    async function itExpandNextLevel() {
+        if (!currentProjectData || !currentHierarchy) return false;
 
-            const ids = Array.from(toFetch);
-            for (let i = 0; i < ids.length; i += concurrency) {
-                const batch = ids.slice(i, i + concurrency);
-                await Promise.all(batch.map(id =>
-                    loadChildrenForFolder(id).catch(err => {
-                        console.error('[IndentedTree] expand-all fetch failed for', id, err);
-                    })
-                ));
-                if (onProgress) onProgress();
-                if (batchDelayMs) await new Promise(r => setTimeout(r, batchDelayMs));
-            }
-        }
-    }
+        const data = itBuildData();
+        itAssignKeys(data.children || [], '', []);
+        const visible = itComputeVisible(data);
+        const frontier = visible.filter(v => itNodeHasChildren(v.data) && !itExpandedKeys.has(v.data.__key));
+        if (frontier.length === 0) return false;
 
-    /**
-     * Fully fetch the ENTIRE project folder tree (every level, not just
-     * whatever's been lazily loaded so far) and its permissions, then mark
-     * every folder "visible" so loadExistingACCPermissions actually covers
-     * all of it. This is what "Expand All" now does first — the previous
-     * version only expanded whatever data already happened to be loaded, so
-     * it silently stopped wherever the last lazy-load left off (not a fixed
-     * depth, just however far anyone had clicked before).
-     */
-    async function itFetchEntireFolderTree(onProgress) {
-        if (!currentProjectData || !currentHierarchy) return;
-
-        await itDrainUnfetchedFolders(onProgress, 60, 4, 100);
-
-        // Verification sweep: a folder cached as "empty" might genuinely have
-        // no children, OR its request may have failed (rate-limited, etc.) —
-        // fetchFolderContents can't tell the two apart and silently treats
-        // both as "no contents". Clear those cache entries and re-check once
-        // so a transient failure can't masquerade as a real dead end (this is
-        // exactly what was cutting the tree short before: a deep branch got
-        // silently marked empty and, since its cache was no longer
-        // "unfetched", never retried).
-        const emptyIds = Array.from(itCollectAllKnownFolderIds()).filter(id => {
-            const cached = folderChildrenCache[id];
-            return Array.isArray(cached) && cached.length === 0;
-        });
-        if (emptyIds.length > 0) {
-            for (let i = 0; i < emptyIds.length; i += 3) {
-                const batch = emptyIds.slice(i, i + 3);
-                await Promise.all(batch.map(async id => {
-                    delete folderChildrenCache[id];
-                    try {
-                        await loadChildrenForFolder(id);
-                    } catch (err) {
-                        console.error('[IndentedTree] expand-all re-check failed for', id, err);
-                    }
-                }));
-                if (onProgress) onProgress();
-                await new Promise(r => setTimeout(r, 150));
-            }
-            // Anything the re-check actually revealed needs its own children
-            // fetched too, going as deep as it takes.
-            await itDrainUnfetchedFolders(onProgress, 30, 4, 100);
+        const folderNodes = frontier.filter(v => v.data.type === 'folder' && v.data.folderId);
+        const CONCURRENCY = 4;
+        for (let i = 0; i < folderNodes.length; i += CONCURRENCY) {
+            const batch = folderNodes.slice(i, i + CONCURRENCY);
+            await Promise.all(batch.map(v =>
+                itFetchAndPeek(v.data.folderId).catch(err => {
+                    console.error('[IndentedTree] expand-next-level fetch failed for', v.data.folderId, err);
+                })
+            ));
         }
 
-        const allIds = itCollectAllKnownFolderIds();
-        allIds.forEach(id => expandedFolderIds.add(id));
-
-        if (window.FolderPermissions?.fetchAllFolderPermissions && !itCleaned) {
-            const idsArr = Array.from(allIds);
-            const BATCH = 30;
-            for (let i = 0; i < idsArr.length; i += BATCH) {
-                const batchIds = new Set(idsArr.slice(i, i + BATCH));
-                try {
-                    await loadExistingACCPermissions(
-                        currentProjectData.projectId, currentHierarchy,
-                        currentProjectUsers, currentProjectData.accessToken,
-                        { onlyFolderIds: batchIds }
-                    );
-                    itPurgeTombstonedEntries(Array.from(batchIds));
-                } catch (err) {
-                    console.error('[IndentedTree] expand-all permission load error:', err);
-                }
-                if (onProgress) onProgress();
-            }
-            propagatePermissionsToEmptyRows();
-        }
+        frontier.forEach(v => itExpandedKeys.add(v.data.__key));
+        return true;
     }
 
     /**
@@ -943,11 +844,15 @@
 
         if (itMode === 'folders' && node.type === 'folder' && node.folderId && !itLoadingKeys.has(key)) {
             itLoadingKeys.add(key);
+            itTreeBusy = true;
+            itTreeBusyLabel = 'Loading folders…';
             itRenderTree(container); // show a loading state immediately
             try {
                 await itFetchAndPeek(node.folderId);
             } finally {
                 itLoadingKeys.delete(key);
+                itTreeBusy = itLoadingKeys.size > 0;
+                itRenderTree(container);
             }
         }
 
@@ -1365,8 +1270,8 @@
                 .attr('x', -IT_BOX_HALF).attr('y', -IT_BOX_HALF)
                 .attr('width', IT_BOX).attr('height', IT_BOX)
                 .attr('rx', 2)
-                .attr('fill', loading ? '#999' : (expanded ? '#fff' : '#333'))
-                .attr('stroke', '#333')
+                .attr('fill', loading ? '#bdbdbd' : '#a8a8a8')
+                .attr('stroke', '#7a7a7a')
                 .attr('stroke-width', 1);
             if (isSubjectRow) {
                 toggleRect.style('cursor', 'pointer').on('click', (event) => {
@@ -1379,8 +1284,8 @@
                 .attr('x', 0).attr('y', 3.5)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', loading ? '8px' : '11px').attr('font-weight', 'bold')
-                .attr('font-family', 'Arial, sans-serif')
-                .attr('fill', loading ? '#fff' : (expanded ? '#333' : '#fff'))
+                .attr('font-family', "'Artifact Elements', Arial, sans-serif")
+                .attr('fill', '#ffffff')
                 .style('pointer-events', 'none')
                 .text(loading ? '…' : (expanded ? '−' : '+'));
         }
@@ -1400,9 +1305,9 @@
             .attr('x', nameX).attr('y', 4)
             .attr('font-size', '12.5px')
             .attr('font-family', "'Artifact Elements', Arial, sans-serif")
-            .attr('font-weight', (d.type === 'folder' || d.type === 'group') ? 'bold' : (d.__matched ? 'bold' : 'normal'))
+            .attr('font-weight', (d.type === 'folder' || d.type === 'group') ? '600' : (d.__matched ? 'bold' : 'normal'))
             .attr('font-style', d.isInherited ? 'italic' : 'normal')
-            .attr('fill', d.__matched ? '#ff6b00' : (d.isInherited ? '#999' : '#222'))
+            .attr('fill', d.__matched ? '#ff6b00' : (d.type === 'folder' || d.type === 'group' ? '#5f6368' : (d.isInherited ? '#999' : '#222')))
             .style('cursor', deletable ? 'pointer' : null)
             .text(displayName);
         if (isSubjectRow) {
@@ -1540,11 +1445,14 @@
         // folders-per-user ("Users → Folders"). A user with 0 access is
         // flagged in orange — the whole point of being able to sort by this. -----
         if (itUsersColumnVisible() && typeof d.userCount === 'number') {
+            // A folder with nobody's access doesn't need a "0" competing for
+            // attention with every sibling that actually has people in it —
+            // a faint dash reads as "nothing here" without shouting it.
             const colX = boundaries.usersStart - rowX + 8;
             sel.append('text')
                 .attr('x', colX).attr('y', 3)
-                .attr('font-size', '11px').attr('fill', d.userCount > 0 ? '#444' : '#bbb')
-                .text(d.userCount);
+                .attr('font-size', '11px').attr('fill', d.userCount > 0 ? '#444' : '#ccc')
+                .text(d.userCount > 0 ? d.userCount : '—');
         } else if (itUsersColumnVisible() && accessCountText) {
             const colX = boundaries.usersStart - rowX + 8;
             sel.append('text')
@@ -1589,7 +1497,7 @@
             d3.select(rowEl).insert('rect', ':first-child')
                 .attr('class', 'it-drop-highlight')
                 .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
-                .attr('fill', 'rgba(111,66,193,0.15)')
+                .attr('fill', 'rgba(13,110,253,0.12)')
                 .style('pointer-events', 'none');
         }
     }
@@ -1680,7 +1588,7 @@
                     g.insert('rect', ':first-child')
                         .attr('class', 'it-drop-highlight')
                         .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
-                        .attr('fill', 'rgba(111,66,193,0.15)')
+                        .attr('fill', 'rgba(13,110,253,0.12)')
                         .style('pointer-events', 'none');
                 }
             })
@@ -1772,6 +1680,7 @@
 
         const rowMerge = rowEnter.merge(rowSel);
         rowMerge.style('cursor', d => rowCursor(d.data));
+        rowMerge.classed('it-row-zebra', (d, i) => i % 2 === 1);
         rowMerge.each(function(d) {
             const g = d3.select(this);
             g.selectAll('*').remove();
@@ -1818,7 +1727,16 @@
         const modeLabel = itMode === 'folders' ? 'Folders → Users'
             : itMode === 'users' ? 'Users → Folders'
             : 'Roles/Companies → Users → Folders';
-        el.textContent = `${modeLabel} — ${count} row${count === 1 ? '' : 's'} visible`;
+        const selCount = itSelectedKeys.size;
+        const isBusy = itTreeBusy || itLoadingKeys.size > 0;
+        const busyMarkup = isBusy
+            ? '<div class="it-progress-wrap" aria-live="polite"><div class="it-progress-bar"></div></div><div class="it-status-line"><span class="it-status-busy"><span class="it-busy-dot"></span>' + (itTreeBusyLabel || 'Loading folders…') + '</span></div>'
+            : '';
+        const items = [
+            `<span>${modeLabel} — ${count} row${count === 1 ? '' : 's'} visible</span>`,
+            selCount > 0 ? `<span class="it-status-sel">${selCount} selected</span>` : ''
+        ].filter(Boolean);
+        el.innerHTML = busyMarkup + '<div class="it-status-line">' + items.join(' ') + '</div>';
     }
 
     /**
@@ -2053,27 +1971,64 @@
                 font-family: 'Artifact Elements', Arial, sans-serif;
             }
             .it-modal-header {
-                display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+                display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
                 padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0;
             }
-            .it-modal-header h3 { margin: 0; font-size: 18px; }
-            .it-toggle-group { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-            .it-radio-label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #333; cursor: pointer; }
-            .it-radio-label input[type="radio"] { cursor: pointer; width: 15px; height: 15px; accent-color: #6f42c1; }
+            .it-modal-header h3 { margin: 0; font-size: 17px; }
+            .it-modal-header h3 .it-proj { color: #888; font-weight: 500; }
+
+            /* ---- Segmented control — replaces plain radio buttons for both
+               the view-orientation switcher here and the Users/Company/Role
+               switcher in the left rail. ---- */
+            /* index.html has a site-wide "button, .btn { ... !important }"
+               rule (blue fill, 200px min-width, 44px height, 4px margin) —
+               every button below has to explicitly beat that with its own
+               !important on the same properties, or it wins regardless of
+               how specific our class selectors are. */
+            .it-segmented {
+                display: inline-flex !important; padding: 3px !important; background: #eef0f2 !important;
+                border: 1px solid #dcdcdc !important; border-radius: 999px !important; gap: 2px;
+                min-width: 0 !important; height: auto !important; margin: 0 !important;
+            }
+            .it-seg-btn {
+                border: 0 !important; background: transparent !important; padding: 6px 13px !important;
+                font-size: 12.5px !important; font-weight: 600 !important; color: #555 !important;
+                border-radius: 999px !important; cursor: pointer; font-family: inherit !important; white-space: nowrap;
+                min-width: 0 !important; height: auto !important; margin: 0 !important;
+                display: inline-flex !important; align-items: center; justify-content: center;
+            }
+            .it-seg-btn.active { background: #0696D7 !important; color: #fff !important; }
+            .it-seg-btn:not(.active):hover { background: #e2e4e7 !important; color: #222 !important; }
+
+            .it-search-wrap { position: relative; }
+            .it-search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); opacity: .48; pointer-events: none; }
             .it-search {
-                padding: 6px 10px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;
-                width: 200px; outline: none;
+                padding: 6px 26px 6px 28px; font-size: 12.5px; border: 1px solid #ccc; border-radius: 4px;
+                width: 200px; height: auto; outline: none; font-family: inherit; margin: 0;
             }
-            .it-search:focus { border-color: #6f42c1; }
+            .it-search:focus { border-color: #0696D7; box-shadow: 0 0 0 3px rgba(6,150,215,0.14); }
+            .it-search-clear {
+                position: absolute !important; right: 5px; top: 50%; transform: translateY(-50%);
+                border: 0 !important; background: none !important; color: #999 !important; cursor: pointer;
+                font-size: 15px !important; line-height: 1; padding: 3px !important; display: none; border-radius: 3px !important;
+                min-width: 0 !important; height: auto !important; margin: 0 !important;
+            }
+            .it-search-clear:hover { background: #e2e4e7 !important; color: #333 !important; }
+            .it-search-wrap.has-value .it-search-clear { display: block !important; }
+
             .it-small-btn {
-                padding: 6px 12px; background: #6f42c1; color: #fff; border: none; border-radius: 4px;
-                cursor: pointer; font-size: 13px;
+                padding: 6px 12px !important; background: transparent !important; color: #555 !important;
+                border: 1px solid #ccc !important; border-radius: 4px !important;
+                cursor: pointer; font-size: 12.5px !important; font-weight: 600 !important; font-family: inherit !important;
+                display: inline-flex !important; align-items: center; justify-content: center; gap: 5px;
+                min-width: 0 !important; height: auto !important; margin: 0 !important;
             }
-            .it-small-btn:hover { background: #5a32a3; }
-            .it-danger-btn { background: #dc3545; }
-            .it-danger-btn:hover { background: #c82333; }
-            .it-sync-btn { background: #ff6b00; font-weight: bold; }
-            .it-sync-btn:hover { background: #e55d00; }
+            .it-small-btn:hover { background: #eef0f2 !important; color: #222 !important; border-color: #b8b8b8 !important; }
+            .it-small-btn:disabled { opacity: .55; cursor: default; background: transparent !important; }
+            .it-danger-btn { background: #dc3545 !important; color: #fff !important; border-color: #dc3545 !important; }
+            .it-danger-btn:hover { background: #c82333 !important; border-color: #c82333 !important; }
+            .it-sync-btn { background: #0696D7 !important; color: #fff !important; border-color: #0696D7 !important; font-weight: bold !important; }
+            .it-sync-btn:hover { background: #0057A0 !important; border-color: #0057A0 !important; }
             .it-error-message {
                 padding: 20px; margin: 15px 20px; background: #fff3cd; color: #856404;
                 border: 2px solid #ffc107; border-radius: 8px; text-align: center; flex-shrink: 0;
@@ -2083,7 +2038,7 @@
                 color: #666; font-size: 28px; font-weight: bold; cursor: pointer;
                 margin-left: auto; line-height: 1; padding: 0 8px; transition: all 0.2s;
             }
-            .it-close:hover { color: #ff6b00; transform: scale(1.2); }
+            .it-close:hover { color: #dc3545; transform: scale(1.2); }
             .it-modal-body-wrap { flex: 1; overflow: auto; position: relative; }
             .it-modal-body {
                 padding: 10px 0;
@@ -2094,26 +2049,62 @@
             .it-col-header {
                 display: flex; position: sticky; top: 0; left: 0; z-index: 5;
                 background: #f0f0f0; border-bottom: 2px solid #ccc;
-                font-size: 12px; font-weight: bold; color: #555; user-select: none;
+                font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: #666; user-select: none;
             }
             .it-col-cell {
                 position: relative; padding: 6px 8px; box-sizing: border-box;
                 border-right: 1px solid #ddd; white-space: nowrap; overflow: hidden; flex-shrink: 0;
             }
+            .it-col-cell[data-col="name"] {
+                padding-left: 26px;
+            }
             .it-col-resizer {
                 position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
                 cursor: col-resize; z-index: 6;
             }
-            .it-col-resizer:hover, .it-col-resizer.it-col-resizing { background: rgba(111,66,193,0.35); }
+            .it-col-resizer:hover, .it-col-resizer.it-col-resizing { background: rgba(13,110,253,0.25); }
+            .it-row:hover { background: rgba(13,110,253,0.045); }
+            .it-row.it-row-zebra { background: rgba(0,0,0,0.014); }
+            .it-row.it-row-zebra:hover { background: rgba(13,110,253,0.045); }
             #itStatusBar {
-                padding: 4px 20px; font-size: 11px; color: #888; border-top: 1px solid #eee; background: #fafafa; flex-shrink: 0;
+                padding: 6px 20px 8px; font-size: 11px; color: #888; border-top: 1px solid #eee; background: #fafafa;
+                flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;
+            }
+            .it-status-line {
+                display: flex; align-items: center; justify-content: space-between; gap: 8px;
+                min-height: 16px;
+            }
+            .it-status-sel { color: #0696D7; font-weight: 700; }
+            .it-progress-wrap {
+                position: relative; width: 100%; height: 4px; border-radius: 999px; background: rgba(6, 150, 215, 0.12);
+                overflow: hidden;
+            }
+            .it-progress-bar {
+                position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit;
+                background: linear-gradient(90deg, rgba(6,150,215,0.2), rgba(6,150,215,0.85), rgba(6,150,215,0.2));
+                animation: itBusyPulse 1.25s ease-in-out infinite;
+            }
+            .it-status-busy {
+                display: inline-flex; align-items: center; gap: 6px; color: #4f6477; font-weight: 600;
+            }
+            .it-busy-dot {
+                width: 7px; height: 7px; border-radius: 50%; background: #0696D7; box-shadow: 0 0 0 2px rgba(6,150,215,0.18);
+                animation: itBusyDotPulse 1.1s ease-in-out infinite alternate;
+            }
+            @keyframes itBusyPulse {
+                0% { transform: translateX(-30%); }
+                50% { transform: translateX(150%); }
+                100% { transform: translateX(240%); }
+            }
+            @keyframes itBusyDotPulse {
+                from { opacity: 0.5; transform: scale(0.9); }
+                to { opacity: 1; transform: scale(1.1); }
             }
 
-            /* ---- Project Users panel (drag source) — same look as the
-               retired table view's left panel; displayUserList()/
-               setupUserListDrag() in read_project_folders.js render into
-               and drive #foldersUserList unchanged, they just need these
-               class names to exist somewhere on the page. ---- */
+            /* ---- Project Users panel (drag source) — displayUserList()/
+               setupUserListDrag() in read_project_folders.js render into and
+               drive #foldersUserList unchanged, they just need these class
+               names to exist somewhere on the page. ---- */
             .folders-user-list {
                 background-color: #f8f9fa;
                 overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column;
@@ -2123,33 +2114,58 @@
                 border-right: 2px solid #ddd; margin-right: -6px; position: relative; z-index: 3;
             }
             .user-list-header {
-                padding: 15px 20px; background-color: #e9ecef; font-weight: bold; font-size: 16px;
-                color: #333; border-bottom: 2px solid #ddd; position: sticky; top: 0; z-index: 10;
-                display: flex; flex-direction: column; gap: 10px;
+                padding: 14px 16px; background-color: #fff; border-bottom: 1px solid #ddd;
+                position: sticky; top: 0; z-index: 10; display: flex; flex-direction: column; gap: 10px;
             }
-            .user-list-header > div:first-child { font-size: 16px; }
-            .user-sort-select {
-                padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; background-color: white;
-                font-family: 'Artifact Elements', Arial, sans-serif; font-size: 13px; cursor: pointer; width: 100%;
+            .user-list-header .pu-title { font-size: 14.5px; font-weight: 700; color: #222; }
+            .pu-controls { display: flex; align-items: center; gap: 8px; }
+            .pu-controls .it-segmented { flex: 1; }
+            .pu-controls .it-seg-btn { flex: 1 !important; padding: 6px 8px !important; }
+            .pu-icon-btn {
+                display: inline-flex !important; align-items: center; justify-content: center;
+                width: 30px !important; height: 30px !important; min-width: 0 !important; margin: 0 !important;
+                border-radius: 4px !important; border: 1px solid #ccc !important; background: #fff !important;
+                color: #666 !important; cursor: pointer; flex-shrink: 0; padding: 0 !important;
             }
-            .user-sort-select:focus { outline: 2px solid #007bff; outline-offset: 1px; }
-            .user-display-options { display: flex; flex-direction: column; gap: 8px; }
-            .user-display-option { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: normal; }
-            .user-display-option input[type="radio"] { cursor: pointer; width: 16px; height: 16px; }
-            .user-display-option:hover { color: #007bff; }
-            .user-list-instructions {
-                padding: 12px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd;
-                font-size: 12px; line-height: 1.6; color: #555;
+            .pu-icon-btn:hover { color: #222 !important; border-color: #999 !important; background: #f5f5f5 !important; }
+
+            .pu-help { border-bottom: 1px solid #ddd; background: #fff; }
+            .pu-help summary {
+                list-style: none; cursor: pointer; padding: 10px 16px; font-size: 12px; font-weight: 600;
+                color: #0696D7; display: flex; align-items: center; gap: 6px; user-select: none;
             }
-            .user-list-items { padding: 10px; }
-            .user-list-item-wrapper { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+            .pu-help summary::-webkit-details-marker { display: none; }
+            .pu-help summary .pu-chev { transition: transform .15s; font-size: 9px; display: inline-block; }
+            .pu-help[open] summary .pu-chev { transform: rotate(90deg); }
+            .pu-help-body { padding: 0 16px 14px; font-size: 12px; color: #555; line-height: 1.7; }
+            .pu-help-body kbd {
+                font-family: inherit; font-size: 11px; font-weight: 700; color: #333;
+                background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; padding: 1px 5px;
+            }
+            .pu-legend-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+            .pu-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+            .pu-chip-user { background: #dceafd; color: #1560c4; }
+            .pu-chip-company { background: #ffe6c2; color: #a86a10; }
+            .pu-chip-role { background: #ddf2de; color: #297a37; }
+
+            .user-list-items { padding: 8px; display: flex; flex-direction: column; gap: 3px; }
             .user-list-item {
-                flex: 1; padding: 8px 10px; background-color: white; border: 1px solid #ddd; border-radius: 4px;
-                font-size: 13px; color: #333; word-break: break-all; cursor: grab; transition: all 0.2s;
+                display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 5px;
+                border: 1px solid transparent; font-size: 12.5px; color: #222; cursor: grab; transition: background .12s, border-color .12s;
             }
-            .user-list-item:hover { background-color: #e3f2fd; border-color: #007bff; transform: translateX(-2px); }
-            .user-list-item.user-selected { background-color: #1976d2; color: white; border-color: #0d47a1; font-weight: bold; }
+            .user-list-item:hover { background: #fff; border-color: #ddd; }
+            .user-list-item.user-selected { background-color: #0696D7; border-color: #0057A0; color: #fff; }
+            .user-list-item.user-selected .pu-item-email, .user-list-item.user-selected .pu-handle { color: rgba(255,255,255,0.75); }
             .user-list-item.dragging { opacity: 0.5; cursor: grabbing; }
+            .pu-handle { color: #b7b7b7; font-size: 11px; letter-spacing: -2px; flex-shrink: 0; }
+            .pu-avatar {
+                width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center;
+                justify-content: center; font-size: 10px; font-weight: 700; background: #dceafd; color: #1560c4;
+            }
+            .user-list-item.user-selected .pu-avatar { background: rgba(255,255,255,0.25); color: #fff; }
+            .pu-item-text { min-width: 0; display: flex; flex-direction: column; }
+            .pu-item-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .pu-item-email { font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         `;
         document.head.appendChild(style);
     }
@@ -2180,13 +2196,17 @@
             <div class="it-modal">
                 <div class="it-modal-header">
                     <h3 id="itModalTitle">Folder Access</h3>
-                    <div class="it-toggle-group">
-                        <label class="it-radio-label"><input type="radio" name="itModeRadio" value="folders" checked /> Folders → Users</label>
-                        <label class="it-radio-label"><input type="radio" name="itModeRadio" value="users" /> Users → Folders</label>
-                        <label class="it-radio-label"><input type="radio" name="itModeRadio" value="subjects" /> Roles/Companies → Users → Folders</label>
+                    <div class="it-segmented" id="itModeSegmented" role="tablist" aria-label="View orientation">
+                        <button type="button" class="it-seg-btn active" data-mode="folders">Folders → Users</button>
+                        <button type="button" class="it-seg-btn" data-mode="users">Users → Folders</button>
+                        <button type="button" class="it-seg-btn" data-mode="subjects">Roles/Companies → Users → Folders</button>
                     </div>
-                    <input type="text" id="itSearch" class="it-search" placeholder="Search name or email..." autocomplete="off" />
-                    <button id="itExpandAllBtn" class="it-small-btn" type="button">Expand All</button>
+                    <div class="it-search-wrap">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+                        <input type="text" id="itSearch" class="it-search" placeholder="Search name or email..." autocomplete="off" />
+                        <button type="button" class="it-search-clear" id="itSearchClear" title="Clear search">&times;</button>
+                    </div>
+                    <button id="itExpandAllBtn" class="it-small-btn" type="button">Expand</button>
                     <button id="itCollapseAllBtn" class="it-small-btn" type="button">Collapse All</button>
                     <button id="itCleanBtn" class="it-small-btn it-danger-btn" type="button">Clean Folders</button>
                     <button id="itSyncBtn" class="it-small-btn it-sync-btn" type="button">Sync with the project</button>
@@ -2247,9 +2267,12 @@
             if (container) itRenderTree(container);
         });
 
-        overlay.querySelectorAll('input[name="itModeRadio"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                itMode = radio.value;
+        overlay.querySelectorAll('#itModeSegmented .it-seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('active')) return;
+                overlay.querySelectorAll('#itModeSegmented .it-seg-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                itMode = btn.dataset.mode;
                 itExpandedKeys = new Set();
                 itUserSortMode = null;
                 itSelectedKeys = new Set();
@@ -2262,8 +2285,11 @@
         });
 
         const searchInput = document.getElementById('itSearch');
+        const searchWrap = searchInput.closest('.it-search-wrap');
+        const searchClearBtn = document.getElementById('itSearchClear');
         let itSearchTimeout = null;
         searchInput.addEventListener('input', () => {
+            searchWrap.classList.toggle('has-value', searchInput.value.length > 0);
             clearTimeout(itSearchTimeout);
             itSearchTimeout = setTimeout(() => {
                 itSearchQuery = searchInput.value.trim();
@@ -2271,32 +2297,43 @@
                 if (container) itRenderTree(container);
             }, 200);
         });
+        searchClearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchWrap.classList.remove('has-value');
+            itSearchQuery = '';
+            const container = document.getElementById('itContainer');
+            if (container) itRenderTree(container);
+            searchInput.focus();
+        });
 
+        // "Expand" reveals one more level of depth per click (every
+        // currently-visible collapsed folder gets expanded at once) rather
+        // than recursively fetching the entire remaining tree in one shot —
+        // on a large/deep project the old "Expand All" could take a very
+        // long time or hammer the API. Clicking repeatedly still gets you
+        // to full depth, just at a pace the API and the UI can keep up with.
         const expandAllBtn = document.getElementById('itExpandAllBtn');
-        let expandAllInFlight = false;
+        let expandInFlight = false;
         expandAllBtn.addEventListener('click', async () => {
-            if (expandAllInFlight) return;
-            expandAllInFlight = true;
+            if (expandInFlight) return;
+            expandInFlight = true;
             const originalLabel = expandAllBtn.textContent;
             expandAllBtn.disabled = true;
+            expandAllBtn.textContent = 'Expanding…';
+            itTreeBusy = true;
+            itTreeBusyLabel = 'Expanding tree…';
+            const container = document.getElementById('itContainer');
+            if (container) itRenderTree(container);
 
             try {
-                await itFetchEntireFolderTree(() => {
-                    expandAllBtn.textContent = `Expanding... (${itCollectAllKnownFolderIds().size} folders)`;
-                });
+                await itExpandNextLevel();
             } finally {
                 expandAllBtn.textContent = originalLabel;
                 expandAllBtn.disabled = false;
-                expandAllInFlight = false;
+                expandInFlight = false;
+                itTreeBusy = false;
+                if (container) itRenderTree(container);
             }
-
-            const data = itBuildData();
-            itAssignKeys(data.children || [], '', []);
-            const allKeys = [];
-            itCollectAllKeys(data.children || [], allKeys);
-            allKeys.forEach(k => itExpandedKeys.add(k));
-            const container = document.getElementById('itContainer');
-            if (container) itRenderTree(container);
         });
 
         document.getElementById('itCollapseAllBtn').addEventListener('click', () => {

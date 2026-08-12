@@ -23,6 +23,10 @@
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:stop": "pm2 stop acc-user-management",
     "pm2:restart": "pm2 restart acc-user-management",
-    "pm2:logs": "pm2 logs acc-user-management"
+    "pm2:logs": "pm2 logs acc-user-management",
+    "demo:record": "node tools/demo-recorder/record-hub-project-demo.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }
