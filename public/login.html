@@ -334,6 +334,32 @@
                         return;
                     }
                     
+                    // If the user just bought a license as an existing account holder
+                    // (register.html hands this off when the email is already taken),
+                    // apply it now, before validate-login - otherwise an expired
+                    // trial/license bounces them to purchase.html before we get the
+                    // chance to attach the key they just bought.
+                    const pendingLicenseKey = sessionStorage.getItem('pendingLicenseKey');
+                    if (pendingLicenseKey) {
+                        sessionStorage.removeItem('pendingLicenseKey');
+                        try {
+                            const applyResponse = await fetch(`${window.location.origin}/api/apply-license-key`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ licenseKey: pendingLicenseKey })
+                            });
+                            const applyData = await applyResponse.json();
+                            if (!applyResponse.ok || !applyData.success) {
+                                showAlert(applyData.error || 'Failed to apply license key. You can try again from the Purchase page.', 'error');
+                            }
+                        } catch (applyError) {
+                            console.error('Error applying license key:', applyError);
+                        }
+                    }
+
                     // Validate login with server
                     const response = await fetch(`${window.location.origin}/api/validate-login`, {
                         method: 'POST',
@@ -341,9 +367,9 @@
                             'Authorization': `Bearer ${token}`
                         }
                     });
-                    
+
                     const data = await response.json();
-                    
+
                     if (!response.ok || !data.success) {
                         if (data.redirectTo) {
                             showAlert(data.error || 'License validation failed', 'error');
@@ -355,7 +381,7 @@
                         }
                         return;
                     }
-                    
+
                     // Redirect based on user role
                     showAlert('Login successful! Redirecting...', 'success');
                     window.location.href = data.redirectTo;

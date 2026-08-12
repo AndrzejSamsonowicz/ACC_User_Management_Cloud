@@ -314,7 +314,13 @@
         const auth = firebase.auth();
 
         const serverURL = window.location.origin;
-        
+
+        // Prefill the license key if we arrived here from purchase.html's success page
+        const prefillLicenseKey = new URLSearchParams(window.location.search).get('licenseKey');
+        if (prefillLicenseKey) {
+            document.getElementById('licenseKey').value = prefillLicenseKey.toUpperCase();
+        }
+
         // Format license key input
         document.getElementById('licenseKey').addEventListener('input', (e) => {
             let value = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -442,10 +448,25 @@
                 console.error('Registration error:', error);
                 
                 let errorMessage = 'Registration failed. Please try again.';
-                
+                let handled = false;
+
                 switch (error.code) {
                     case 'auth/email-already-in-use':
-                        errorMessage = 'An account with this email already exists.';
+                        if (licenseKey) {
+                            // Existing account, not a new signup - hand the key off to
+                            // login.html, which applies it to the account after auth.
+                            sessionStorage.setItem('pendingLicenseKey', licenseKey);
+                            showAlert('An account with this email already exists. Log in below and this license key will be applied to your account automatically.', 'info');
+                            const loginLink = document.createElement('a');
+                            loginLink.href = 'login.html';
+                            loginLink.textContent = 'Go to Log In →';
+                            loginLink.style.cssText = 'display:inline-block;margin-top:10px;color:#0696D7;font-weight:600;';
+                            document.getElementById('alertMessage').appendChild(document.createElement('br'));
+                            document.getElementById('alertMessage').appendChild(loginLink);
+                            handled = true;
+                        } else {
+                            errorMessage = 'An account with this email already exists.';
+                        }
                         break;
                     case 'auth/invalid-email':
                         errorMessage = 'Invalid email address format.';
@@ -456,8 +477,10 @@
                     default:
                         errorMessage = error.message || errorMessage;
                 }
-                
-                showAlert(errorMessage, 'error');
+
+                if (!handled) {
+                    showAlert(errorMessage, 'error');
+                }
                 registerBtn.disabled = false;
                 registerBtn.innerHTML = 'Create Account';
             }

@@ -1481,7 +1481,7 @@ async function sendLicenseEmail(email, licenseKey) {
         return false;
     }
     await transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        from: `"${process.env.SMTP_FROM_NAME || 'Digibuild'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to: email,
         subject: 'Your Forma User Management License Key',
         text: `Thanks for your purchase!\n\nYour license key: ${licenseKey}\n\n` +
@@ -1598,6 +1598,29 @@ app.post('/api/capture-license-payment', purchaseLimiter, async (req, res) => {
     }
 });
 
+// Looks up a license key and verifies it's usable (exists, active, unexpired,
+// not already claimed). Does NOT claim it - callers do that themselves once
+// they know the claim will succeed. Throws an Error with a user-facing message
+// on any validation failure.
+async function lookupClaimableLicense(licenseKey) {
+    const licenseRef = db.collection('licenses').doc(licenseKey);
+    const licenseDoc = await licenseRef.get();
+    if (!licenseDoc.exists) {
+        throw new Error('Invalid license key');
+    }
+    const licenseData = licenseDoc.data();
+    if (licenseData.status !== 'active') {
+        throw new Error('This license key is no longer active');
+    }
+    if (licenseData.userId) {
+        throw new Error('This license key has already been used');
+    }
+    if (licenseData.expiryDate && licenseData.expiryDate.toDate() <= new Date()) {
+        throw new Error('This license key has expired');
+    }
+    return { licenseRef, expiryDate: licenseData.expiryDate };
+}
+
 // Create user profile document after Firebase Auth signup (requires authentication + rate limiting)
 app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) => {
     try {
@@ -1617,22 +1640,11 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
         let licenseExpiry = null;
         let licenseRef = null;
         if (licenseKey) {
-            licenseRef = db.collection('licenses').doc(licenseKey);
-            const licenseDoc = await licenseRef.get();
-            if (!licenseDoc.exists) {
-                return res.status(400).json({ success: false, error: 'Invalid license key' });
+            try {
+                ({ licenseRef, expiryDate: licenseExpiry } = await lookupClaimableLicense(licenseKey));
+            } catch (licenseError) {
+                return res.status(400).json({ success: false, error: licenseError.message });
             }
-            const licenseData = licenseDoc.data();
-            if (licenseData.status !== 'active') {
-                return res.status(400).json({ success: false, error: 'This license key is no longer active' });
-            }
-            if (licenseData.userId) {
-                return res.status(400).json({ success: false, error: 'This license key has already been used' });
-            }
-            if (licenseData.expiryDate && licenseData.expiryDate.toDate() <= new Date()) {
-                return res.status(400).json({ success: false, error: 'This license key has expired' });
-            }
-            licenseExpiry = licenseData.expiryDate;
         }
 
         const now = new Date();
@@ -1674,6 +1686,57 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
         res.json({ success: true });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to create user profile');
+        res.status(400).json({ success: false, ...sanitized });
+    }
+});
+
+// Attach a purchased license key to an existing account (e.g. a trial user who
+// just bought a license on purchase.html - they already have an account, so
+// /api/register-user doesn't apply). Requires the caller to be logged in as
+// the account the key is being applied to.
+app.post('/api/apply-license-key', authLimiter, authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const licenseKey = inputValidation.validateAlphanumeric(req.body.licenseKey, 'licenseKey', false);
+
+        const userRef = db.collection('users').doc(userId);
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ success: false, error: 'User profile not found' });
+        }
+
+        let licenseRef, expiryDate;
+        try {
+            ({ licenseRef, expiryDate } = await lookupClaimableLicense(licenseKey));
+        } catch (licenseError) {
+            return res.status(400).json({ success: false, error: licenseError.message });
+        }
+
+        await userRef.update({
+            licenseKey: licenseKey,
+            licenseExpiry: expiryDate,
+            isTrial: false,
+            trialStartDate: null,
+            trialEndDate: null,
+            hasActiveAccess: true
+        });
+
+        await licenseRef.update({ userId: userId });
+
+        try {
+            await db.collection('analytics').add({
+                userId: userId,
+                action: 'license_applied',
+                timestamp: FieldValue.serverTimestamp(),
+                metadata: { licenseKey }
+            });
+        } catch (analyticsError) {
+            console.error('Analytics logging failed (non-critical):', analyticsError);
+        }
+
+        res.json({ success: true, licenseExpiry: expiryDate.toDate().toISOString() });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to apply license key');
         res.status(400).json({ success: false, ...sanitized });
     }
 });
@@ -1782,4 +1845,5 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  GET  /api/purchase-config');
     console.log('  POST /api/create-license-order');
     console.log('  POST /api/capture-license-payment');
+    console.log('  POST /api/apply-license-key');
 });

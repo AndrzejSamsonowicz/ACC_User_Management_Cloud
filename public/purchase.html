@@ -288,7 +288,7 @@
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-                <a href="register.html" style="background-color: #0696D7; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; display: inline-block;">
+                <a href="register.html" id="registerNowLink" style="background-color: #0696D7; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; display: inline-block;">
                     Register Now →
                 </a>
             </div>
@@ -396,7 +396,9 @@
                     document.getElementById('successSection').classList.remove('hidden');
                     document.getElementById('displayLicenseKey').textContent = result.licenseKey;
                     document.getElementById('customerEmailDisplay').textContent = result.email;
-                    
+                    document.getElementById('registerNowLink').href =
+                        `register.html?licenseKey=${encodeURIComponent(result.licenseKey)}`;
+
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     
                 } catch (error) {
