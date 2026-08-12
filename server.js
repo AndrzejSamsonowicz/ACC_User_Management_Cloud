@@ -107,10 +107,18 @@ async function getDecryptedCredentials(userId) {
         || !userData.clientSecretSalt || !userData.clientSecretIV || !userData.clientSecretAuthTag) {
         return null;
     }
-    return {
-        clientId: decryptData(userData.clientId, `credentials:${userId}`, userData.clientIdSalt, userData.clientIdIV, userData.clientIdAuthTag),
-        clientSecret: decryptData(userData.clientSecret, `credentials:${userId}`, userData.clientSecretSalt, userData.clientSecretIV, userData.clientSecretAuthTag)
-    };
+    try {
+        return {
+            clientId: decryptData(userData.clientId, `credentials:${userId}`, userData.clientIdSalt, userData.clientIdIV, userData.clientIdAuthTag),
+            clientSecret: decryptData(userData.clientSecret, `credentials:${userId}`, userData.clientSecretSalt, userData.clientSecretIV, userData.clientSecretAuthTag)
+        };
+    } catch (error) {
+        // Data saved under a different ENCRYPTION_KEY (e.g. a different
+        // environment) can never be decrypted here - treat it as absent
+        // rather than 500ing every endpoint that needs credentials.
+        console.warn(`⚠️ Failed to decrypt stored credentials for user ${userId} (likely encrypted under a different key) - treating as not saved:`, error.message);
+        return null;
+    }
 }
 
 // ============================================================================
@@ -709,8 +717,15 @@ app.get('/load', authenticateUser, async (req, res) => {
         
         // Check for encrypted data first
         if (userData.users_main_list_encrypted && userData.usersMainListIV && userData.usersMainListSalt && userData.usersMainListAuthTag) {
-            const decryptedData = decryptData(userData.users_main_list_encrypted, `mainlist:${userId}`, userData.usersMainListSalt, userData.usersMainListIV, userData.usersMainListAuthTag);
-            res.json(JSON.parse(decryptedData));
+            try {
+                const decryptedData = decryptData(userData.users_main_list_encrypted, `mainlist:${userId}`, userData.usersMainListSalt, userData.usersMainListIV, userData.usersMainListAuthTag);
+                res.json(JSON.parse(decryptedData));
+            } catch (decryptError) {
+                // Data saved under a different ENCRYPTION_KEY can never be
+                // decrypted here - treat it as absent rather than 500ing.
+                console.warn(`⚠️ Failed to decrypt users main list for user ${userId} (likely encrypted under a different key) - returning empty list:`, decryptError.message);
+                res.json({ users: [] });
+            }
         } else if (userData.users_main_list) {
             // Legacy: unencrypted data (auto-migrate to encrypted)
             console.log('Migrating unencrypted users_main_list to encrypted format for user:', userId);
@@ -797,9 +812,16 @@ app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => 
         
         // Check for encrypted data
         if (projectData.usersList_encrypted && projectData.usersListIV && projectData.usersListSalt && projectData.usersListAuthTag) {
-            const decryptedData = decryptData(projectData.usersList_encrypted, `projectusers:${userId}:${projectId}`, projectData.usersListSalt, projectData.usersListIV, projectData.usersListAuthTag);
-            console.log(`✅ Project users list loaded successfully for project: ${projectId}`);
-            res.json(JSON.parse(decryptedData));
+            try {
+                const decryptedData = decryptData(projectData.usersList_encrypted, `projectusers:${userId}:${projectId}`, projectData.usersListSalt, projectData.usersListIV, projectData.usersListAuthTag);
+                console.log(`✅ Project users list loaded successfully for project: ${projectId}`);
+                res.json(JSON.parse(decryptedData));
+            } catch (decryptError) {
+                // Data saved under a different ENCRYPTION_KEY can never be
+                // decrypted here - treat it as absent rather than 500ing.
+                console.warn(`⚠️ Failed to decrypt project users list for project ${projectId} (likely encrypted under a different key) - returning empty list:`, decryptError.message);
+                res.json({ users: [] });
+            }
         } else {
             console.log(`No encrypted data found for project: ${projectId}, returning empty list`);
             res.json({ users: [] });
@@ -903,19 +925,26 @@ app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (r
         const folderPermissionsAuthTags = userData.folderPermissionsAuthTags || {};
 
         if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey] && folderPermissionsSalts[permissionKey] && folderPermissionsAuthTags[permissionKey]) {
-            const decryptedData = decryptData(
-                folderPermissions[permissionKey],
-                `folderperms:${userId}:${permissionKey}`,
-                folderPermissionsSalts[permissionKey],
-                folderPermissionsIVs[permissionKey],
-                folderPermissionsAuthTags[permissionKey]
-            );
+            try {
+                const decryptedData = decryptData(
+                    folderPermissions[permissionKey],
+                    `folderperms:${userId}:${permissionKey}`,
+                    folderPermissionsSalts[permissionKey],
+                    folderPermissionsIVs[permissionKey],
+                    folderPermissionsAuthTags[permissionKey]
+                );
 
-            res.json({
-                success: true,
-                data: JSON.parse(decryptedData),
-                exists: true
-            });
+                res.json({
+                    success: true,
+                    data: JSON.parse(decryptedData),
+                    exists: true
+                });
+            } catch (decryptError) {
+                // Data saved under a different ENCRYPTION_KEY can never be
+                // decrypted here - treat it as absent rather than 500ing.
+                console.warn(`⚠️ Failed to decrypt folder permissions for ${permissionKey} (likely encrypted under a different key) - treating as not saved:`, decryptError.message);
+                res.json({ success: true, data: null, exists: false });
+            }
         } else {
             res.json({ 
                 success: true, 
