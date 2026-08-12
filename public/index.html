@@ -116,11 +116,27 @@
         button:hover, .btn:hover {
             background-color: #0580C0 !important;
         }
-        
+
         button:active, .btn:active {
             background-color: #046BA5 !important;
         }
-        
+
+        /* Explicit disabled styling — the base rule above sets background-color/color
+           with !important, which would otherwise mask the browser's default disabled
+           appearance and make a disabled button look identical to an enabled one
+           (just silently unclickable), e.g. #addNewUsersBtn before a project is
+           selected or before the permission check for it resolves. */
+        button:disabled, .btn:disabled {
+            background-color: #e0e0e0 !important;
+            color: #999 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7;
+        }
+
+        button:disabled:hover, .btn:disabled:hover {
+            background-color: #e0e0e0 !important;
+        }
+
         /* User Management Modal Styles */
         .user-modal {
             position: fixed;
@@ -346,7 +362,24 @@
             border: none;
             outline: none;
         }
-        
+
+        /* Explicit disabled styling — the colored button classes below set their
+           own background/text color, which would otherwise mask the browser's
+           default disabled appearance and make a disabled button look identical
+           to an enabled one (just silently unclickable). */
+        .project-btn:disabled {
+            background-color: #e0e0e0 !important;
+            border-color: #d0d0d0 !important;
+            color: #999 !important;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .project-select-cb:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
         .project-btn-update {
             background-color: #007bff;
             color: white;
@@ -530,7 +563,18 @@
         // one is configured, for UI/validation purposes.
         let CLIENT_ID = '';
         let HAS_CLIENT_SECRET = false;
-        
+
+        // The logged-in AUTODESK user's own email (distinct from the Firebase/tenant
+        // login) — used to determine whether they're a Project Admin on a given
+        // project, so we can disable actions they don't have permission for instead
+        // of letting them hit a 403 after clicking. Set once per Autodesk login via
+        // fetchCurrentAutodeskUserProfile(). See checkIsProjectAdmin() below.
+        let currentAutodeskUserEmail = null;
+
+        // projectId -> boolean, cached for the session so re-rendering the project
+        // list (e.g. filtering) doesn't repeat the permission check.
+        const projectAdminAccessCache = new Map();
+
         // Firebase variables (initialized below)
         let auth = null;
         let db = null;
@@ -1451,12 +1495,67 @@
 
                 const tokenData = await response.json();
                 currentAccessToken = tokenData.access_token; // Store the access token
+
+                // Fetch the Autodesk user's own profile now, before any project list
+                // renders — checkIsProjectAdmin() needs currentAutodeskUserEmail to
+                // know whose access to check.
+                await fetchCurrentAutodeskUserProfile(currentAccessToken);
+
                 return tokenData.access_token;
             } catch (error) {
                 console.error('Error getting access token:', error);
                 showError(`Authentication error: ${error.message}`);
                 return null;
             }
+        }
+
+        // Fetches the currently-authenticated Autodesk user's own profile (their
+        // email), via the standard OIDC userinfo endpoint. Requires the `user:read`
+        // scope, which login() already requests.
+        async function fetchCurrentAutodeskUserProfile(accessToken) {
+            try {
+                const response = await fetch('https://api.userprofile.autodesk.com/userinfo', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const profile = await response.json();
+                currentAutodeskUserEmail = profile.email || null;
+                log('✓ Current Autodesk user:', currentAutodeskUserEmail);
+            } catch (error) {
+                console.error('Error fetching current Autodesk user profile:', error);
+                currentAutodeskUserEmail = null;
+            }
+        }
+
+        // Whether the current Autodesk user is a Project Admin (or account admin)
+        // on the given project — used to disable project-management actions the
+        // user doesn't have permission for, instead of letting them hit a 403 after
+        // clicking. Project Admin is a per-project permission in ACC (someone can be
+        // admin on one project and not another), so this checks that project's own
+        // user list rather than a cheaper but less accurate account-wide flag.
+        // Fails closed: if we can't determine the answer, treat as not-admin.
+        async function checkIsProjectAdmin(projectId, accessToken) {
+            if (projectAdminAccessCache.has(projectId)) {
+                return projectAdminAccessCache.get(projectId);
+            }
+            if (!currentAutodeskUserEmail) {
+                console.warn(`⚠️ checkIsProjectAdmin(${projectId}): currentAutodeskUserEmail is not set, treating as non-admin`);
+                return false;
+            }
+            let isAdmin = false;
+            try {
+                const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
+                const me = projectUsers.find(u =>
+                    (u.email || '').toLowerCase() === currentAutodeskUserEmail.toLowerCase());
+                isAdmin = !!(me && me.accessLevels &&
+                    (me.accessLevels.projectAdmin || me.accessLevels.accountAdmin));
+                console.log(`🔎 checkIsProjectAdmin(${projectId}): looking for "${currentAutodeskUserEmail}" among ${projectUsers.length} project users — found: ${!!me}, accessLevels: ${JSON.stringify(me?.accessLevels)}, isAdmin: ${isAdmin}`);
+            } catch (error) {
+                console.error(`Error checking project admin status for project ${projectId}:`, error);
+                isAdmin = false;
+            }
+            projectAdminAccessCache.set(projectId, isAdmin);
+            return isAdmin;
         }
 
         // Function to handle hub selection
@@ -1692,6 +1791,34 @@
 
                 btnCol.appendChild(btnRow);
 
+                // Gate project-admin-only actions behind an accurate per-project
+                // permission check (see checkIsProjectAdmin) so non-admins don't
+                // hit a confusing 403 after clicking. Result is cached per project;
+                // apply it synchronously when already known (e.g. after a filter
+                // re-render) to avoid a disabled->enabled flicker, and only show
+                // the "checking" state for a genuinely new, uncached project.
+                const applyAdminGate = (isAdmin) => {
+                    existingUsersBtn.disabled = !isAdmin;
+                    foldersBtn.disabled = !isAdmin;
+                    checkbox.disabled = !isAdmin;
+                    const title = isAdmin ? '' : 'You must be a project administrator on this project to do this.';
+                    existingUsersBtn.title = title;
+                    foldersBtn.title = title;
+                    checkbox.title = title;
+                };
+
+                if (projectAdminAccessCache.has(project.id)) {
+                    applyAdminGate(projectAdminAccessCache.get(project.id));
+                } else {
+                    existingUsersBtn.disabled = true;
+                    existingUsersBtn.title = 'Checking your project permissions…';
+                    foldersBtn.disabled = true;
+                    foldersBtn.title = 'Checking your project permissions…';
+                    checkbox.disabled = true;
+
+                    checkIsProjectAdmin(project.id, currentAccessToken).then(applyAdminGate);
+                }
+
                 // Per-project progress indicator
                 const progressDiv = document.createElement('div');
                 progressDiv.className = 'project-progress';
@@ -1743,7 +1870,7 @@
             // Don't double-toggle if the click was directly on the checkbox or a button
             if (event.target.type === 'checkbox' || event.target.closest('button')) return;
             const cb = document.querySelector(`.project-select-cb[data-project-id="${projectId}"]`);
-            if (cb) { cb.checked = !cb.checked; onProjectCheckboxChange(); }
+            if (cb && !cb.disabled) { cb.checked = !cb.checked; onProjectCheckboxChange(); }
         }
 
         function checkAllProjects() {
