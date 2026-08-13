@@ -445,6 +445,17 @@ class UserTableManager extends TableCellInteraction {
         const cell = document.createElement('td');
         cell.contentEditable = true;
         cell.className = 'modal-editable';
+        // Marks the cell as genuinely user-edited on any real keystroke/paste (contentEditable
+        // fires 'input' for both). Used by _extractRoleFields to decide whether the Role cell's
+        // text can be trusted as new input, vs. comparing it to a stored snapshot — that
+        // comparison turned out to be fragile (e.g. any programmatic rewrite of the cell's
+        // text, not just genuine edits, would look identical to a real edit).
+        cell.addEventListener('input', () => {
+            cell.dataset.userEdited = 'true';
+            // A real keystroke invalidates any roleIds captured for the *previous* text —
+            // otherwise a freshly-typed role name would incorrectly inherit the old role's ID.
+            delete cell.dataset.roleIds;
+        });
         cell.addEventListener('paste', (e) => this.handlePaste(e));
         cell.addEventListener('focus', (e) => {
             this.currentlyFocusedCell = e.target; // Track the currently focused cell
@@ -1155,6 +1166,11 @@ class UserTableManager extends TableCellInteraction {
             
             targetCellInRow = targetRow.cells[columnIndex];
             targetCellInRow.textContent = item;
+            // Programmatic assignment, not a real keystroke, so it wouldn't otherwise be
+            // caught by the 'input' listener in createEditableCell() — mark it explicitly
+            // so a paste into the Role column is correctly treated as a genuine edit.
+            targetCellInRow.dataset.userEdited = 'true';
+            delete targetCellInRow.dataset.roleIds; // pasted text has no known role ID association
             log(`✅ Set "${item}" in row ${currentRowIndex + i}, column ${columnIndex}`);
         }
         
@@ -1722,7 +1738,8 @@ class UserTableManager extends TableCellInteraction {
                     metadata: {
                         company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
                         role: roleFields.role,
-                        allRoles: roleFields.allRoles
+                        allRoles: roleFields.allRoles,
+                        roleIds: roleFields.roleIds
                     },
                     products: []
                 };
@@ -2448,6 +2465,14 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             const roleCell = this.createEditableCell();
             const roleValue = (user.metadata && (user.metadata.allRoles || user.metadata.role)) || '';
             roleCell.textContent = roleValue;
+            // Remember the as-loaded text and the original role IDs (if known) so that,
+            // if the cell is never edited, syncing can use those language-invariant IDs
+            // directly instead of re-resolving (possibly localized) role names — see
+            // _extractRoleFields() and resolveRoleIds() in update_project_users.js.
+            roleCell.dataset.originalRoleText = roleValue;
+            if (user.metadata && Array.isArray(user.metadata.roleIds) && user.metadata.roleIds.length > 0) {
+                roleCell.dataset.roleIds = JSON.stringify(user.metadata.roleIds);
+            }
             log('📋   Setting role cell to:', roleValue);
             row.appendChild(roleCell);
             
@@ -2535,16 +2560,22 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
 
             // Map ACC API format → populateTableFromData format
             const users = projectUsers.map(u => {
-                // Role: display ALL assigned roles, comma-separated (a project user can have more than one)
-                const roleNames = Array.isArray(u.roles) ? u.roles.map(r => r.name).filter(Boolean) : [];
-                const roleName = roleNames.join(', ');
+                // Role: display ALL assigned roles, comma-separated (a project user can have more than one).
+                // Also keep each role's id — Autodesk localizes role NAMES to the browser/
+                // account language for built-in roles (e.g. "BIM Manager" -> "Menedżer BIM"
+                // in Polish), so the name alone isn't a safe identifier to sync back with.
+                // The id is language-invariant; see resolveRoleIds() in update_project_users.js.
+                const roles = Array.isArray(u.roles) ? u.roles.filter(r => r.name) : [];
+                const roleName = roles.map(r => r.name).join(', ');
+                const roleIds = roles.map(r => r.id).filter(Boolean);
 
                 return {
                     email: u.email || '',
                     metadata: {
                         company: u.companyName || '',
                         role: roleName,
-                        allRoles: roleName
+                        allRoles: roleName,
+                        roleIds: roleIds
                     },
                     products: Array.isArray(u.products) ? u.products : []
                 };
@@ -2559,18 +2590,55 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
     }
 
     /**
-     * Read a Role cell and split it into the two forms the rest of the app needs:
+     * Read a Role cell and split it into the forms the rest of the app needs:
      * - role: the first comma-separated name, for the account-level default_role
-     *   update (which only supports one role).
+     *   update — but only when roleIds (below) are NOT known. Autodesk's account API
+     *   only accepts a role NAME (never an ID), and role names are localized to the
+     *   browser/account language for built-in roles ("BIM Manager" -> "Menedżer BIM"
+     *   in Polish) — sending a possibly-localized name back risks a false "role
+     *   doesn't exist" rejection. Whenever we already know the role's ID (unedited,
+     *   or the text was copied/dragged from another cell with a known ID — see
+     *   _copyRoleIdsDataset in table-cell-interaction.js), this is left blank, which
+     *   the account-sync code treats as "don't touch it" — safer than guessing a name.
      * - allRoles: the full cell text (all roles, comma-separated), for project-level
-     *   roleIds updates which support multiple roles per user.
-     * Derived straight from the cell text (not load-time state) so it works the same
-     * whether the row came from a live API load, Firestore, CSV import, or manual edit.
+     *   roleIds updates as a name-based fallback when roleIds (below) aren't known.
+     * - roleIds: the known role IDs for the CURRENT text — from the row's original
+     *   load, or carried over when the text was copied/dragged from a cell that had
+     *   known IDs — language-invariant, so project-level syncing can use these
+     *   directly instead of re-resolving names through a project role catalog. null
+     *   if the current text was typed/pasted freehand with no known ID association
+     *   (a real keystroke or an external paste clears any stale roleIds — see
+     *   createEditableCell's 'input' listener and the clipboard-paste paths in
+     *   table-cell-interaction.js) or the IDs were never captured (e.g. CSV import).
      */
     _extractRoleFields(roleCell) {
         const currentText = (roleCell?.textContent || roleCell?.innerText || '').trim();
         const firstRole = currentText.split(',')[0].trim();
-        return { role: firstRole, allRoles: currentText };
+        // "Edited" is tracked via a real 'input' event (see createEditableCell), not by
+        // comparing current text to a stored snapshot — a text comparison is fragile:
+        // anything that programmatically rewrites the cell (e.g. a future sort/reformat
+        // feature) would look identical to a genuine edit and wrongly re-trigger the
+        // localization risk this whole mechanism exists to avoid. A row with no known
+        // original state at all (CSV import, manually added row — dataset.originalRoleText
+        // was never set) has no snapshot to trust either way, so it's treated as edited.
+        const hasKnownOriginal = roleCell?.dataset?.originalRoleText !== undefined;
+        const wasEdited = !hasKnownOriginal || roleCell?.dataset?.userEdited === 'true';
+
+        let roleIds = null;
+        if (roleCell?.dataset?.roleIds) {
+            try {
+                const parsed = JSON.parse(roleCell.dataset.roleIds);
+                if (Array.isArray(parsed) && parsed.length > 0) roleIds = parsed;
+            } catch (e) {
+                roleIds = null;
+            }
+        }
+
+        return {
+            role: (wasEdited && !roleIds) ? firstRole : '',
+            allRoles: currentText,
+            roleIds
+        };
     }
 
     /**
@@ -2598,7 +2666,8 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 metadata: {
                     company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
                     role: roleFields.role,
-                    allRoles: roleFields.allRoles
+                    allRoles: roleFields.allRoles,
+                    roleIds: roleFields.roleIds
                 },
                 products: []
             };

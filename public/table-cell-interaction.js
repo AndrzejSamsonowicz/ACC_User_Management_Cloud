@@ -352,8 +352,11 @@ class TableCellInteraction {
                                 }
                             } else if (targetCell.classList.contains('modal-editable') && lastSourceValue !== null) {
                                 if (col === 1) return; // Skip email column — prevents duplication
-                                if (this._canPropagateEditable(lastCellIndex, col))
+                                if (this._canPropagateEditable(lastCellIndex, col)) {
                                     targetCell.textContent = lastSourceValue;
+                                    targetCell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                                    this._copyRoleIdsDataset(this.lastSelectedCell, targetCell);
+                                }
                             }
                         }
                     }
@@ -397,6 +400,8 @@ class TableCellInteraction {
                             } else if (targetCell.classList.contains('modal-editable') && lastSourceValue !== null) {
                                 if (cellIndex === 1) return; // Skip email column — prevents duplication
                                 targetCell.textContent = lastSourceValue;
+                                targetCell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                                this._copyRoleIdsDataset(this.lastSelectedCell, targetCell);
                             }
                         }
                     }
@@ -443,8 +448,11 @@ class TableCellInteraction {
                                         }
                                     } else if (targetCell.classList.contains('modal-editable') && lastSourceValue !== null) {
                                         if (col === 1) continue; // Skip email column — prevents duplication
-                                        if (this._canPropagateEditable(lastCellIndex, col))
+                                        if (this._canPropagateEditable(lastCellIndex, col)) {
                                             targetCell.textContent = lastSourceValue;
+                                            targetCell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                                            this._copyRoleIdsDataset(this.lastSelectedCell, targetCell);
+                                        }
                                     }
                                 }
                             }
@@ -615,8 +623,11 @@ class TableCellInteraction {
                         }
                     } else if (cell.classList.contains('modal-editable') && this.clickDragSourceValue !== null) {
                         if (cell.cellIndex === 1) return; // Skip email column — prevents duplication
-                        if (this._canPropagateEditable(this.clickDragSourceCell.cellIndex, cell.cellIndex))
+                        if (this._canPropagateEditable(this.clickDragSourceCell.cellIndex, cell.cellIndex)) {
                             cell.textContent = this.clickDragSourceValue;
+                            cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                            this._copyRoleIdsDataset(this.clickDragSourceCell, cell);
+                        }
                     }
                 });
 
@@ -683,6 +694,8 @@ class TableCellInteraction {
 
         this.selectedCells.forEach(cell => {
             cell.textContent = '';
+            cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+            delete cell.dataset.roleIds; // cleared text has no known role ID association
 
             cell.style.backgroundColor = '#ffcccc';
             setTimeout(() => {
@@ -792,6 +805,8 @@ class TableCellInteraction {
                         const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
                         if (columnHeader !== 'email') {
                             cell.textContent = dataSource[i];
+                            cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                            delete cell.dataset.roleIds; // pasted text has no known role ID association
                             pastedCount++;
                         }
                     }
@@ -807,6 +822,8 @@ class TableCellInteraction {
                     const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
                     if (columnHeader !== 'email') {
                         cell.textContent = dataSource[0];
+                        cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                        delete cell.dataset.roleIds; // pasted text has no known role ID association
                         log('✅ Pasted single value from clipboard');
                     }
                 }
@@ -820,6 +837,8 @@ class TableCellInteraction {
                     const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
                     if (columnHeader !== 'email') {
                         cell.textContent = dataSource[0];
+                        cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                        delete cell.dataset.roleIds; // pasted text has no known role ID association
                     }
                 }
             });
@@ -844,6 +863,7 @@ class TableCellInteraction {
                     const columnHeader = headers[targetColIndex]?.textContent.trim().toLowerCase();
                     if (columnHeader !== 'email') {
                         cell.textContent = this.copiedData[i].value;
+                        cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
                     }
                 }
             }
@@ -858,6 +878,7 @@ class TableCellInteraction {
                     const columnHeader = headers[colIndex]?.textContent.trim().toLowerCase();
                     if (columnHeader !== 'email') {
                         cell.textContent = this.copiedData[i].value;
+                        cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
                     }
                 }
             }
@@ -916,8 +937,11 @@ class TableCellInteraction {
                             }
 
                             cell.style.backgroundColor = '';
-                            if (this._canPropagateEditable(this.dragSourceCell.cellIndex, cell.cellIndex))
+                            if (this._canPropagateEditable(this.dragSourceCell.cellIndex, cell.cellIndex)) {
                                 cell.textContent = this.dragSourceValue;
+                                cell.dataset.userEdited = 'true'; // programmatic, not a real keystroke
+                                this._copyRoleIdsDataset(this.dragSourceCell, cell);
+                            }
                         }
                     });
 
@@ -1055,6 +1079,22 @@ class TableCellInteraction {
         const clone = header.cloneNode(true);
         clone.querySelectorAll('.sort-indicator').forEach(el => el.remove());
         return clone.textContent.trim().toLowerCase();
+    }
+
+    /**
+     * When a cell's text is programmatically copied from another cell (drag-fill,
+     * click-drag, shift-select propagation), carry over the source's known
+     * language-invariant role IDs too — otherwise the copied text looks "edited"
+     * with no known IDs, and syncing falls back to sending the (possibly
+     * locale-translated) display text as a role name, which the account API can
+     * reject. Clears any stale roleIds on the target if the source has none.
+     */
+    _copyRoleIdsDataset(sourceCell, targetCell) {
+        if (sourceCell?.dataset?.roleIds) {
+            targetCell.dataset.roleIds = sourceCell.dataset.roleIds;
+        } else {
+            delete targetCell.dataset.roleIds;
+        }
     }
 
     /**

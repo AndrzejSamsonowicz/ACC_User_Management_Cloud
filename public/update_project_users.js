@@ -592,12 +592,24 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         const projectRoleIdByName = await getProjectRoleCatalog(projectId, accessToken);
 
         // Resolve the roleIds to send for a user: a project user can have multiple roles
-        // (Autodesk Forma), so map every role name in "allRoles"/"role" to its project role ID.
+        // (Autodesk Forma). Prefer the ORIGINAL role IDs captured when the row was loaded
+        // (importUser.metadata.roleIds — set only when the Role cell is unedited; see
+        // _extractRoleFields in user-table-v2.js) — these are language-invariant, unlike
+        // role names, which Autodesk localizes for built-in roles (e.g. "BIM Manager" ->
+        // "Menedżer BIM" in Polish). Only fall back to name-based lookup when the cell was
+        // actually edited (genuinely new text with no known IDs) or the IDs were never
+        // captured (e.g. CSV import).
         // Names that don't match any known project role are reported as invalid and skipped.
         // Repeated names (e.g. "Architect, Investor, Architect") are deduplicated — Forma's
         // API rejects a roleIds array containing the same ID twice with a 400 error.
         // If nothing resolves, fall back to the account's single default_role_id (previous behavior).
         const resolveRoleIds = (importUser, accountUser) => {
+            const knownRoleIds = importUser?.metadata?.roleIds;
+            if (Array.isArray(knownRoleIds) && knownRoleIds.length > 0) {
+                const deduped = [...new Set(knownRoleIds)];
+                return { roleIds: deduped, invalidNames: [], duplicateNames: [] };
+            }
+
             const rolesText = (importUser?.metadata?.allRoles || importUser?.metadata?.role || '').trim();
             const roleNames = rolesText ? rolesText.split(',').map(s => s.trim()).filter(Boolean) : [];
 
