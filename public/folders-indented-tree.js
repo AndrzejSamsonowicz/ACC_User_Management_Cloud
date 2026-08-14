@@ -59,6 +59,11 @@
     // otherwise the grant is purged only within that folder's own subtree
     // (a single per-folder direct-assignment delete).
     let itDeletedGrants = [];
+    let itPendingChangeCount = 0; // local edits not yet pushed to ACC — shown as a badge on Sync
+    let itFocusedKey = null; // keyboard-navigation focus (Up/Down/Left/Right), independent of itSelectedKeys
+    let itDeleteConfirmEl = null; // the pending "delete N entries?" toast, if one is showing
+    let itContextMenuEl = null; // the open right-click menu, if any
+    let itCopyTargetArmed = null; // Set of {folderId, entryUser} awaiting a folder click, from "Copy access to…"
 
     // User-resizable column widths (px). "Name" holds the indented tree itself
     // (toggle + icon + label); "Level" and "Users" are fixed-position columns
@@ -130,8 +135,12 @@
     // API). The People/Building glyphs use stroke="currentColor" so they pick
     // up whatever contrast color itDrawIcon assigns via CSS `color`.
 
+    // Classic two-tone folder: a darker gold back tab peeking above a
+    // lighter yellow front body — the familiar filled folder glyph, in
+    // place of the previous plain monochrome outline.
     const IT_FOLDER_ICON =
-        '<path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6.5l-2-2H5a2 2 0 00-2 2z" fill="none" stroke="#8a8a8a" stroke-width="1.7"/>';
+        '<path d="M3 7.5c0-1.1.9-2 2-2h3.5l1.5 1.5H19c1.1 0 2 .9 2 2V8H3v-.5z" fill="#F2A900"/>' +
+        '<rect x="3" y="8" width="18" height="10.5" rx="1.5" fill="#FFC94D" stroke="#E29400" stroke-width="0.7"/>';
 
     const IT_PEOPLE_ICON =
         '<circle cx="8" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
@@ -247,9 +256,11 @@
                 .style('color', colors.color);
             return offsetX + 24;
         }
-        // folder / group / anything else — plain monochrome outline, no circle
-        itAppendMiniSvg(g, -1, -9, 18, IT_FOLDER_ICON);
-        return offsetX + 18;
+        // folder / group / anything else — filled yellow folder, no circle,
+        // drawn at 2x size (36px vs the 18px it used to be) so it doesn't
+        // get lost next to the colored avatar circles.
+        itAppendMiniSvg(g, -2, -18, 36, IT_FOLDER_ICON);
+        return offsetX + 36;
     }
 
     /**
@@ -791,7 +802,31 @@
         if (itSelectedKeys.size === 0) return false;
         itSelectedKeys = new Set();
         itSelectionAnchorKey = null;
+        itDismissDeleteConfirm();
         return true;
+    }
+
+    /** Record N local edits not yet synced, and refresh the badge on Sync. */
+    function itMarkDirty(n = 1) {
+        if (n <= 0) return;
+        itPendingChangeCount += n;
+        itUpdateSyncBadge();
+    }
+
+    function itUpdateSyncBadge() {
+        const btn = document.getElementById('itSyncBtn');
+        if (!btn) return;
+        let badge = btn.querySelector('.it-sync-badge');
+        if (itPendingChangeCount > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'it-sync-badge';
+                btn.appendChild(badge);
+            }
+            badge.textContent = itPendingChangeCount > 99 ? '99+' : String(itPendingChangeCount);
+        } else if (badge) {
+            badge.remove();
+        }
     }
 
     /**
@@ -804,6 +839,8 @@
     function itSelectNode(container, node, event) {
         if (!itIsDeletableNode(node)) return;
         const key = node.__key;
+        itFocusedKey = key;
+        itDismissDeleteConfirm();
 
         if (event && (event.ctrlKey || event.metaKey)) {
             if (itSelectedKeys.has(key)) itSelectedKeys.delete(key); else itSelectedKeys.add(key);
@@ -868,6 +905,11 @@
      * clear a multi-selection.
      */
     async function itHandleRowClick(container, node) {
+        if (itCopyTargetArmed && itMode === 'folders' && node.type === 'folder' && node.folderId) {
+            itPerformArmedCopy(container, node.folderId);
+            return;
+        }
+        itFocusedKey = node.__key;
         if (node.type === 'user' || node.type === 'company' || node.type === 'role') {
             if (itClearSelection()) itRenderTree(container);
             return;
@@ -875,6 +917,74 @@
         const hadSelection = itClearSelection();
         if (hadSelection && !itNodeHasChildren(node)) itRenderTree(container);
         await itToggleExpandNode(container, node);
+    }
+
+    /** Scroll a row into view by key, if it's currently rendered. */
+    function itScrollRowIntoView(key) {
+        const rows = document.querySelectorAll('#itContainer g.it-row');
+        for (const el of rows) {
+            if (el.__data__ && el.__data__.data.__key === key) {
+                el.scrollIntoView({ block: 'nearest' });
+                return;
+            }
+        }
+    }
+
+    /** Up/Down: move keyboard focus to the previous/next visible row. */
+    function itMoveFocusVertical(delta) {
+        if (itLastVisible.length === 0) return;
+        let idx = itFocusedKey ? itLastVisible.findIndex(v => v.data.__key === itFocusedKey) : -1;
+        if (idx < 0) idx = delta > 0 ? -1 : 0;
+        idx = Math.max(0, Math.min(itLastVisible.length - 1, idx + delta));
+        itFocusedKey = itLastVisible[idx].data.__key;
+        const container = document.getElementById('itContainer');
+        itRenderTree(container);
+        itScrollRowIntoView(itFocusedKey);
+    }
+
+    /**
+     * Right: expand the focused row if it has children and is collapsed,
+     * else move focus into its first child if already expanded. Left is the
+     * mirror — collapse if expanded, else move focus up to the parent.
+     */
+    async function itMoveFocusHorizontal(delta) {
+        const container = document.getElementById('itContainer');
+        if (!itFocusedKey) {
+            if (itLastVisible.length) {
+                itFocusedKey = itLastVisible[0].data.__key;
+                itRenderTree(container);
+                itScrollRowIntoView(itFocusedKey);
+            }
+            return;
+        }
+        const visNode = itLastVisible.find(v => v.data.__key === itFocusedKey);
+        if (!visNode) return;
+        const node = visNode.data;
+
+        if (delta > 0) {
+            if (!itNodeHasChildren(node)) return;
+            if (!itExpandedKeys.has(node.__key)) {
+                await itToggleExpandNode(container, node);
+                itScrollRowIntoView(itFocusedKey);
+            } else {
+                const idx = itLastVisible.findIndex(v => v.data.__key === node.__key);
+                if (idx >= 0 && itLastVisible[idx + 1]) {
+                    itFocusedKey = itLastVisible[idx + 1].data.__key;
+                    itRenderTree(container);
+                    itScrollRowIntoView(itFocusedKey);
+                }
+            }
+        } else {
+            if (itNodeHasChildren(node) && itExpandedKeys.has(node.__key)) {
+                itExpandedKeys.delete(node.__key);
+                itRenderTree(container);
+                itScrollRowIntoView(itFocusedKey);
+            } else if (node.__ancestors && node.__ancestors.length > 0) {
+                itFocusedKey = node.__ancestors[node.__ancestors.length - 1];
+                itRenderTree(container);
+                itScrollRowIntoView(itFocusedKey);
+            }
+        }
     }
 
     function itBuildUsersData() {
@@ -1103,7 +1213,10 @@
         if (!node.__folderId || !node.__entryUser) return null;
         const entries = folderUserAssignments.get(node.__folderId);
         const entry = entries && entries.find(e => e.user === node.__entryUser);
-        if (entry) entry.level = newLevel;
+        if (entry && entry.level !== newLevel) {
+            entry.level = newLevel;
+            itMarkDirty();
+        }
         node.level = newLevel;
         return itGetDescendantFolderIds(node.__folderId);
     }
@@ -1212,14 +1325,17 @@
     }
 
     /**
-     * Delete every currently-selected node: each one is either a single
-     * direct folder assignment (removed along with every inherited copy on
-     * descendant folders, reusing removeUserFromDescendants — same routine
-     * the old table used) or a whole Role/Company group (removed from every
-     * folder at once). Clears the selection and re-renders once at the end.
+     * Actually delete every currently-selected node: each one is either a
+     * single direct folder assignment (removed along with every inherited
+     * copy on descendant folders, reusing removeUserFromDescendants — same
+     * routine the old table used) or a whole Role/Company group (removed
+     * from every folder at once). Clears the selection and re-renders once
+     * at the end. Only called after itShowDeleteConfirm's toast is
+     * confirmed — see that function for the entry point.
      */
-    function itDeleteSelectedNodes(container) {
+    function itPerformDeleteSelectedNodes(container) {
         if (itSelectedKeys.size === 0) return;
+        let deletedCount = 0;
 
         itSelectedKeys.forEach(key => {
             const visNode = itLastVisible.find(v => v.data.__key === key);
@@ -1236,12 +1352,150 @@
                 if (node.subjectType && node.subjectId) {
                     itDeletedGrants.push({ subjectType: node.subjectType, subjectId: node.subjectId, scopeFolderId: node.__folderId });
                 }
+                deletedCount++;
             } else if (node.subjectType && node.subjectId) {
                 itDeleteSubjectEverywhere(node.subjectType, node.subjectId);
                 itDeletedGrants.push({ subjectType: node.subjectType, subjectId: node.subjectId, scopeFolderId: null });
+                deletedCount++;
             }
         });
 
+        itSelectedKeys = new Set();
+        itSelectionAnchorKey = null;
+        itMarkDirty(deletedCount);
+        itRenderTree(container);
+    }
+
+    function itDismissDeleteConfirm() {
+        if (itDeleteConfirmEl) {
+            itDeleteConfirmEl.remove();
+            itDeleteConfirmEl = null;
+        }
+    }
+
+    /**
+     * Entry point for deleting the current selection — shows a "delete N
+     * entries?" toast rather than deleting immediately, so a stray Delete
+     * keypress on a multi-selection can't silently remove several
+     * assignments at once with no way back.
+     */
+    function itShowDeleteConfirm(container) {
+        if (itDeleteConfirmEl || itSelectedKeys.size === 0) return;
+        const count = itSelectedKeys.size;
+        const wrap = document.querySelector('#itOverlay .it-modal-body-wrap');
+        if (!wrap) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'it-confirm-toast';
+        toast.innerHTML = `
+            <span>Delete ${count} selected ${count === 1 ? 'entry' : 'entries'}? This can't be undone once synced.</span>
+            <button type="button" class="it-confirm-cancel">Cancel</button>
+            <button type="button" class="it-confirm-delete">Delete</button>
+        `;
+        wrap.appendChild(toast);
+        itDeleteConfirmEl = toast;
+
+        toast.querySelector('.it-confirm-cancel').addEventListener('click', itDismissDeleteConfirm);
+        toast.querySelector('.it-confirm-delete').addEventListener('click', () => {
+            itDismissDeleteConfirm();
+            itPerformDeleteSelectedNodes(container);
+        });
+    }
+
+    function itDismissContextMenu() {
+        if (itContextMenuEl) {
+            itContextMenuEl.remove();
+            itContextMenuEl = null;
+        }
+    }
+
+    /**
+     * Right-click on a deletable row: "Set level to…" (applies to the whole
+     * current selection via itCommitLevelChange's own multi-select
+     * propagation), "Copy access to…" (arms a pending copy — see
+     * itPerformArmedCopy, triggered by the next folder click), and Delete
+     * (routes through the same confirm toast as the Delete key).
+     */
+    function itShowContextMenu(container, node, clientX, clientY) {
+        itDismissContextMenu();
+        if (!itIsDeletableNode(node)) return;
+
+        if (!itSelectedKeys.has(node.__key)) {
+            itSelectedKeys = new Set([node.__key]);
+            itSelectionAnchorKey = node.__key;
+            itRenderTree(container);
+        }
+        const count = itSelectedKeys.size;
+
+        const menu = document.createElement('div');
+        menu.className = 'it-ctx-menu';
+        menu.innerHTML = `
+            <div class="it-ctx-item" data-action="level">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z"/></svg>
+                Set level to…
+            </div>
+            <div class="it-ctx-levels" style="display:none;">
+                ${[1, 2, 3, 4, 5, 6].map(n => `<button type="button" data-level="${n}">${n}</button>`).join('')}
+            </div>
+            <div class="it-ctx-item" data-action="copy">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="10" height="10" rx="1"/><path d="M5 15V6a1 1 0 011-1h9"/></svg>
+                Copy access to…
+            </div>
+            <div class="it-ctx-sep"></div>
+            <div class="it-ctx-item it-ctx-danger" data-action="delete">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Delete (${count} selected)
+            </div>
+        `;
+        document.body.appendChild(menu);
+        itContextMenuEl = menu;
+
+        const rect = menu.getBoundingClientRect();
+        menu.style.left = Math.min(clientX, window.innerWidth - rect.width - 8) + 'px';
+        menu.style.top = Math.min(clientY, window.innerHeight - rect.height - 8) + 'px';
+
+        menu.querySelector('[data-action="level"]').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const levels = menu.querySelector('.it-ctx-levels');
+            levels.style.display = levels.style.display === 'none' ? 'flex' : 'none';
+        });
+        menu.querySelectorAll('.it-ctx-levels button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (node.__folderId && node.__entryUser && !node.isInherited) {
+                    itCommitLevelChange(node, btn.dataset.level);
+                }
+                itDismissContextMenu();
+            });
+        });
+        menu.querySelector('[data-action="copy"]').addEventListener('click', () => {
+            const armed = [];
+            itSelectedKeys.forEach(key => {
+                const visNode = itLastVisible.find(v => v.data.__key === key);
+                if (visNode && visNode.data.__folderId && visNode.data.__entryUser) {
+                    armed.push({ folderId: visNode.data.__folderId, entryUser: visNode.data.__entryUser });
+                }
+            });
+            itCopyTargetArmed = armed.length > 0 ? armed : null;
+            itDismissContextMenu();
+        });
+        menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+            itDismissContextMenu();
+            itShowDeleteConfirm(container);
+        });
+
+        // Any click elsewhere dismisses the menu — scheduled for next tick so
+        // the very click that opened it doesn't immediately close it.
+        setTimeout(() => document.addEventListener('click', itDismissContextMenu, { once: true }), 0);
+    }
+
+    /** Apply a "Copy access to…" armed from the context menu onto the clicked folder. */
+    function itPerformArmedCopy(container, folderId) {
+        if (!itCopyTargetArmed) return;
+        itCopyTargetArmed.forEach(({ folderId: sourceFolderId, entryUser }) => {
+            copyEntryToFolder(sourceFolderId, folderId, entryUser);
+        });
+        itCopyTargetArmed = null;
         itSelectedKeys = new Set();
         itSelectionAnchorKey = null;
         itRenderTree(container);
@@ -1257,6 +1511,18 @@
         // the text is reserved for select-to-delete — split from the
         // folder/group default of "click anywhere on the row expands".
         const isSubjectRow = d.type === 'user' || d.type === 'company' || d.type === 'role';
+
+        // Keyboard-navigation focus ring — a full-row band so Up/Down/Left/
+        // Right always shows where you are, independent of any text
+        // selection (which only highlights the label itself).
+        if (d.__key === itFocusedKey) {
+            sel.append('rect')
+                .attr('class', 'it-focus-ring')
+                .attr('x', -1000).attr('y', -11).attr('width', 3000).attr('height', 22)
+                .attr('fill', 'rgba(6,150,215,0.08)')
+                .attr('stroke', '#0696D7').attr('stroke-width', 1.5)
+                .style('pointer-events', 'none');
+        }
 
         // "+"/"−" square toggle, centered exactly on the row's anchor point
         // (à la https://observablehq.com/@laotzunami/collapsible-indented-tree)
@@ -1497,7 +1763,7 @@
             d3.select(rowEl).insert('rect', ':first-child')
                 .attr('class', 'it-drop-highlight')
                 .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
-                .attr('fill', 'rgba(13,110,253,0.12)')
+                .attr('fill', 'rgba(6,150,215,0.12)')
                 .style('pointer-events', 'none');
         }
     }
@@ -1581,22 +1847,40 @@
     function itWireRowDropTargets(rowSelection, container) {
         rowSelection
             .on('dragover', function(event, d) {
-                if (itMode !== 'folders' || d.data.type !== 'folder') return;
-                event.preventDefault();
                 const g = d3.select(this);
-                if (g.select('rect.it-drop-highlight').empty()) {
-                    g.insert('rect', ':first-child')
-                        .attr('class', 'it-drop-highlight')
-                        .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
-                        .attr('fill', 'rgba(13,110,253,0.12)')
-                        .style('pointer-events', 'none');
+                const isValidTarget = itMode === 'folders' && d.data.type === 'folder';
+                if (isValidTarget) {
+                    event.preventDefault();
+                    g.select('rect.it-drop-invalid').remove();
+                    if (g.select('rect.it-drop-highlight').empty()) {
+                        g.insert('rect', ':first-child')
+                            .attr('class', 'it-drop-highlight')
+                            .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
+                            .attr('fill', 'rgba(6,150,215,0.12)')
+                            .style('pointer-events', 'none');
+                    }
+                } else {
+                    // Not a valid drop target here — a soft red wash instead
+                    // of staying ambiguous about whether dropping will do
+                    // anything. Deliberately not calling preventDefault, so
+                    // the browser's own "no-drop" cursor shows too.
+                    g.select('rect.it-drop-highlight').remove();
+                    if (g.select('rect.it-drop-invalid').empty()) {
+                        g.insert('rect', ':first-child')
+                            .attr('class', 'it-drop-invalid')
+                            .attr('x', -1000).attr('y', -12).attr('width', 3000).attr('height', 24)
+                            .attr('fill', 'rgba(220,53,69,0.08)')
+                            .style('pointer-events', 'none');
+                    }
                 }
             })
             .on('dragleave', function(event, d) {
-                if (itMode !== 'folders' || d.data.type !== 'folder') return;
-                d3.select(this).select('rect.it-drop-highlight').remove();
+                const g = d3.select(this);
+                g.select('rect.it-drop-highlight').remove();
+                g.select('rect.it-drop-invalid').remove();
             })
             .on('drop', function(event, d) {
+                d3.select(this).select('rect.it-drop-invalid').remove();
                 if (itMode !== 'folders' || d.data.type !== 'folder') return;
                 event.preventDefault();
                 d3.select(this).select('rect.it-drop-highlight').remove();
@@ -1681,6 +1965,7 @@
         const rowMerge = rowEnter.merge(rowSel);
         rowMerge.style('cursor', d => rowCursor(d.data));
         rowMerge.classed('it-row-zebra', (d, i) => i % 2 === 1);
+        rowMerge.classed('it-row-focused', d => d.data.__key === itFocusedKey);
         rowMerge.each(function(d) {
             const g = d3.select(this);
             g.selectAll('*').remove();
@@ -1692,6 +1977,11 @@
 
         itWireRowDropTargets(rowMerge, container);
         itWireRowDragSource(rowMerge, container);
+        rowMerge.on('contextmenu', function(event, d) {
+            if (!itIsDeletableNode(d.data)) return;
+            event.preventDefault();
+            itShowContextMenu(container, d.data, event.clientX, event.clientY);
+        });
 
         // --- Connectors back to parent — same rounded-elbow shape as the
         // reference (see itMakeLink): a straight drop at the parent's toggle
@@ -1756,6 +2046,15 @@
         (data.children || []).forEach(n => itExpandedKeys.add(n.__key));
     }
 
+    function itUpdateSearchMatchCount(visible) {
+        const el = document.getElementById('itSearchMatchCount');
+        if (!el) return;
+        if (!itSearchQuery) { el.style.display = 'none'; return; }
+        const count = visible.filter(v => v.data.__matched).length;
+        el.textContent = `${count} match${count === 1 ? '' : 'es'}`;
+        el.style.display = 'inline-flex';
+    }
+
     function itRenderTree(container) {
         const data = itBuildData();
         itAssignKeys(data.children || [], '', []);
@@ -1768,6 +2067,7 @@
         }
         itDrawTree(container, visible);
         itUpdateStatusBar(visible.length);
+        itUpdateSearchMatchCount(visible);
     }
 
     /**
@@ -1972,10 +2272,15 @@
             }
             .it-modal-header {
                 display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-                padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0;
+                padding: 12px 20px 18px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0;
             }
             .it-modal-header h3 { margin: 0; font-size: 17px; }
             .it-modal-header h3 .it-proj { color: #888; font-weight: 500; }
+            .it-mode-wrap { position: relative; }
+            .it-mode-subtitle {
+                position: absolute; top: 100%; left: 3px; margin-top: 4px; font-size: 10.5px; color: #999;
+                white-space: nowrap; pointer-events: none;
+            }
 
             /* ---- Segmented control — replaces plain radio buttons for both
                the view-orientation switcher here and the Users/Company/Role
@@ -2004,9 +2309,15 @@
             .it-search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); opacity: .48; pointer-events: none; }
             .it-search {
                 padding: 6px 26px 6px 28px; font-size: 12.5px; border: 1px solid #ccc; border-radius: 4px;
-                width: 200px; height: auto; outline: none; font-family: inherit; margin: 0;
+                width: 220px; height: auto; outline: none; font-family: inherit; margin: 0;
             }
+            .it-search-wrap.has-value .it-search { padding-right: 92px; }
             .it-search:focus { border-color: #0696D7; box-shadow: 0 0 0 3px rgba(6,150,215,0.14); }
+            .it-search-match-count {
+                position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+                font-size: 10px; font-weight: 700; color: #0696D7; background: #e3f3fb;
+                padding: 2px 6px; border-radius: 999px; white-space: nowrap;
+            }
             .it-search-clear {
                 position: absolute !important; right: 5px; top: 50%; transform: translateY(-50%);
                 border: 0 !important; background: none !important; color: #999 !important; cursor: pointer;
@@ -2027,8 +2338,14 @@
             .it-small-btn:disabled { opacity: .55; cursor: default; background: transparent !important; }
             .it-danger-btn { background: #dc3545 !important; color: #fff !important; border-color: #dc3545 !important; }
             .it-danger-btn:hover { background: #c82333 !important; border-color: #c82333 !important; }
-            .it-sync-btn { background: #0696D7 !important; color: #fff !important; border-color: #0696D7 !important; font-weight: bold !important; }
+            .it-sync-btn { background: #0696D7 !important; color: #fff !important; border-color: #0696D7 !important; font-weight: bold !important; position: relative; }
             .it-sync-btn:hover { background: #0057A0 !important; border-color: #0057A0 !important; }
+            .it-sync-badge {
+                position: absolute; top: -7px; right: -7px; background: #F2A900; color: #3a2c00; font-size: 10px; font-weight: 800;
+                min-width: 18px !important; height: 18px !important; border-radius: 999px !important; display: flex !important;
+                align-items: center; justify-content: center; padding: 0 4px !important; margin: 0 !important;
+                border: 2px solid #f5f5f5; font-variant-numeric: tabular-nums; line-height: 1;
+            }
             .it-error-message {
                 padding: 20px; margin: 15px 20px; background: #fff3cd; color: #856404;
                 border: 2px solid #ffc107; border-radius: 8px; text-align: center; flex-shrink: 0;
@@ -2058,14 +2375,62 @@
             .it-col-cell[data-col="name"] {
                 padding-left: 26px;
             }
+            .it-col-cell[data-col="level"] { overflow: visible; display: flex; align-items: center; gap: 5px; }
+            .it-help-dot {
+                position: relative; width: 14px; height: 14px; border-radius: 50%; background: #c7cdd6; color: #fff;
+                font-size: 9px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+                cursor: help; flex-shrink: 0;
+            }
+            .it-help-tooltip {
+                display: none; position: absolute; left: 18px; top: -6px; width: 210px; background: #211e29; color: #fff;
+                font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; padding: 9px 11px;
+                border-radius: 6px; line-height: 1.7; box-shadow: 0 6px 18px rgba(0,0,0,.25); z-index: 20; white-space: normal;
+            }
+            .it-help-dot:hover .it-help-tooltip, .it-help-dot:focus .it-help-tooltip { display: block; }
             .it-col-resizer {
                 position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
                 cursor: col-resize; z-index: 6;
             }
-            .it-col-resizer:hover, .it-col-resizer.it-col-resizing { background: rgba(13,110,253,0.25); }
-            .it-row:hover { background: rgba(13,110,253,0.045); }
+            .it-col-resizer:hover, .it-col-resizer.it-col-resizing { background: rgba(6,150,215,0.25); }
+            .it-row:hover { background: rgba(6,150,215,0.045); }
             .it-row.it-row-zebra { background: rgba(0,0,0,0.014); }
-            .it-row.it-row-zebra:hover { background: rgba(13,110,253,0.045); }
+            .it-row.it-row-zebra:hover { background: rgba(6,150,215,0.045); }
+            .it-row.it-row-focused rect.it-focus-ring { pointer-events: none; }
+
+            .it-confirm-toast {
+                position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+                background: #211e29; color: #fff; padding: 9px 10px 9px 14px; border-radius: 8px;
+                box-shadow: 0 8px 24px rgba(0,0,0,.28); font-size: 12px; display: flex; align-items: center; gap: 10px;
+                z-index: 20; white-space: nowrap;
+            }
+            .it-confirm-toast button {
+                border-radius: 5px !important; padding: 5px 10px !important; font-size: 11.5px !important;
+                font-weight: 700 !important; min-width: 0 !important; height: auto !important; margin: 0 !important;
+                display: inline-flex !important;
+            }
+            .it-confirm-toast .it-confirm-cancel { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.3) !important; }
+            .it-confirm-toast .it-confirm-delete { background: #dc3545 !important; color: #fff !important; border: 0 !important; }
+
+            .it-ctx-menu {
+                position: fixed; width: 190px; background: #fff; border: 1px solid #ddd; border-radius: 8px;
+                box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 5px; z-index: 10160;
+                font-family: 'Artifact Elements', Arial, sans-serif;
+            }
+            .it-ctx-item {
+                padding: 7px 10px; font-size: 12px; border-radius: 5px; display: flex; align-items: center; gap: 8px;
+                color: #222; cursor: pointer;
+            }
+            .it-ctx-item:hover { background: #e3f3fb; }
+            .it-ctx-item.it-ctx-danger { color: #dc3545; }
+            .it-ctx-item.it-ctx-danger:hover { background: #fdecee; }
+            .it-ctx-sep { height: 1px; background: #e5e5e5; margin: 4px 2px; }
+            .it-ctx-levels { display: flex; gap: 3px; padding: 4px 6px; }
+            .it-ctx-levels button {
+                flex: 1; min-width: 0 !important; height: 22px !important; padding: 0 !important; margin: 0 !important;
+                border-radius: 4px !important; border: 1px solid #ddd !important; background: #fff !important; color: #555 !important;
+                font-size: 11px !important; font-weight: 700 !important;
+            }
+            .it-ctx-levels button:hover { background: #e3f3fb !important; border-color: #0696D7 !important; color: #0696D7 !important; }
             #itStatusBar {
                 padding: 6px 20px 8px; font-size: 11px; color: #888; border-top: 1px solid #eee; background: #fafafa;
                 flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;
@@ -2187,6 +2552,11 @@
         itZoomLevel = 1.0;
         itCleaned = false;
         itDeletedGrants = [];
+        itPendingChangeCount = 0;
+        itFocusedKey = null;
+        itDeleteConfirmEl = null;
+        itContextMenuEl = null;
+        itCopyTargetArmed = null;
         itAutoExpandFirstLevel();
 
         const overlay = document.createElement('div');
@@ -2196,19 +2566,26 @@
             <div class="it-modal">
                 <div class="it-modal-header">
                     <h3 id="itModalTitle">Folder Access</h3>
-                    <div class="it-segmented" id="itModeSegmented" role="tablist" aria-label="View orientation">
-                        <button type="button" class="it-seg-btn active" data-mode="folders">Folders → Users</button>
-                        <button type="button" class="it-seg-btn" data-mode="users">Users → Folders</button>
-                        <button type="button" class="it-seg-btn" data-mode="subjects">Roles/Companies → Users → Folders</button>
+                    <div class="it-mode-wrap">
+                        <div class="it-segmented" id="itModeSegmented" role="tablist" aria-label="View orientation">
+                            <button type="button" class="it-seg-btn active" data-mode="folders">Folders → Users</button>
+                            <button type="button" class="it-seg-btn" data-mode="users">Users → Folders</button>
+                            <button type="button" class="it-seg-btn" data-mode="subjects">Roles/Companies → Users → Folders</button>
+                        </div>
+                        <div class="it-mode-subtitle" id="itModeSubtitle">See who has access to each folder</div>
                     </div>
                     <div class="it-search-wrap">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
                         <input type="text" id="itSearch" class="it-search" placeholder="Search name or email..." autocomplete="off" />
+                        <span class="it-search-match-count" id="itSearchMatchCount" style="display:none;"></span>
                         <button type="button" class="it-search-clear" id="itSearchClear" title="Clear search">&times;</button>
                     </div>
                     <button id="itExpandAllBtn" class="it-small-btn" type="button">Expand</button>
                     <button id="itCollapseAllBtn" class="it-small-btn" type="button">Collapse All</button>
-                    <button id="itCleanBtn" class="it-small-btn it-danger-btn" type="button">Clean Folders</button>
+                    <button id="itCleanBtn" class="it-small-btn it-danger-btn" type="button">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Clean Folders
+                    </button>
                     <button id="itSyncBtn" class="it-small-btn it-sync-btn" type="button">Sync with the project</button>
                     <span class="it-close">&times;</span>
                 </div>
@@ -2219,7 +2596,13 @@
                     <div class="it-modal-body-wrap">
                         <div class="it-col-header" id="itColHeader">
                             <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name"></span></div>
-                            <div class="it-col-cell" data-col="level"><span id="itLevelColLabel">Level</span><span class="it-col-resizer" data-col="level"></span></div>
+                            <div class="it-col-cell" data-col="level">
+                                <span id="itLevelColLabel">Level</span>
+                                <span class="it-help-dot" tabindex="0">?
+                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>1 View Only &middot; 2 +Download &middot; 3 +Markups<br>4 +Upload &middot; 5 +Edit &middot; 6 Full control</span>
+                                </span>
+                                <span class="it-col-resizer" data-col="level"></span>
+                            </div>
                             <div class="it-col-cell" data-col="users" id="itUsersColHeader"><span id="itUsersColLabel">Users</span></div>
                         </div>
                         <div class="it-modal-body" id="itContainer"></div>
@@ -2231,16 +2614,24 @@
         document.body.appendChild(overlay);
 
         document.getElementById('itCleanBtn').addEventListener('click', () => {
+            let clearedCount = 0;
+            folderUserAssignments.forEach(entries => { clearedCount += entries.length; });
             folderUserAssignments.clear();
             itSelectedKeys = new Set();
             itSelectionAnchorKey = null;
             itCleaned = true;
+            itMarkDirty(clearedCount);
             const container = document.getElementById('itContainer');
             if (container) itRenderTree(container);
         });
 
-        document.getElementById('itSyncBtn').addEventListener('click', () => {
-            handleSyncPermissions();
+        document.getElementById('itSyncBtn').addEventListener('click', async () => {
+            await handleSyncPermissions();
+            // Whatever was pending has now been pushed (or the sync surfaced
+            // its own errors in its own modal) — either way, the local model
+            // and ACC should agree again, so the badge resets.
+            itPendingChangeCount = 0;
+            itUpdateSyncBadge();
         });
 
         itApplyColumnWidths(overlay);
@@ -2267,6 +2658,11 @@
             if (container) itRenderTree(container);
         });
 
+        const itModeSubtitles = {
+            folders: 'See who has access to each folder',
+            users: 'See where each person has access',
+            subjects: 'See what each role or company can access'
+        };
         overlay.querySelectorAll('#itModeSegmented .it-seg-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('active')) return;
@@ -2277,6 +2673,9 @@
                 itUserSortMode = null;
                 itSelectedKeys = new Set();
                 itSelectionAnchorKey = null;
+                itFocusedKey = null;
+                const subtitleEl = document.getElementById('itModeSubtitle');
+                if (subtitleEl) subtitleEl.textContent = itModeSubtitles[itMode] || '';
                 itAutoExpandFirstLevel();
                 itUpdateColumnVisibility(overlay);
                 const container = document.getElementById('itContainer');
@@ -2295,6 +2694,10 @@
                 itSearchQuery = searchInput.value.trim();
                 const container = document.getElementById('itContainer');
                 if (container) itRenderTree(container);
+                if (itSearchQuery) {
+                    const firstMatch = itLastVisible.find(v => v.data.__matched);
+                    if (firstMatch) itScrollRowIntoView(firstMatch.data.__key);
+                }
             }, 200);
         });
         searchClearBtn.addEventListener('click', () => {
@@ -2347,19 +2750,41 @@
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeIt(); });
 
         if (!itEscHandlerAdded) {
-            document.addEventListener('keydown', (event) => {
+            document.addEventListener('keydown', async (event) => {
                 const openOverlay = document.getElementById('itOverlay');
                 if (!openOverlay) return;
-                if (event.key === 'Escape') { openOverlay.remove(); return; }
+
+                if (event.key === 'Escape') {
+                    // Escape backs out one layer at a time: dismiss whatever
+                    // transient UI is open first, only close the modal itself
+                    // once none of that is showing.
+                    if (itContextMenuEl) { itDismissContextMenu(); return; }
+                    if (itDeleteConfirmEl) { itDismissDeleteConfirm(); return; }
+                    if (itCopyTargetArmed) { itCopyTargetArmed = null; return; }
+                    openOverlay.remove();
+                    return;
+                }
+
+                const active = document.activeElement;
+                const inTextField = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+
                 if ((event.key === 'Delete' || event.key === 'Backspace') && itSelectedKeys.size > 0) {
                     // Only when focus isn't inside a text input/foreignObject
                     // (Level column, search box) — those need Backspace for
                     // normal text editing.
-                    const active = document.activeElement;
-                    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+                    if (inTextField) return;
                     event.preventDefault();
                     const container = document.getElementById('itContainer');
-                    if (container) itDeleteSelectedNodes(container);
+                    if (container) itShowDeleteConfirm(container);
+                    return;
+                }
+
+                if (!inTextField && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                    event.preventDefault();
+                    if (event.key === 'ArrowUp') itMoveFocusVertical(-1);
+                    else if (event.key === 'ArrowDown') itMoveFocusVertical(1);
+                    else if (event.key === 'ArrowLeft') await itMoveFocusHorizontal(-1);
+                    else await itMoveFocusHorizontal(1);
                 }
             });
             itEscHandlerAdded = true;

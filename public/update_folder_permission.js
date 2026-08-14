@@ -454,8 +454,10 @@
 
         updateFolderSyncProgress('Reading permissions from table...', 0);
 
-        // Start sync immediately
-        (async () => {
+        // Start sync immediately — returned (not fire-and-forget) so callers
+        // that await syncPermissionsToACC() actually wait for the real work
+        // to finish, not just for this IIFE to be scheduled.
+        return (async () => {
 
             // Read permissions data directly from the shared model
             // (folderUserAssignments + currentHierarchy) rather than scraping

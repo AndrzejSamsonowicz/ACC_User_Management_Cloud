@@ -1396,6 +1396,7 @@
         const existing = folderUserAssignments.get(folderId);
         if (findExistingEntryIndex(existing, canonicalUser, subjectInfo) >= 0) return; // already assigned
         existing.push(entry);
+        itMarkDirty();
 
         // Propagate as inherited to all descendant folders in the model
         propagateInheritedToDescendants(folderId, canonicalUser, level, subjectInfo, displayName);
@@ -1691,6 +1692,7 @@
         const subjectInfo = { subjectType: entry.subjectType, subjectId: entry.subjectId };
         if (findExistingEntryIndex(targetEntries, entryUser, subjectInfo) >= 0) return; // already assigned there
         targetEntries.push({ ...entry, isInherited: false });
+        itMarkDirty();
         propagateInheritedToDescendants(targetFolderId, entryUser, entry.level, subjectInfo, entry.displayName);
     }
 
