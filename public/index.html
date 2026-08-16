@@ -203,24 +203,61 @@
 
         /* Table styles within modal */
         .modal-table-container {
-            overflow-x: auto;
-            height: 100%;
+            overflow-x: hidden;
+            /* The table's column widths are now percentages that always
+               sum to exactly 100% (see .modal-table / setupModalColumnResize),
+               so it can never actually be wider than this container —
+               overflow-x is hidden rather than auto purely to absorb any
+               sub-pixel rounding from borders, not because content is
+               expected to overflow.
+               No explicit height — this sits in normal flow below the action
+               bar/tip banner/summary inside .user-modal-body, which already
+               scrolls (overflow-y: auto). "height: 100%" here previously
+               meant 100% of .user-modal-body's own height, ON TOP OF the
+               space those siblings already took — forcing a phantom
+               vertical scrollbar even when every row fit on screen. */
         }
         
         .modal-table {
             border-collapse: collapse;
+            /* table-layout: fixed makes each column's rendered width follow
+               its <th>'s declared width (or inline style, once resized),
+               instead of the browser's auto-layout algorithm redistributing
+               space unpredictably — that unpredictability was the cause of
+               an earlier resize bug where shrinking one column silently
+               grew another for the wrong reason (proportions fighting a
+               fixed min-width floor). With width: 100% + table-layout:
+               fixed, each <th>'s width is instead used on purpose as its
+               PROPORTION of the modal's full width, so the table always
+               fills the modal edge-to-edge with no horizontal scroll:
+               dragging one column's handle changes its declared width,
+               which changes its share of the 100% total, so the other
+               columns visibly resize too, in proportion — that's expected
+               here, not a bug, since it's what keeps the total pinned to
+               100% instead of just growing off-screen. */
+            table-layout: fixed;
             width: 100%;
-            min-width: 1200px;
             font-family: 'Artifact Elements', Arial, sans-serif;
         }
-        
+
         .modal-table th, .modal-table td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
             font-family: 'Artifact Elements', Arial, sans-serif;
         }
-        
+
+        /* Long unbreakable values (an email address has no spaces to wrap
+           at) would otherwise overflow their cell and visually overlap the
+           next column instead of respecting the column's width — cut them
+           with an ellipsis. Scoped to non-access cells so the toggle
+           switches (which don't hold text) are unaffected. */
+        .modal-table td:not(.modal-access-cell) {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .modal-table th {
             background-color: #f2f2f2;
             position: sticky;
@@ -228,13 +265,32 @@
             font-family: 'Artifact Elements', Arial, sans-serif;
             font-weight: 700;
         }
-        
+
         .modal-table tr:nth-child(even) {
             background-color: #f9f9f9;
         }
-        
-        .modal-editable {
-            min-width: 200px;
+
+
+        /* Per-column drag-to-resize — each of the 10 resizable columns
+           (Email, Company, Role, Project Admin .. Site & Building Design)
+           is independent: dragging one only changes that column's own
+           width (via its <th> style.width, set by the JS below), and never
+           affects its neighbors. */
+        .modal-resizable-th {
+            position: relative;
+        }
+        .modal-col-resizer {
+            position: absolute;
+            top: 0;
+            right: -4px;
+            width: 8px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 2;
+        }
+        .modal-col-resizer:hover,
+        .modal-col-resizer.resizing {
+            background: rgba(6, 150, 215, 0.35);
         }
         
         .modal-table-actions {
@@ -255,7 +311,7 @@
             background: white;
             cursor: pointer;
             user-select: none;
-            text-align: center;
+            text-align: left;
             padding: 12px 8px;
         }
         
@@ -276,7 +332,14 @@
         .modal-access-cell.administrator {
             background-color: #e8f5e9;
         }
-        
+
+        /* Access-cell width is cosmetic only under table-layout: fixed —
+           actual column width is always driven by the <th>'s width (see
+           modal-resizable-th / modal-col-resizer below), not this. */
+        #userManagementModal .modal-access-cell {
+            width: 90px;
+        }
+
         /* Toggle Switch Styles */
         .toggle-switch {
             position: relative;
@@ -350,17 +413,374 @@
             background-color: #ffebee;
             border: 1px solid #d32f2f;
         }
-        
-        /* Project Action Buttons */
-        .project-btn {
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 14px;
+
+        /* ================================================================
+           User Management modal — visual alignment with the folder modal's
+           design language (folders-indented-tree.js's it- classes).
+           Visual only: no ids/onclick/behavior below were touched, and the
+           toggle-switch / modal-access-cell rules above are untouched —
+           the Project Admin .. Site & Building Design columns keep their
+           exact current look and drag/lock behavior.
+           ================================================================ */
+
+        #userManagementModal .user-modal-header {
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        #userManagementModal .user-modal-header h3 {
+            font-size: 17px;
+        }
+
+        /* Hub/Project context line — same content and ids, just a quieter
+           inline subtitle instead of a full-width blue banner. */
+        #userManagementModal #modalHubInfo {
+            background: transparent !important;
+            border-bottom: none !important;
+            padding: 8px 20px 12px !important;
+            font-size: 12.5px !important;
+            color: #888 !important;
             font-weight: 500;
+        }
+        #userManagementModal #modalHubInfo strong {
+            color: #666;
+            font-weight: 700;
+        }
+
+        #userManagementModal .modal-table-actions {
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        #userManagementModal .modal-table-actions > div {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Compact outlined buttons — overrides the site-wide button/.btn rule
+           the same way folders-indented-tree.js's .it-small-btn already does,
+           scoped to this modal's own action bar only. */
+        #userManagementModal .modal-table-actions button {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            padding: 7px 14px !important;
+            border: 1px solid #0696D7 !important;
+            border-radius: 4px !important;
+            font-size: 12.5px !important;
+            font-weight: 700 !important;
+            min-width: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+        }
+        #userManagementModal .modal-table-actions button:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
+        }
+        #userManagementModal .modal-table-actions button:disabled {
+            background-color: #e0e0e0 !important;
+            color: #999 !important;
+            border-color: #d0d0d0 !important;
+            cursor: not-allowed !important;
+            opacity: .7;
+        }
+        /* Destructive actions stay red/distinct, not blue like the rest. */
+        #userManagementModal #modalDeleteRowBtn,
+        #userManagementModal #modalClearTableBtn {
+            background-color: #dc3545 !important;
+            color: #fff !important;
+            border-color: #dc3545 !important;
+        }
+        #userManagementModal #modalDeleteRowBtn:hover,
+        #userManagementModal #modalClearTableBtn:hover {
+            background-color: #c82333 !important;
+            border-color: #c82333 !important;
+        }
+
+        #userManagementModal .modal-tip-banner {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #e7f3ff;
+            border-left: 3px solid #0696D7;
+            border-radius: 0 4px 4px 0;
+            font-size: 12.5px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* Table header — sticky uppercase label style, matches the folder
+           modal's .it-col-header. Column widths/order/content unchanged. */
+        #userManagementModal .modal-table th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+            color: #666;
+            border-bottom: 2px solid #ccc;
+            /* Long single words ("Preconstruction", "Collaboration") have no
+               space to wrap at, so in a narrow resized column they'd
+               otherwise overflow the cell horizontally and visually spill
+               into the next column's header instead of wrapping onto a
+               second line within their own column. */
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+
+        /* Flat rows with a quiet hover tint instead of grey zebra stripes —
+           .modal-access-cell already forces background:white on the toggle
+           columns, so this only visibly affects the Email/Company/Role cells. */
+        #userManagementModal .modal-table tr:nth-child(even) {
+            background-color: transparent;
+        }
+        #userManagementModal .modal-table tbody tr:hover td {
+            background-color: #f5fbff;
+        }
+
+        /* Editable-cell hover affordance — .modal-editable cells had no hover
+           state before; scoped to <td> only so the (non-interactive) header
+           cells that share the class aren't affected. */
+        #userManagementModal td.modal-editable:hover {
+            background-color: #f5f9fc;
+            box-shadow: inset 0 0 0 1px #cfe8f7;
+        }
+
+        #userManagementModal .modal-table-summary {
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            font-size: 12.5px;
+            color: #555;
+        }
+
+        /* ================================================================
+           Landing page (pre- and post-Autodesk-login) — same visual
+           language as the User Management / folder modals: compact outlined
+           buttons instead of the site-wide 200px blue pills, tighter
+           header, quieter neutrals. Visual only — every id/onclick/
+           addEventListener below is untouched, so hub selection, project
+           checkboxes, filtering, and the admin gate all behave exactly as
+           before. */
+        /* Pre-login screen — same layout as login.html: solid blue backdrop,
+           a centered white card. #login is a fixed full-viewport overlay so
+           centering doesn't depend on body's own layout, and it disappears
+           automatically (taking the card with it) the instant JS sets
+           #login.style.display = 'none' after a successful Autodesk login —
+           no extra logic needed. */
+        #login {
+            position: fixed;
+            inset: 0;
+            background: #0696D7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 1;
+        }
+        .login-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .login-card h1 {
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin: 0 0 6px !important;
+            color: #0696D7;
+            text-align: center;
+        }
+        .login-card-subtitle {
+            margin: 0 0 20px;
+            color: #6c757d;
+            font-size: 13.5px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        #loginCardLicenseNote {
+            width: 100%;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            line-height: 1.5;
+        }
+        #loginCardLicenseNote:empty {
+            display: none;
+        }
+        #loginCardLicenseNote a {
+            color: #0696D7;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        #loginCardLicenseNote a:hover {
+            text-decoration: underline;
+        }
+        #error {
+            display: none;
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13.5px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            box-sizing: border-box;
+        }
+
+        /* Pre-login button group (Logout / Settings / Login with Autodesk) —
+           all blue, all the same width. */
+        #login .login-card button {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border: 1px solid #0696D7 !important;
+            padding: 8px 16px !important;
+            border-radius: 4px !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            min-width: 0 !important;
+            width: 240px !important;
+            height: auto !important;
+            margin: 0 !important;
+        }
+        #login .login-card button:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
+        }
+
+        /* Admin Account banner — same content/ids, slimmer bar */
+        #license-info-banner {
+            padding: 8px 20px !important;
+            font-size: 12.5px !important;
+            background: #0696D7 !important;
+        }
+
+        /* Hubs panel */
+        #hubsPanel {
+            background: #fafbfc;
+        }
+        #hubsPanel h3 {
+            font-size: 12px !important;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #888;
+            font-weight: 700 !important;
+        }
+        #hubsPanel button {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border: 1px solid #0696D7 !important;
+            border-radius: 4px !important;
+            font-size: 12.5px !important;
+            font-weight: 700 !important;
+            min-width: 0 !important;
+            height: auto !important;
+            padding: 7px 14px !important;
+            margin: 0 !important;
+        }
+        #hubsPanel button:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
+        }
+        #hubFilter {
+            border-radius: 4px;
+            font-size: 12.5px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        #hubFilter:focus {
+            border-color: #0696D7;
+            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.14);
+        }
+        .hub-item {
+            border-radius: 4px !important;
+            font-size: 12.5px !important;
+            padding: 8px 10px !important;
+        }
+
+        /* Projects panel header actions */
+        #projectsHeader h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1b2430;
+        }
+        #projectsHeader > div > div button,
+        #buttonExplanations button {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border: 1px solid #0696D7 !important;
+            border-radius: 4px !important;
+            font-size: 12.5px !important;
+            font-weight: 700 !important;
+            min-width: 0 !important;
+            height: auto !important;
+            padding: 7px 14px !important;
+            margin: 0 !important;
+        }
+        #projectsHeader > div > div button:hover,
+        #buttonExplanations button:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
+        }
+        #addNewUsersBtn {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border-color: #0696D7 !important;
+        }
+        #addNewUsersBtn:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
+        }
+        /* #addNewUsersBtn's own !important blue (needed to beat the generic
+           button rule) would otherwise also beat the site-wide
+           button:disabled rule, since an ID selector outranks it — making a
+           disabled button look identical to an enabled one again (the exact
+           bug fixed earlier this session). Restated here with matching ID
+           specificity so disabled still reads as disabled. */
+        #addNewUsersBtn:disabled {
+            background-color: #e0e0e0 !important;
+            color: #999 !important;
+            border-color: #d0d0d0 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7;
+        }
+        #projectFilter {
+            border-radius: 4px !important;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        #projectFilter:focus {
+            border-color: #0696D7 !important;
+            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.14);
+        }
+
+        /* Project Action Buttons — !important added so these actually win
+           over the site-wide button rule (previously they didn't, which is
+           why every button rendered as an identical blue pill regardless of
+           these classes). */
+        .project-btn {
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            padding: 7px 14px !important;
+            border-radius: 4px !important;
+            font-size: 12.5px !important;
+            font-weight: 700 !important;
             cursor: pointer;
             transition: all 0.2s ease;
-            border: none;
+            border: 1px solid #0696D7 !important;
             outline: none;
+            min-width: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+        }
+        .project-btn:hover {
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
         }
 
         /* Explicit disabled styling — the colored button classes below set their
@@ -381,36 +801,36 @@
         }
 
         .project-btn-update {
-            background-color: #007bff;
-            color: white;
-            border: 1px solid #007bff;
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border: 1px solid #0696D7 !important;
         }
-        
+
         .project-btn-update:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
         }
-        
+
         .project-btn-add {
-            background-color: #28a745;
-            color: white;
-            border: 1px solid #28a745;
+            background-color: #0696D7 !important;
+            color: #fff !important;
+            border: 1px solid #0696D7 !important;
         }
-        
+
         .project-btn-add:hover {
-            background-color: #1e7e34;
-            border-color: #1e7e34;
+            background-color: #0057A0 !important;
+            border-color: #0057A0 !important;
         }
-        
+
         .project-btn-delete {
-            background-color: #dc3545;
-            color: white;
-            border: 1px solid #dc3545;
+            background-color: #dc3545 !important;
+            color: #fff !important;
+            border: 1px solid #dc3545 !important;
         }
-        
+
         .project-btn-delete:hover {
-            background-color: #c82333;
-            border-color: #c82333;
+            background-color: #c82333 !important;
+            border-color: #c82333 !important;
         }
     </style>
 </head>
@@ -420,13 +840,17 @@
         <div class="spinner"></div>
     </div>
     
-    <h1 style="font-family: 'Artifact Elements', Arial, sans-serif; margin-left: 20px;">Forma User Management</h1>
-    <div id="login" style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 20px;">
-        <button onclick="logout()">Logout</button>
-        <button onclick="showCredentialsModal()">Settings</button>
-        <button onclick="login()">Login with Autodesk</button>
+    <div id="login">
+        <div class="login-card">
+            <h1>Forma User Management</h1>
+            <p class="login-card-subtitle">To use this app, follow the steps in "Settings".</p>
+            <div id="error"></div>
+            <button onclick="logout()">Logout</button>
+            <button onclick="showCredentialsModal()">Settings</button>
+            <button onclick="login()">Login with Autodesk</button>
+            <div id="loginCardLicenseNote"></div>
+        </div>
     </div>
-    <div id="error" style="display: none; color: red; font-family: 'Artifact Elements', Arial, sans-serif;"></div>
     <div id="content" style="display: none; flex: 1; min-height: 0;">
         <div style="display: flex; height: 100%;">
             <!-- Left side - Hubs list (1/4 width) -->
@@ -833,13 +1257,21 @@
                 document.body.style.paddingTop = '50px';
             }
             
+            // Trial/expiry details live at the bottom of the login card now
+            // (not the top banner) — the card already has its own Logout
+            // button, so the banner no longer needs one either.
+            const licenseNote = document.getElementById('loginCardLicenseNote');
+
             if (isAdmin) {
-                banner.innerHTML = `<strong>👤 Admin Account:</strong> ${email} | <a href="#" onclick="handleLogout(); return false;" style="color: white; text-decoration: underline; margin-left: 20px;">Logout</a>`;
+                banner.style.display = 'block';
+                banner.style.background = '#0696D7';
+                banner.innerHTML = `<strong>Admin Account:</strong> ${email}`;
+                if (licenseNote) licenseNote.innerHTML = '';
             } else if (isTrial && trialEndDate) {
                 const now = new Date();
                 const daysLeft = Math.ceil((trialEndDate - now) / (1000 * 60 * 60 * 24));
                 const hoursLeft = Math.ceil((trialEndDate - now) / (1000 * 60 * 60));
-                
+
                 let timeMessage;
                 if (daysLeft > 1) {
                     timeMessage = `${daysLeft} days`;
@@ -848,14 +1280,21 @@
                 } else {
                     timeMessage = 'less than 1 hour';
                 }
-                
-                banner.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-                banner.innerHTML = `<strong>Free Trial:</strong> ${timeMessage} remaining • <a href="purchase.html" style="color: white; text-decoration: underline; margin-left: 10px;">Get License</a>`;
+
+                banner.style.display = 'none';
+                document.body.style.paddingTop = '0';
+                if (licenseNote) {
+                    licenseNote.innerHTML = `<strong>Free trial:</strong> ${timeMessage} remaining — <a href="purchase.html">Get a license</a>`;
+                }
             } else if (expiryDate) {
                 const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
-                banner.innerHTML = `<strong>📋 License:</strong> ${email} • Valid until ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days) | <a href="#" onclick="handleLogout(); return false;" style="color: white; text-decoration: underline; margin-left: 20px;">Logout</a>`;
+                banner.style.display = 'none';
+                document.body.style.paddingTop = '0';
+                if (licenseNote) {
+                    licenseNote.innerHTML = `<strong>Forma User Management License:</strong> ${email}<br>valid until ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days remaining)`;
+                }
             }
-            
+
             log('✓ License info displayed');
         }
         
@@ -2966,8 +3405,8 @@
                 <div class="modal-table-actions">
                     <div>
                         <button id="modalAddRowBtn" onclick="addModalRow()">Add Row</button>
-                        <button onclick="deleteSelectedModalRows()">Delete Row</button>
-                        <button onclick="clearModalTable()">Clear Table</button>
+                        <button id="modalDeleteRowBtn" onclick="deleteSelectedModalRows()">Delete Row</button>
+                        <button id="modalClearTableBtn" onclick="clearModalTable()">Clear Table</button>
                     </div>
                     <div>
                         <button id="modalImportCSVBtn" onclick="importCSV()">Import From File</button>
@@ -2975,7 +3414,7 @@
                         <button id="modalSaveSyncBtn" onclick="saveAndSync()">Save &amp; Sync</button>
                     </div>
                 </div>
-                <div style="margin-top: 10px; font-size: 13px; color: #666; line-height: 1.6;">
+                <div class="modal-tip-banner">
                     <div>💡 Press <strong>Shift</strong> to select multiple cells vertically and horizontally</div>
                     <div>💡 User <strong>Roles</strong> must match these defined in the <strong>Account</strong></div>
                     <div>💡 If an administrator's email is included, ensure they are marked as a <strong>Project Admin</strong></div>
@@ -3008,21 +3447,21 @@
                     <table id="modalUserTable" class="modal-table">
                         <thead>
                             <tr>
-                                <th style="width: 40px; text-align: center;">
+                                <th style="width: 3%; text-align: center;">
                                     <input type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
                                 </th>
-                                <th class="modal-editable">Email</th>
-                                <th class="modal-editable">Company</th>
-                                <th class="modal-editable">Role</th>
-                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Project Admin</th>
+                                <th class="modal-editable modal-resizable-th" style="width: 19%;">Email<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-editable modal-resizable-th" style="width: 16%;">Company<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-editable modal-resizable-th" style="width: 15%;">Role<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Project Admin<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <!-- <th>Insight</th> Hidden: Insight always defaults to 'member' and doesn't support 'administrator' -->
                                 <!-- <th>Docs</th> Removed: Data Management is auto-granted by ACC -->
-                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Design Collaboration</th>
-                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Model Coordination</th>
-                                <th>Preconstruction</th>
-                                <th>Build</th>
-                                <th style="white-space: normal; min-width: 60px; max-width: 80px;">Cost Management</th>
-                                <th style="white-space: normal; min-width: 90px; max-width: 110px;">Site &amp; Building<br>Design</th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Design Collaboration<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Model Coordination<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Preconstruction<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Build<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Cost Management<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.72%; white-space: normal;">Site &amp; Building<br>Design<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                             </tr>
                         </thead>
                         <tbody id="modalTableBody"></tbody>
@@ -3031,6 +3470,105 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Lock background scroll while the User Management modal is open —
+        // the modal itself already covers the full viewport and scrolls
+        // internally, so the page behind it doesn't need its own scrollbar
+        // showing at the same time.
+        (function setupUserManagementModalScrollLock() {
+            const modal = document.getElementById('userManagementModal');
+            if (!modal) return;
+            const observer = new MutationObserver(() => {
+                const isOpen = getComputedStyle(modal).display !== 'none';
+                document.body.style.overflow = isOpen ? 'hidden' : '';
+            });
+            observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+        })();
+
+        // Per-column drag-to-resize for Email, Company, Role, and the 7
+        // access columns, using PERCENTAGE widths that always sum to
+        // exactly 100% — the checkbox column keeps a fixed 3% and is never
+        // touched. table-layout: fixed treats percentage <th> widths as
+        // literal proportions of the table's own width (unlike px widths,
+        // which the browser will happily overflow rather than shrink below
+        // — that's what caused the table to exceed 100% and need
+        // horizontal scroll before). Because the 11 columns' percentages
+        // always sum to 100, the table can never be wider than the modal:
+        // dragging one column's handle grows it by taking width away from
+        // the OTHER resizable columns, proportionally to their current
+        // share, so the total never changes.
+        (function setupModalColumnResize() {
+            const modal = document.getElementById('userManagementModal');
+            if (!modal) return;
+
+            const MIN_PERCENT = 3;
+            let dragging = false;
+            let dragTh = null;
+            let dragStartX = 0;
+            let tableWidthAtStart = 0;
+            let startPercents = new Map(); // th -> its % at drag start
+            let otherThs = [];
+
+            const currentPercent = (th) => parseFloat(th.style.width) || 0;
+
+            modal.querySelectorAll('.modal-col-resizer').forEach(handle => {
+                handle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragTh = handle.closest('th');
+                    if (!dragTh) return;
+
+                    const table = document.getElementById('modalUserTable');
+                    tableWidthAtStart = table.getBoundingClientRect().width;
+
+                    otherThs = Array.from(modal.querySelectorAll('.modal-resizable-th')).filter(th => th !== dragTh);
+                    startPercents = new Map();
+                    startPercents.set(dragTh, currentPercent(dragTh));
+                    otherThs.forEach(th => startPercents.set(th, currentPercent(th)));
+
+                    dragging = true;
+                    dragStartX = e.clientX;
+                    handle.classList.add('resizing');
+                    document.body.style.cursor = 'col-resize';
+                });
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!dragging || !dragTh) return;
+
+                const deltaPercent = ((e.clientX - dragStartX) / tableWidthAtStart) * 100;
+                const dragStart = startPercents.get(dragTh);
+                const othersStartSum = otherThs.reduce((sum, th) => sum + startPercents.get(th), 0);
+
+                // Clamp so the drag column can't take others below their floor.
+                const maxDragPercent = dragStart + othersStartSum - (MIN_PERCENT * otherThs.length);
+                const newDragPercent = Math.min(maxDragPercent, Math.max(MIN_PERCENT, dragStart + deltaPercent));
+                const actualDelta = newDragPercent - dragStart;
+
+                dragTh.style.width = newDragPercent + '%';
+
+                // Take exactly actualDelta away from the others, split
+                // proportionally to each one's own starting share, so the
+                // 11 columns' percentages still sum to 100 afterward.
+                otherThs.forEach(th => {
+                    const start = startPercents.get(th);
+                    const share = othersStartSum > 0 ? start / othersStartSum : 1 / otherThs.length;
+                    const newPercent = Math.max(MIN_PERCENT, start - actualDelta * share);
+                    th.style.width = newPercent + '%';
+                });
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                const handle = dragTh ? dragTh.querySelector('.modal-col-resizer.resizing') : null;
+                if (handle) handle.classList.remove('resizing');
+                dragTh = null;
+                document.body.style.cursor = '';
+            });
+        })();
+    </script>
 
 </body>
 </html>

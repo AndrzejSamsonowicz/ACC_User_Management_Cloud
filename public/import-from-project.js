@@ -111,6 +111,11 @@ function createImportProjectModal() {
 
     const styles = `
         <style>
+            /* Visual language matched to #userManagementModal / the folder
+               modal: full-viewport shell, tight sticky-uppercase table
+               header, compact blue buttons, quieter hover states. Visual
+               only — every id/onclick/selection behavior below is
+               untouched. */
             .import-project-modal {
                 position: fixed;
                 z-index: 4000;
@@ -124,13 +129,12 @@ function createImportProjectModal() {
 
             .import-project-modal-content {
                 background-color: #fefefe;
-                margin: 2% auto;
-                border: 1px solid #888;
-                width: 95%;
-                max-width: 1680px;
-                height: 90vh;
-                border-radius: 8px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                margin: 0;
+                border: none;
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+                box-shadow: none;
                 display: flex;
                 flex-direction: column;
             }
@@ -139,16 +143,16 @@ function createImportProjectModal() {
                 padding: 15px 20px;
                 background-color: #f8f9fa;
                 border-bottom: 1px solid #ddd;
-                border-radius: 8px 8px 0 0;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                flex-shrink: 0;
             }
 
             .import-project-modal-header h3 {
                 margin: 0;
                 color: #333;
-                font-size: 18px;
+                font-size: 17px;
             }
 
             .import-project-modal-close {
@@ -198,24 +202,28 @@ function createImportProjectModal() {
             .import-hubs-section h4,
             .import-projects-section h4 {
                 margin: 0 0 8px 0;
-                color: #333;
-                font-size: 14px;
-                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                color: #888;
+                font-weight: 700;
             }
 
             .import-filter-input {
                 width: 100%;
                 padding: 6px 10px;
                 margin-bottom: 8px;
-                border: 1px solid #ddd;
+                border: 1px solid #ccc;
                 border-radius: 4px;
-                font-size: 12px;
+                font-size: 12.5px;
                 box-sizing: border-box;
+                transition: border-color .2s, box-shadow .2s;
             }
 
             .import-filter-input:focus {
                 outline: none;
                 border-color: #0696D7;
+                box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.14);
             }
 
             .import-list {
@@ -227,15 +235,15 @@ function createImportProjectModal() {
             }
 
             .import-list-item {
-                padding: 10px 12px;
+                padding: 8px 10px;
                 border-bottom: 1px solid #eee;
                 cursor: pointer;
                 transition: background-color 0.2s;
-                font-size: 13px;
+                font-size: 12.5px;
             }
 
             .import-list-item:hover {
-                background-color: #f5f5f5;
+                background-color: #f5fbff;
             }
 
             .import-list-item.selected {
@@ -262,9 +270,11 @@ function createImportProjectModal() {
 
             .import-users-header h4 {
                 margin: 0;
-                color: #333;
-                font-size: 14px;
-                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                color: #888;
+                font-weight: 700;
             }
 
             .import-users-actions {
@@ -273,40 +283,39 @@ function createImportProjectModal() {
                 align-items: center;
             }
 
-            .import-btn-small {
-                padding: 6px 12px;
-                font-size: 12px;
-                background-color: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                transition: background-color 0.2s;
-            }
-
-            .import-btn-small:hover {
-                background-color: #5a6268;
-            }
-
+            /* !important throughout — index.html's site-wide "button, .btn"
+               rule (200px min-width, 44px height, its own colors) is also
+               !important and otherwise wins over these, same issue already
+               fixed for .project-btn / #hubsPanel button / etc. Without it
+               these rendered as the old giant blue pills regardless of the
+               values below. */
+            .import-btn-small,
             .import-btn-primary {
-                padding: 6px 16px;
-                font-size: 13px;
-                background-color: #0696D7;
-                color: white;
-                border: none;
-                border-radius: 4px;
+                padding: 7px 14px !important;
+                font-size: 12.5px !important;
+                font-weight: 700 !important;
+                background-color: #0696D7 !important;
+                color: #fff !important;
+                border: 1px solid #0696D7 !important;
+                border-radius: 4px !important;
                 cursor: pointer;
-                font-weight: 500;
-                transition: background-color 0.2s;
+                min-width: 0 !important;
+                width: auto !important;
+                height: auto !important;
+                margin: 0 !important;
+                transition: background-color 0.2s, border-color 0.2s;
             }
 
+            .import-btn-small:hover,
             .import-btn-primary:hover {
-                background-color: #0580C0;
+                background-color: #0057A0 !important;
+                border-color: #0057A0 !important;
             }
 
             .import-users-table-container {
                 flex: 1;
                 overflow-y: auto;
+                overflow-x: hidden;
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 background: white;
@@ -314,6 +323,7 @@ function createImportProjectModal() {
 
             .import-users-table {
                 width: 100%;
+                table-layout: fixed;
                 border-collapse: collapse;
                 font-size: 12px;
             }
@@ -321,48 +331,37 @@ function createImportProjectModal() {
             .import-users-table th {
                 position: sticky;
                 top: 0;
-                background-color: #f2f2f2;
-                padding: 10px 6px;
+                background-color: #f0f0f0;
+                padding: 9px 6px;
                 text-align: left;
-                border-bottom: 2px solid #ddd;
-                font-weight: 600;
+                border-bottom: 2px solid #ccc;
+                font-weight: 700;
                 font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: .02em;
+                color: #666;
                 z-index: 10;
                 white-space: normal;
                 line-height: 1.2;
                 vertical-align: middle;
+                /* Long single words ("Preconstruction", "Collaboration") have
+                   no space to wrap at, so at ~6.71% column width they'd
+                   otherwise overflow the cell horizontally and visually
+                   spill into the next column's header instead of wrapping
+                   onto a second line within their own column. */
+                overflow-wrap: break-word;
+                word-break: break-word;
             }
 
-            /* Equal width for all service columns (Project Admin through Forma) */
-            .import-users-table th:nth-child(5),
-            .import-users-table th:nth-child(6),
-            .import-users-table th:nth-child(7),
-            .import-users-table th:nth-child(8),
-            .import-users-table th:nth-child(9),
-            .import-users-table th:nth-child(10),
-            .import-users-table th:nth-child(11),
-            .import-users-table th:nth-child(12) {
-                width: 80px;
-                min-width: 80px;
-                max-width: 80px;
-                text-align: center;
-            }
-
-            /* Center align service column data cells */
+            /* Left-align service column data cells (toggle switches) */
             .import-users-table td:nth-child(5),
             .import-users-table td:nth-child(6),
             .import-users-table td:nth-child(7),
             .import-users-table td:nth-child(8),
             .import-users-table td:nth-child(9),
             .import-users-table td:nth-child(10),
-            .import-users-table td:nth-child(11),
-            .import-users-table td:nth-child(12) {
-                text-align: center;
-            }
-
-            .import-users-table th:first-child {
-                width: 40px;
-                text-align: center;
+            .import-users-table td:nth-child(11) {
+                text-align: left;
             }
 
             .import-users-table td {
@@ -370,8 +369,42 @@ function createImportProjectModal() {
                 border-bottom: 1px solid #eee;
             }
 
-            .import-users-table tr:hover {
-                background-color: #f9f9f9;
+            /* Long unbreakable values (an email has no spaces to wrap at)
+               get cut with an ellipsis instead of overflowing into the next
+               column — same treatment as the Existing Users table. Scoped
+               to the text columns (2nd-4th) so the toggle-switch cells
+               aren't affected. */
+            .import-users-table td:nth-child(2),
+            .import-users-table td:nth-child(3),
+            .import-users-table td:nth-child(4) {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* Per-column drag-to-resize, identical scheme to
+               #userManagementModal's table: percentage widths that always
+               sum to exactly 100%, so the table can never need horizontal
+               scroll. See setupImportColumnResize(). */
+            .import-resizable-th {
+                position: relative;
+            }
+            .import-col-resizer {
+                position: absolute;
+                top: 0;
+                right: -4px;
+                width: 8px;
+                height: 100%;
+                cursor: col-resize;
+                z-index: 2;
+            }
+            .import-col-resizer:hover,
+            .import-col-resizer.resizing {
+                background: rgba(6, 150, 215, 0.35);
+            }
+
+            .import-users-table tr:hover td {
+                background-color: #f5fbff;
             }
 
             .import-users-table tbody tr:last-child td {
@@ -755,18 +788,17 @@ function renderImportUsersTable(users) {
         <table class="import-users-table">
             <thead>
                 <tr>
-                    <th><input type="checkbox" id="checkAllImportCheckbox" onchange="toggleAllImportUsers(this)"></th>
-                    <th>Email</th>
-                    <th>Company</th>
-                    <th>Role</th>
-                    <th title="Project Administration">Project Admin</th>
-                    <th title="Document Management">Docs</th>
-                    <th title="Design Collaboration">Design Collaboration</th>
-                    <th title="Model Coordination">Model Coordination</th>
-                    <th title="Preconstruction">Preconstruction</th>
-                    <th title="Build">Build</th>
-                    <th title="Cost Management">Cost</th>
-                    <th title="Forma">Forma</th>
+                    <th style="width: 3%; text-align: center;"><input type="checkbox" id="checkAllImportCheckbox" onchange="toggleAllImportUsers(this)"></th>
+                    <th class="import-resizable-th" style="width: 19%;">Email<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 16%;">Company<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 15%;">Role<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Project Administration">Project Admin<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Design Collaboration">Design Collaboration<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Model Coordination">Model Coordination<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Preconstruction">Preconstruction<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Build">Build<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.71%;" title="Cost Management">Cost Management<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th" style="width: 6.72%;" title="Site & Building Design">Site &amp; Building Design<span class="import-col-resizer" title="Drag to resize this column"></span></th>
                 </tr>
             </thead>
             <tbody>
@@ -784,7 +816,6 @@ function renderImportUsersTable(users) {
 
         const products     = user.products || [];
         const projectAdmin = getServiceAccess(products, 'project_administration');
-        const docs         = getServiceAccess(products, 'document_management');
         const design       = getServiceAccess(products, 'design_collaboration');
         const model        = getServiceAccess(products, 'model_coordination');
         const precon       = getServiceAccess(products, 'preconstruction');
@@ -800,14 +831,13 @@ function renderImportUsersTable(users) {
                 <td>${email}</td>
                 <td>${company}</td>
                 <td>${role}</td>
-                <td style="text-align: center;">${renderServiceIndicator(projectAdmin)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(docs)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(design)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(model)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(precon)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(build)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(cost)}</td>
-                <td style="text-align: center;">${renderServiceIndicator(forma)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(projectAdmin)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(design)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(model)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(precon)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(build)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(cost)}</td>
+                <td style="text-align: left;">${renderServiceIndicator(forma)}</td>
             </tr>
         `;
     });
@@ -819,6 +849,84 @@ function renderImportUsersTable(users) {
 
     usersList.innerHTML = tableHTML;
     setupImportCheckboxShiftClick();
+    setupImportColumnResize();
+}
+
+// ============================================================================
+// Column resize — identical scheme to #userManagementModal's table:
+// percentage widths that always sum to exactly 100%, so the table can
+// never need horizontal scroll. Dragging one column's handle takes width
+// from the others, proportionally to their current share.
+//
+// The table is rebuilt from scratch on every renderImportUsersTable() call,
+// so the mousedown listeners on .import-col-resizer are (re)attached each
+// time here; the shared drag state and the document-level mousemove/mouseup
+// listeners are set up exactly once (importColumnResizeInitialized guard).
+// ============================================================================
+let importColumnResizeInitialized = false;
+let importDragTh = null;
+let importDragStartX = 0;
+let importTableWidthAtStart = 0;
+let importStartPercents = new Map();
+let importOtherThs = [];
+
+function setupImportColumnResize() {
+    const IMPORT_MIN_PERCENT = 3;
+
+    const currentPercent = (th) => parseFloat(th.style.width) || 0;
+
+    document.querySelectorAll('#importUsersList .import-col-resizer').forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            importDragTh = handle.closest('th');
+            if (!importDragTh) return;
+
+            const table = document.querySelector('#importUsersList .import-users-table');
+            importTableWidthAtStart = table.getBoundingClientRect().width;
+
+            importOtherThs = Array.from(document.querySelectorAll('#importUsersList .import-resizable-th')).filter(th => th !== importDragTh);
+            importStartPercents = new Map();
+            importStartPercents.set(importDragTh, currentPercent(importDragTh));
+            importOtherThs.forEach(th => importStartPercents.set(th, currentPercent(th)));
+
+            importDragStartX = e.clientX;
+            handle.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+        });
+    });
+
+    if (importColumnResizeInitialized) return;
+    importColumnResizeInitialized = true;
+
+    document.addEventListener('mousemove', (e) => {
+        if (!importDragTh) return;
+
+        const deltaPercent = ((e.clientX - importDragStartX) / importTableWidthAtStart) * 100;
+        const dragStart = importStartPercents.get(importDragTh);
+        const othersStartSum = importOtherThs.reduce((sum, th) => sum + importStartPercents.get(th), 0);
+
+        const maxDragPercent = dragStart + othersStartSum - (IMPORT_MIN_PERCENT * importOtherThs.length);
+        const newDragPercent = Math.min(maxDragPercent, Math.max(IMPORT_MIN_PERCENT, dragStart + deltaPercent));
+        const actualDelta = newDragPercent - dragStart;
+
+        importDragTh.style.width = newDragPercent + '%';
+
+        importOtherThs.forEach(th => {
+            const start = importStartPercents.get(th);
+            const share = othersStartSum > 0 ? start / othersStartSum : 1 / importOtherThs.length;
+            const newPercent = Math.max(IMPORT_MIN_PERCENT, start - actualDelta * share);
+            th.style.width = newPercent + '%';
+        });
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!importDragTh) return;
+        const handle = importDragTh.querySelector('.import-col-resizer.resizing');
+        if (handle) handle.classList.remove('resizing');
+        importDragTh = null;
+        document.body.style.cursor = '';
+    });
 }
 
 /**
@@ -1045,16 +1153,20 @@ function importSelectedUsers() {
 
         const products = user.products || [];
 
-        setImportedServiceAccess(row.cells[4],  'Project Admin',         getServiceAccess(products, 'project_administration'), 4);
-        setImportedServiceAccess(row.cells[5],  'Docs',                  getServiceAccess(products, 'document_management'),    5);
-        setImportedServiceAccess(row.cells[6],  'Design Collaboration',  getServiceAccess(products, 'design_collaboration'),   6);
-        setImportedServiceAccess(row.cells[7],  'Model Coordination',    getServiceAccess(products, 'model_coordination'),     7);
-        setImportedServiceAccess(row.cells[8],  'Preconstruction',       getServiceAccess(products, 'preconstruction'),        8);
-        setImportedServiceAccess(row.cells[9],  'Build',                 getServiceAccess(products, 'build'),                  9);
-        setImportedServiceAccess(row.cells[10], 'Cost',                  getServiceAccess(products, 'cost_management'),        10);
-        if (row.cells[11]) {
-            setImportedServiceAccess(row.cells[11], 'Forma',             getServiceAccess(products, 'forma'),                  11);
-        }
+        // Column indices here must match userTableManager.createNewRow()'s
+        // actual layout (checkbox, Email, Company, Role, then the 7 access
+        // columns starting at index 4 — no Docs column; see accessColumns in
+        // user-table-v2.js). This previously assumed an 8th "Docs" column
+        // that doesn't exist in the destination row, which silently shifted
+        // every access level into the wrong cell and dropped Site & Building
+        // Design (Forma) access entirely, since row.cells[11] never existed.
+        setImportedServiceAccess(row.cells[4],  'Project Admin',        getServiceAccess(products, 'project_administration'), 4);
+        setImportedServiceAccess(row.cells[5],  'Design Collaboration', getServiceAccess(products, 'design_collaboration'),   5);
+        setImportedServiceAccess(row.cells[6],  'Model Coordination',   getServiceAccess(products, 'model_coordination'),     6);
+        setImportedServiceAccess(row.cells[7],  'Preconstruction',      getServiceAccess(products, 'preconstruction'),        7);
+        setImportedServiceAccess(row.cells[8],  'Build',                getServiceAccess(products, 'build'),                  8);
+        setImportedServiceAccess(row.cells[9],  'Cost Management',      getServiceAccess(products, 'cost_management'),        9);
+        setImportedServiceAccess(row.cells[10], 'Design',               getServiceAccess(products, 'forma'),                  10);
 
         tbody.appendChild(row);
         existingEmails.add(email.toLowerCase());
