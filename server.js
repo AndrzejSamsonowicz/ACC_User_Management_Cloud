@@ -1598,13 +1598,19 @@ app.post('/api/capture-license-payment', purchaseLimiter, async (req, res) => {
     }
 });
 
-// Looks up a license key and verifies it's usable (exists, active, unexpired,
-// not already claimed). Does NOT claim it - callers do that themselves once
-// they know the claim will succeed. Throws an Error with a user-facing message
-// on any validation failure.
-async function lookupClaimableLicense(licenseKey) {
+// Validates a license key (exists, active, unexpired, not already claimed)
+// and marks it claimed by userId - MUST be called with a transaction, and
+// before any of that transaction's writes (Firestore requires all reads in a
+// transaction to happen before any writes). Doing the validate-and-claim
+// inside the same transaction as the caller's own user-document write closes
+// two races at once: two concurrent requests claiming the same license before
+// either write lands (one license silently granting two accounts full
+// access), and a license being marked claimed while its paired user-document
+// write fails, or vice versa. Throws an Error with a user-facing message on
+// any validation failure; nothing is written in that case.
+async function validateAndClaimLicense(transaction, licenseKey, userId) {
     const licenseRef = db.collection('licenses').doc(licenseKey);
-    const licenseDoc = await licenseRef.get();
+    const licenseDoc = await transaction.get(licenseRef);
     if (!licenseDoc.exists) {
         throw new Error('Invalid license key');
     }
@@ -1618,7 +1624,8 @@ async function lookupClaimableLicense(licenseKey) {
     if (licenseData.expiryDate && licenseData.expiryDate.toDate() <= new Date()) {
         throw new Error('This license key has expired');
     }
-    return { licenseRef, expiryDate: licenseData.expiryDate };
+    transaction.update(licenseRef, { userId: userId });
+    return licenseData.expiryDate;
 }
 
 // Create user profile document after Firebase Auth signup (requires authentication + rate limiting)
@@ -1630,46 +1637,45 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
             ? inputValidation.validateAlphanumeric(req.body.licenseKey, 'licenseKey', false)
             : null;
 
-        const existingDoc = await db.collection('users').doc(userId).get();
-        if (existingDoc.exists) {
-            return res.status(409).json({ success: false, error: 'User profile already exists' });
-        }
-
-        // If a license key was supplied (e.g. from purchase.html), it must exist,
-        // be active, unexpired, and not already claimed by another account.
-        let licenseExpiry = null;
-        let licenseRef = null;
-        if (licenseKey) {
-            try {
-                ({ licenseRef, expiryDate: licenseExpiry } = await lookupClaimableLicense(licenseKey));
-            } catch (licenseError) {
-                return res.status(400).json({ success: false, error: licenseError.message });
-            }
-        }
-
+        const userRef = db.collection('users').doc(userId);
         const now = new Date();
         const trialEndDate = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days from now
+        let licenseExpiry = null;
 
-        await db.collection('users').doc(userId).set({
-            email: email,
-            licenseKey: licenseKey,
-            licenseExpiry: licenseExpiry,
-            emailVerified: false,
-            createdAt: FieldValue.serverTimestamp(),
-            lastLogin: null,
-            clientId: '',
-            clientSecret: '',
-            encryptionIV: '',
-            // Trial period fields
-            isTrial: licenseKey ? false : true,
-            trialStartDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(now),
-            trialEndDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(trialEndDate),
-            trialUsed: true,
-            hasActiveAccess: true
-        });
+        try {
+            await db.runTransaction(async (transaction) => {
+                const existingDoc = await transaction.get(userRef);
+                if (existingDoc.exists) {
+                    throw Object.assign(new Error('User profile already exists'), { statusCode: 409 });
+                }
 
-        if (licenseRef) {
-            await licenseRef.update({ userId: userId });
+                // If a license key was supplied (e.g. from purchase.html), it must
+                // exist, be active, unexpired, and not already claimed - validated
+                // and claimed atomically with the user-document write below.
+                if (licenseKey) {
+                    licenseExpiry = await validateAndClaimLicense(transaction, licenseKey, userId);
+                }
+
+                transaction.set(userRef, {
+                    email: email,
+                    licenseKey: licenseKey,
+                    licenseExpiry: licenseExpiry,
+                    emailVerified: false,
+                    createdAt: FieldValue.serverTimestamp(),
+                    lastLogin: null,
+                    clientId: '',
+                    clientSecret: '',
+                    encryptionIV: '',
+                    // Trial period fields
+                    isTrial: licenseKey ? false : true,
+                    trialStartDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(now),
+                    trialEndDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(trialEndDate),
+                    trialUsed: true,
+                    hasActiveAccess: true
+                });
+            });
+        } catch (txError) {
+            return res.status(txError.statusCode || 400).json({ success: false, error: txError.message });
         }
 
         try {
@@ -1700,28 +1706,29 @@ app.post('/api/apply-license-key', authLimiter, authenticateUser, async (req, re
         const licenseKey = inputValidation.validateAlphanumeric(req.body.licenseKey, 'licenseKey', false);
 
         const userRef = db.collection('users').doc(userId);
-        const userDoc = await userRef.get();
-        if (!userDoc.exists) {
-            return res.status(404).json({ success: false, error: 'User profile not found' });
-        }
+        let expiryDate;
 
-        let licenseRef, expiryDate;
         try {
-            ({ licenseRef, expiryDate } = await lookupClaimableLicense(licenseKey));
-        } catch (licenseError) {
-            return res.status(400).json({ success: false, error: licenseError.message });
+            await db.runTransaction(async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists) {
+                    throw Object.assign(new Error('User profile not found'), { statusCode: 404 });
+                }
+
+                expiryDate = await validateAndClaimLicense(transaction, licenseKey, userId);
+
+                transaction.update(userRef, {
+                    licenseKey: licenseKey,
+                    licenseExpiry: expiryDate,
+                    isTrial: false,
+                    trialStartDate: null,
+                    trialEndDate: null,
+                    hasActiveAccess: true
+                });
+            });
+        } catch (txError) {
+            return res.status(txError.statusCode || 400).json({ success: false, error: txError.message });
         }
-
-        await userRef.update({
-            licenseKey: licenseKey,
-            licenseExpiry: expiryDate,
-            isTrial: false,
-            trialStartDate: null,
-            trialEndDate: null,
-            hasActiveAccess: true
-        });
-
-        await licenseRef.update({ userId: userId });
 
         try {
             await db.collection('analytics').add({
