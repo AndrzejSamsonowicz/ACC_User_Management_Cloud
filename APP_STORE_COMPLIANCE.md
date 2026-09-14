@@ -94,7 +94,7 @@ or deployed:
       real code path. Over-broad scopes are a named, explicit rejection reason.
 - [x] `offline_access` added — done as part of §4.
 
-## 4. Token Handling `[BLOCKING]` — Done in code
+## 4. Token Handling `[BLOCKING]` — Mostly done, applied locally, not yet deployed
 
 - [x] `offline_access` requested; `authorization_code` and `refresh_token` grants both
       capture the `refresh_token` Autodesk returns and store it — see
@@ -102,11 +102,15 @@ or deployed:
       same AES-256-GCM scheme as everything else (no second encryption path added).
 - [x] Silent refresh implemented: `scheduleTokenRefresh()` in `index.html` renews the access
       token ~5 minutes before it expires, re-scheduling itself each time; on failure it falls
-      back to the "Login with Autodesk" screen instead of silently breaking.
-- [x] `trySilentAutodeskReconnect()` runs on page load (skipped when a fresh OAuth `code` is
-      in the URL) so returning to the app — including from `admin.html`'s "Go to App" — goes
-      straight to the Hubs view when a valid stored connection exists, instead of forcing a
-      fresh login click every time.
+      back to the "Login with Autodesk" screen instead of silently breaking. This only keeps
+      an already-connected session alive — it does not reconnect automatically on a later
+      visit or page load.
+- [ ] **Reverted by request**: auto-reconnecting on page load (skipping the "Login with
+      Autodesk" click entirely when a valid stored connection existed) was tried and then
+      explicitly rolled back — it made the app's licensing gate feel invisible, since a
+      customer with a prior connection would never see the login card at all. Every visit
+      now requires an explicit click, same as before this section's work started; only the
+      mid-session keep-alive (above) remains.
 - [x] The refresh token itself never reaches the browser — `/api/aps/token` now only ever
       returns `access_token`/`expires_in`/`token_type`, for every grant type, even though
       Autodesk's own response includes the refresh token. Access tokens still only ever live

@@ -1133,15 +1133,6 @@
                 // Load the app's shared APS Client ID
                 await loadApsClientId();
 
-                // Try to silently resume a previous Autodesk connection using the
-                // stored refresh token, so returning to this page (or coming back
-                // from admin.html) doesn't force a fresh "Login with Autodesk"
-                // click. Skipped when a fresh OAuth code is in the URL - window.onload
-                // handles that exchange itself, right below.
-                if (!new URLSearchParams(window.location.search).get('code')) {
-                    await trySilentAutodeskReconnect();
-                }
-
                 // Show license/admin info in UI
                 const licenseExpiry = data.licenseExpiry ? new Date(data.licenseExpiry) : null;
                 const trialEndDate = data.trialEndDate ? new Date(data.trialEndDate) : null;
@@ -1530,9 +1521,12 @@
             }
             
             // Updated scopes to include construction admin access. offline_access
-            // gets a refresh token back so the connection can be silently renewed
-            // (see trySilentAutodeskReconnect/scheduleTokenRefresh) instead of
-            // requiring a fresh login every time the access token expires.
+            // gets a refresh token back so an already-connected session can be
+            // silently renewed (see scheduleTokenRefresh) instead of the access
+            // token just going stale mid-use. Each visit still requires an
+            // explicit "Login with Autodesk" click - this only keeps that
+            // connection alive during a single active session, it does not
+            // reconnect automatically on a later visit.
             const scopes = encodeURIComponent('data:read data:write data:create account:read account:write user:read offline_access');
             // crypto.randomUUID() (not Math.random(), which is not a CSPRNG) — stored
             // so the callback can verify the returned state matches what THIS browser
@@ -1636,20 +1630,6 @@
                     if (loginCard) loginCard.style.display = 'flex';
                 }
             }, refreshInMs);
-        }
-
-        // Called on page load (when not handling a fresh OAuth callback) to
-        // silently resume a previous Autodesk connection via the stored refresh
-        // token, so navigating back to this page doesn't require clicking
-        // "Login with Autodesk" again. No-ops quietly if nothing is stored yet.
-        async function trySilentAutodeskReconnect() {
-            const tokenData = await refreshAutodeskAccessToken();
-            if (!tokenData || !tokenData.access_token) return false;
-            currentAccessToken = tokenData.access_token;
-            scheduleTokenRefresh(tokenData.expires_in);
-            await fetchCurrentAutodeskUserProfile(currentAccessToken);
-            await getHubs(currentAccessToken);
-            return true;
         }
 
         // Fetches the currently-authenticated Autodesk user's own profile (their
