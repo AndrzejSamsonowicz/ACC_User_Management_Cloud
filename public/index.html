@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Autodesk APS Authentication and Hubs</title>
+    <title>Forma User Management</title>
     <!-- Version: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
@@ -1316,8 +1316,11 @@
                         </div>
                         <div class="credentials-modal-body">
                             <div style="max-width: 450px; margin: 0 auto;">
+                                <p style="font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0 0 15px 0;">
+                                    Paste this Client ID in your "Custom Integration": <strong id="apsClientIdValue" style="word-break: break-all;"></strong>
+                                </p>
                                 <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
-                                    How to add custom integration
+                                    How to add "Custom Integration"
                                 </div>
                             </div>
                         </div>
@@ -1415,6 +1418,7 @@
 
         function showCredentialsModal() {
             createCredentialsModal();
+            document.getElementById('apsClientIdValue').textContent = CLIENT_ID || 'Not loaded yet — please try again in a moment';
             credentialsModal.style.display = 'block';
         }
 
@@ -1432,7 +1436,7 @@
                     <div id="customIntegrationVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
                         <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
                             <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to add custom integration</h3>
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to add "Custom Integration"</h3>
                                 <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
                             </div>
                             <div style="padding: 20px;">
