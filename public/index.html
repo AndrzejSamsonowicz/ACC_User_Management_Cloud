@@ -843,8 +843,10 @@
     <div id="login">
         <div class="login-card">
             <h1>Forma User Management</h1>
+            <p class="login-card-subtitle">To use this app, follow the steps in "Settings".</p>
             <div id="error"></div>
             <button onclick="logout()">Logout</button>
+            <button onclick="showCredentialsModal()">Settings</button>
             <button onclick="login()">Login with Autodesk</button>
             <div id="loginCardLicenseNote"></div>
         </div>
@@ -974,6 +976,11 @@
         // GLOBAL VARIABLES
         // ========================================================================
         
+        // Settings modal — now just shows how to add this app as a Custom
+        // Integration in ACC (the tenant-side authorization step); it no longer
+        // collects any credentials.
+        let credentialsModal = null;
+
         // The app's single shared APS Client ID (one APS app for every tenant).
         // Not sensitive — it's part of the public authorize-URL redirect. The
         // client SECRET never reaches the browser at all — token requests go
@@ -1297,6 +1304,173 @@
         // see getAccessToken()/get2LeggedToken() below)
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
 
+        function createCredentialsModal() {
+            if (credentialsModal) return;
+
+            const modalHTML = `
+                <div id="credentialsModal" class="credentials-modal" style="display: none;">
+                    <div class="credentials-modal-content">
+                        <div class="credentials-modal-header">
+                            <h3>Setup your application</h3>
+                            <span class="credentials-modal-close">&times;</span>
+                        </div>
+                        <div class="credentials-modal-body">
+                            <div style="max-width: 450px; margin: 0 auto;">
+                                <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                    How to add custom integration
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const styles = `
+                <style>
+                    .credentials-modal {
+                        position: fixed;
+                        z-index: 2000;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0,0,0,0.5);
+                    }
+
+                    .credentials-modal-content {
+                        background-color: #fefefe;
+                        margin: 10% auto;
+                        padding: 0;
+                        border: 1px solid #888;
+                        width: 95%;
+                        max-width: 550px;
+                        max-height: 95vh;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        overflow-y: auto;
+                    }
+
+                    .credentials-modal-header {
+                        padding: 15px 20px;
+                        background-color: #f8f9fa;
+                        border-bottom: 1px solid #ddd;
+                        border-radius: 8px 8px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+
+                    .credentials-modal-header h3 {
+                        margin: 0;
+                        color: #333;
+                        font-family: 'Artifact Elements', Arial, sans-serif;
+                    }
+
+                    .credentials-modal-close {
+                        color: #aaa;
+                        font-size: 28px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        line-height: 1;
+                        font-family: 'Artifact Elements', Arial, sans-serif;
+                    }
+
+                    .credentials-modal-close:hover,
+                    .credentials-modal-close:focus {
+                        color: #000;
+                    }
+
+                    .credentials-modal-body {
+                        padding: 20px;
+                        font-family: 'Artifact Elements', Arial, sans-serif;
+                    }
+
+                    .step-button-clickable:hover {
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                        background-color: #e9ecef !important;
+                    }
+                </style>
+            `;
+
+            document.head.insertAdjacentHTML('beforeend', styles);
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            credentialsModal = document.getElementById('credentialsModal');
+            setupCredentialsModalEvents();
+        }
+
+        function setupCredentialsModalEvents() {
+            const closeBtn = document.querySelector('.credentials-modal-close');
+
+            closeBtn.addEventListener('click', () => {
+                closeCredentialsModal();
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && credentialsModal && credentialsModal.style.display === 'block') {
+                    closeCredentialsModal();
+                }
+            });
+        }
+
+        function showCredentialsModal() {
+            createCredentialsModal();
+            credentialsModal.style.display = 'block';
+        }
+
+        function closeCredentialsModal() {
+            if (credentialsModal) {
+                credentialsModal.style.display = 'none';
+            }
+        }
+
+        function openCustomIntegrationVideo() {
+            // Create video modal if it doesn't exist
+            let videoModal = document.getElementById('customIntegrationVideoModal');
+            if (!videoModal) {
+                const modalHTML = `
+                    <div id="customIntegrationVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
+                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to add custom integration</h3>
+                                <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                            </div>
+                            <div style="padding: 20px;">
+                                <video id="customIntegrationVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
+                                    <source src="custom%20integration.mp4" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                videoModal = document.getElementById('customIntegrationVideoModal');
+            }
+
+            // Show modal
+            videoModal.style.display = 'block';
+
+            // Play video
+            const video = document.getElementById('customIntegrationVideo');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+        }
+
+        function closeCustomIntegrationVideoModal() {
+            const videoModal = document.getElementById('customIntegrationVideoModal');
+            if (videoModal) {
+                videoModal.style.display = 'none';
+
+                // Pause video
+                const video = document.getElementById('customIntegrationVideo');
+                if (video) {
+                    video.pause();
+                }
+            }
+        }
 
         function showError(message) {
             const errorDiv = document.getElementById('error');

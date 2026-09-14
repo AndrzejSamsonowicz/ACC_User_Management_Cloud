@@ -63,12 +63,16 @@ or deployed:
       as `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET`. Added both to `.env.example`.
 - [x] Dropped the dead `clientId`/`clientSecret`/`encryptionIV` placeholder fields from the
       new-user Firestore document in `/api/register-user`.
-- [ ] **Still open, not code**: the real VM `.env` needs actual `APS_CLIENT_ID` /
-      `APS_CLIENT_SECRET` values once §1 is registered — until then `/api/aps/token` and
-      `/api/aps-client-id` will correctly report "not configured" rather than crash.
-- [ ] **Optional cleanup, not urgent**: `public/create APS app.mp4`, `add URL.mp4`,
-      `custom integration.mp4`, and `copy Client ID and Secret.mp4` are now unreferenced —
-      safe to delete whenever, not blocking.
+- [x] VM `.env` now has real `APS_CLIENT_ID` / `APS_CLIENT_SECRET` values (confirmed present,
+      values never shared in chat). Deployed, restarted, and confirmed working end-to-end
+      with a real "Login with Autodesk" test in the browser.
+- [x] **Revised**: brought back a much smaller "Settings" modal — one step, "How to add
+      custom integration," reusing the original `custom integration.mp4`. This is the
+      tenant-side step that's still real under Model B (their ACC hub admin still has to
+      authorize the app), so it stays; the other three steps (create an APS app, add
+      callback URL, paste Client ID/Secret) are gone for good, and their videos
+      (`create APS app.mp4`, `add URL.mp4`, `copy Client ID and Secret.mp4`) are now
+      unreferenced — safe to delete whenever, not blocking.
 - [ ] **Not started**: the admin-only credential-rotation panel idea (§ discussed in chat —
       an `admin.html` screen to update the shared Client ID/Secret without SSH) — a nice-to
       -have, not required; `.env` alone is sufficient for now.
