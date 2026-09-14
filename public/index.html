@@ -843,10 +843,8 @@
     <div id="login">
         <div class="login-card">
             <h1>Forma User Management</h1>
-            <p class="login-card-subtitle">To use this app, follow the steps in "Settings".</p>
             <div id="error"></div>
             <button onclick="logout()">Logout</button>
-            <button onclick="showCredentialsModal()">Settings</button>
             <button onclick="login()">Login with Autodesk</button>
             <div id="loginCardLicenseNote"></div>
         </div>
@@ -976,17 +974,11 @@
         // GLOBAL VARIABLES
         // ========================================================================
         
-        // Credentials Modal Management
-        let credentialsModal = null;
-        
-        // APS Credentials (loaded from encrypted storage)
-        // CLIENT_ID is not sensitive (it's part of the public authorize-URL
-        // redirect). The client SECRET is never sent to or stored in the
-        // browser at all — token requests go through /api/aps/token, which
-        // uses the secret server-side. HAS_CLIENT_SECRET only tracks whether
-        // one is configured, for UI/validation purposes.
+        // The app's single shared APS Client ID (one APS app for every tenant).
+        // Not sensitive — it's part of the public authorize-URL redirect. The
+        // client SECRET never reaches the browser at all — token requests go
+        // through /api/aps/token, which uses the secret server-side.
         let CLIENT_ID = '';
-        let HAS_CLIENT_SECRET = false;
 
         // The logged-in AUTODESK user's own email (distinct from the Firebase/tenant
         // login) — used to determine whether they're a Project Admin on a given
@@ -1131,8 +1123,8 @@
                 // Set current user
                 currentUser = user;
                 
-                // Load encrypted credentials from database
-                await loadEncryptedCredentials();
+                // Load the app's shared APS Client ID
+                await loadApsClientId();
                 
                 // Show license/admin info in UI
                 const licenseExpiry = data.licenseExpiry ? new Date(data.licenseExpiry) : null;
@@ -1181,87 +1173,32 @@
             document.body.insertAdjacentHTML('beforeend', demoInfoHTML);
         }
         
-        // Load encrypted credentials from server
-        async function loadEncryptedCredentials() {
+        // Load the app's single shared APS Client ID from the server
+        async function loadApsClientId() {
             try {
-                // Load from encrypted Firebase storage (authoritative source)
-                const response = await fetch(`${window.location.origin}/load-credentials`, {
+                const response = await fetch(`${window.location.origin}/api/aps-client-id`, {
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.clientId && data.hasSecret) {
-                        CLIENT_ID = data.clientId;
-                        HAS_CLIENT_SECRET = true;
-                        log('✓ Credentials loaded from secure encrypted storage');
+                    CLIENT_ID = data.clientId || '';
+                    if (CLIENT_ID) {
+                        log('✓ APS Client ID loaded');
                     } else {
-                        // No credentials in Firebase
-                        CLIENT_ID = '';
-                        HAS_CLIENT_SECRET = false;
-                        log('ℹ No credentials saved yet - please enter them');
+                        console.error('❌ APS Client ID is not configured on the server');
                     }
                 } else {
-                    // Clear credentials on error
                     CLIENT_ID = '';
-                    HAS_CLIENT_SECRET = false;
                 }
             } catch (error) {
-                console.error('Error loading encrypted credentials:', error);
-                // Clear credentials on error
+                console.error('Error loading APS Client ID:', error);
                 CLIENT_ID = '';
-                HAS_CLIENT_SECRET = false;
             }
         }
-        
-        // Save encrypted credentials to server
-        async function saveEncryptedCredentials(clientId, clientSecret) {
-            try {
-                // Validate auth token exists
-                if (!authToken) {
-                    console.error('❌ No authentication token available');
-                    alert('Authentication required. Please log in again.');
-                    return false;
-                }
-                
-                log('💾 Sending save credentials request to server...');
-                const response = await fetch(`${window.location.origin}/save-credentials`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({ clientId, clientSecret })
-                });
-                
-                log('💾 Server response status:', response.status, response.statusText);
-                
-                if (response.ok) {
-                    log('✓ Credentials saved to secure storage');
-                    return true;
-                } else {
-                    const error = await response.json();
-                    const errorMessage = error.error || error.message || `Server error: ${response.status}`;
-                    console.error('❌ Error saving credentials:', response.status, errorMessage);
-                    
-                    if (response.status === 401) {
-                        alert('Authentication failed. Please log in again.');
-                    } else if (response.status === 403) {
-                        alert('Permission denied. You do not have access to save credentials.');
-                    } else {
-                        alert(`Error saving credentials: ${errorMessage}`);
-                    }
-                    return false;
-                }
-            } catch (error) {
-                console.error('❌ Network error saving credentials:', error);
-                alert(`Network error: ${error.message}`);
-                return false;
-            }
-        }
-        
+
         // Display license info in UI
         function displayLicenseInfo(expiryDate, email, isAdmin = false, isTrial = false, trialEndDate = null) {
             // Create or update license info banner
@@ -1360,524 +1297,7 @@
         // see getAccessToken()/get2LeggedToken() below)
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
 
-        function createCredentialsModal() {
-            if (credentialsModal) return;
 
-            const modalHTML = `
-                <div id="credentialsModal" class="credentials-modal" style="display: none;">
-                    <div class="credentials-modal-content">
-                        <div class="credentials-modal-header">
-                            <h3>Setup your application</h3>
-                            <span class="credentials-modal-close">&times;</span>
-                        </div>
-                        <div class="credentials-modal-body">
-                            <div class="credentials-two-column">
-                                <div class="credentials-left-column">
-                                    <div style="margin-bottom: 10px; max-width: 450px;">
-                                        <div style="font-size: 16px; font-weight: bold; color: #333; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 15px;">
-                                            Follow these steps to enable the application:
-                                        </div>
-                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
-                                            Step 1
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <div onclick="openApsGuide()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
-                                            Create an APS application
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 10px; max-width: 450px;">
-                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
-                                            Step 2
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <div onclick="openAddUrlVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
-                                            <span style="font-weight: bold;">Add the Callback URL</span><br>
-                                            <span style="font-weight: normal;">https://usermgt.digibuild.ch/index.html</span>
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 10px; max-width: 450px;">
-                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
-                                            Step 3
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
-                                            Add custom integration
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 10px; max-width: 450px;">
-                                        <div style="font-size: 14px; font-weight: bold; color: #495057; font-family: 'Artifact Elements', Arial, sans-serif; margin-bottom: 10px; text-align: center;">
-                                            Step 4
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <div onclick="openCopyClientIdVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
-                                            Copy and paste Client ID and Client Secret
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="credentials-right-column">
-                                    <div style="margin-bottom: 15px; max-width: 450px;">
-                                        <label for="clientIdInput" style="display: block; margin: 0 0 5px 0; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client ID:</label>
-                                        <input type="text" id="clientIdInput" placeholder="Enter your APS Client ID" 
-                                               style="width: 450px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; margin: 0;" />
-                                    </div>
-                                    <div style="margin-bottom: 20px; max-width: 450px;">
-                                        <label for="clientSecretInput" style="display: block; margin: 0 0 5px 0; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif;">Client Secret:</label>
-                                        <input type="password" id="clientSecretInput" placeholder="Enter your APS Client Secret" 
-                                               style="width: 450px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; margin: 0;" />
-                                        <small style="color: #666; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">Secret will be hidden for security</small>
-                                    </div>
-                                    <div style="margin-bottom: 15px; max-width: 450px; text-align: center;">
-                                        <button onclick="saveCredentials()" style="box-sizing: border-box; margin: 0 auto; display: inline-block;">
-                                            Save Credentials
-                                        </button>
-                                    </div>
-                                    <div id="credentialsMessage" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const styles = `
-                <style>
-                    .credentials-modal {
-                        position: fixed;
-                        z-index: 2000;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        height: 100%;
-                        background-color: rgba(0,0,0,0.5);
-                    }
-
-                    .credentials-modal-content {
-                        background-color: #fefefe;
-                        margin: 2% auto;
-                        padding: 0;
-                        border: 1px solid #888;
-                        width: 95%;
-                        max-width: 1000px;
-                        max-height: 95vh;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                        font-family: 'Artifact Elements', Arial, sans-serif;
-                        overflow-y: auto;
-                        display: flex;
-                        flex-direction: column;
-                    }
-
-                    .credentials-two-column {
-                        display: flex;
-                        gap: 30px;
-                        flex-wrap: wrap;
-                    }
-
-                    .credentials-left-column {
-                        flex: 1;
-                        min-width: 280px;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                    }
-
-                    .credentials-right-column {
-                        flex: 1;
-                        min-width: 280px;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                    }
-
-                    @media (max-width: 768px) {
-                        .credentials-modal-content {
-                            width: 98%;
-                            margin: 1% auto;
-                        }
-                        
-                        .credentials-two-column {
-                            flex-direction: column;
-                        }
-                        
-                        .credentials-left-column,
-                        .credentials-right-column {
-                            width: 100%;
-                            min-width: unset;
-                        }
-                    }
-                    
-                    @media (max-height: 600px) {
-                        .credentials-modal-content {
-                            max-height: 98vh;
-                            margin: 1% auto;
-                        }
-                    }
-
-                    .credentials-modal-header {
-                        padding: 15px 20px;
-                        background-color: #f8f9fa;
-                        border-bottom: 1px solid #ddd;
-                        border-radius: 8px 8px 0 0;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    }
-
-                    .credentials-modal-header h3 {
-                        margin: 0;
-                        color: #333;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
-                    }
-
-                    .credentials-modal-close {
-                        color: #aaa;
-                        font-size: 28px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        line-height: 1;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
-                    }
-
-                    .credentials-modal-close:hover,
-                    .credentials-modal-close:focus {
-                        color: #000;
-                    }
-
-                    .credentials-modal-body {
-                        padding: 20px;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
-                    }
-                    
-                    .step-button-clickable:hover {
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-                        background-color: #e9ecef !important;
-                    }
-                </style>
-            `;
-
-            document.head.insertAdjacentHTML('beforeend', styles);
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            credentialsModal = document.getElementById('credentialsModal');
-            setupCredentialsModalEvents();
-        }
-
-        function setupCredentialsModalEvents() {
-            const closeBtn = document.querySelector('.credentials-modal-close');
-
-            closeBtn.addEventListener('click', () => {
-                closeCredentialsModal();
-            });
-
-            // Removed: Close modal when clicking outside
-            // Modal now only closes with the "X" button or Escape key
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && credentialsModal && credentialsModal.style.display === 'block') {
-                    closeCredentialsModal();
-                }
-            });
-
-            // Add Enter key support for inputs
-            const clientIdInput = document.getElementById('clientIdInput');
-            const clientSecretInput = document.getElementById('clientSecretInput');
-            
-            [clientIdInput, clientSecretInput].forEach(input => {
-                input.addEventListener('keydown', function(event) {
-                    if (event.key === 'Enter') {
-                        saveCredentials();
-                    }
-                });
-            });
-        }
-
-        function showCredentialsModal() {
-            log('showCredentialsModal called');
-            try {
-                createCredentialsModal();
-                log('credentialsModal:', credentialsModal);
-                
-                // Pre-fill Client ID only — the secret is never sent to the browser
-                // (see /api/aps/token), so there is nothing to pre-fill it with.
-                // Leave it blank with a placeholder; only fill it in to replace it.
-                const secretInput = document.getElementById('clientSecretInput');
-                document.getElementById('clientIdInput').value = CLIENT_ID || '';
-                secretInput.value = '';
-                secretInput.placeholder = HAS_CLIENT_SECRET
-                    ? 'Saved — leave blank to keep, or enter a new secret to replace it'
-                    : 'Enter your APS Client Secret';
-
-                credentialsModal.style.display = 'block';
-                document.getElementById('clientIdInput').focus();
-                log('Modal displayed');
-            } catch (error) {
-                console.error('Error showing credentials modal:', error);
-                alert('Error opening credentials modal. Check console for details.');
-            }
-        }
-
-        function closeCredentialsModal() {
-            if (credentialsModal) {
-                credentialsModal.style.display = 'none';
-                document.getElementById('credentialsMessage').style.display = 'none';
-            }
-        }
-
-        async function saveCredentials() {
-            const clientId = document.getElementById('clientIdInput').value.trim();
-            // Blank means "keep the existing saved secret" (see showCredentialsModal) —
-            // only required the first time, when nothing is saved yet.
-            const clientSecret = document.getElementById('clientSecretInput').value.trim();
-            const messageDiv = document.getElementById('credentialsMessage');
-
-            if (!clientId || (!clientSecret && !HAS_CLIENT_SECRET)) {
-                messageDiv.textContent = 'Both Client ID and Client Secret are required.';
-                messageDiv.style.backgroundColor = '#f8d7da';
-                messageDiv.style.color = '#721c24';
-                messageDiv.style.border = '1px solid #f5c6cb';
-                messageDiv.style.display = 'block';
-                return;
-            }
-
-            try {
-                // Show saving message
-                messageDiv.textContent = 'Saving credentials securely...';
-                messageDiv.style.backgroundColor = '#d1ecf1';
-                messageDiv.style.color = '#0c5460';
-                messageDiv.style.border = '1px solid #bee5eb';
-                messageDiv.style.display = 'block';
-
-                // Save to encrypted server storage (primary)
-                const saved = await saveEncryptedCredentials(clientId, clientSecret);
-
-                if (saved) {
-                    // Update global variables (the secret itself is never held client-side)
-                    CLIENT_ID = clientId;
-                    HAS_CLIENT_SECRET = true;
-
-                    // Show success message
-                    messageDiv.textContent = '✓ Credentials saved securely! You can now login with Autodesk.';
-                    messageDiv.style.backgroundColor = '#d4edda';
-                    messageDiv.style.color = '#155724';
-                    messageDiv.style.border = '1px solid #c3e6cb';
-                    messageDiv.style.display = 'block';
-
-                    log('Credentials saved to encrypted storage');
-
-                    // Auto-close after 2 seconds
-                    setTimeout(() => {
-                        closeCredentialsModal();
-                    }, 2000);
-                } else {
-                    throw new Error('Failed to save credentials to server');
-                }
-            } catch (error) {
-                console.error('Error saving credentials:', error);
-                messageDiv.textContent = `Error saving credentials: ${error.message}`;
-                messageDiv.style.backgroundColor = '#f8d7da';
-                messageDiv.style.color = '#721c24';
-                messageDiv.style.border = '1px solid #f5c6cb';
-                messageDiv.style.display = 'block';
-            }
-        }
-
-        function openApsGuide() {
-            // Create video modal if it doesn't exist
-            let videoModal = document.getElementById('apsVideoModal');
-            if (!videoModal) {
-                const modalHTML = `
-                    <div id="apsVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
-                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to create an APS application</h3>
-                                <span onclick="closeApsVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
-                            </div>
-                            <div style="padding: 20px;">
-                                <video id="apsVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
-                                    <source src="create%20APS%20app.mp4" type="video/mp4">
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHTML);
-                videoModal = document.getElementById('apsVideoModal');
-            }
-            
-            // Show modal
-            videoModal.style.display = 'block';
-            
-            // Play video
-            const video = document.getElementById('apsVideo');
-            if (video) {
-                video.currentTime = 0;
-                video.play();
-            }
-        }
-        
-        function closeApsVideoModal() {
-            const videoModal = document.getElementById('apsVideoModal');
-            if (videoModal) {
-                videoModal.style.display = 'none';
-                
-                // Pause video
-                const video = document.getElementById('apsVideo');
-                if (video) {
-                    video.pause();
-                }
-            }
-        }
-        
-        function openAddUrlVideo() {
-            // Create video modal if it doesn't exist
-            let videoModal = document.getElementById('addUrlVideoModal');
-            if (!videoModal) {
-                const modalHTML = `
-                    <div id="addUrlVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
-                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Add the Callback URL</h3>
-                                <span onclick="closeAddUrlVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
-                            </div>
-                            <div style="padding: 20px;">
-                                <video id="addUrlVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
-                                    <source src="add%20URL.mp4" type="video/mp4">
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHTML);
-                videoModal = document.getElementById('addUrlVideoModal');
-            }
-            
-            // Show modal
-            videoModal.style.display = 'block';
-            
-            // Play video
-            const video = document.getElementById('addUrlVideo');
-            if (video) {
-                video.currentTime = 0;
-                video.play();
-            }
-        }
-        
-        function closeAddUrlVideoModal() {
-            const videoModal = document.getElementById('addUrlVideoModal');
-            if (videoModal) {
-                videoModal.style.display = 'none';
-                
-                // Pause video
-                const video = document.getElementById('addUrlVideo');
-                if (video) {
-                    video.pause();
-                }
-            }
-        }
-        
-        function openCustomIntegrationVideo() {
-            // Create video modal if it doesn't exist
-            let videoModal = document.getElementById('customIntegrationVideoModal');
-            if (!videoModal) {
-                const modalHTML = `
-                    <div id="customIntegrationVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
-                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Add custom integration</h3>
-                                <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
-                            </div>
-                            <div style="padding: 20px;">
-                                <video id="customIntegrationVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
-                                    <source src="custom%20integration.mp4" type="video/mp4">
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHTML);
-                videoModal = document.getElementById('customIntegrationVideoModal');
-            }
-            
-            // Show modal
-            videoModal.style.display = 'block';
-            
-            // Play video
-            const video = document.getElementById('customIntegrationVideo');
-            if (video) {
-                video.currentTime = 0;
-                video.play();
-            }
-        }
-        
-        function closeCustomIntegrationVideoModal() {
-            const videoModal = document.getElementById('customIntegrationVideoModal');
-            if (videoModal) {
-                videoModal.style.display = 'none';
-                
-                // Pause video
-                const video = document.getElementById('customIntegrationVideo');
-                if (video) {
-                    video.pause();
-                }
-            }
-        }
-        
-        function openCopyClientIdVideo() {
-            // Create video modal if it doesn't exist
-            let videoModal = document.getElementById('copyClientIdVideoModal');
-            if (!videoModal) {
-                const modalHTML = `
-                    <div id="copyClientIdVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
-                        <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                            <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">Copy and paste Client ID and Client Secret</h3>
-                                <span onclick="closeCopyClientIdVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
-                            </div>
-                            <div style="padding: 20px;">
-                                <video id="copyClientIdVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
-                                    <source src="copy%20Client%20ID%20and%20Secret.mp4" type="video/mp4">
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHTML);
-                videoModal = document.getElementById('copyClientIdVideoModal');
-            }
-            
-            // Show modal
-            videoModal.style.display = 'block';
-            
-            // Play video
-            const video = document.getElementById('copyClientIdVideo');
-            if (video) {
-                video.currentTime = 0;
-                video.play();
-            }
-        }
-        
-        function closeCopyClientIdVideoModal() {
-            const videoModal = document.getElementById('copyClientIdVideoModal');
-            if (videoModal) {
-                videoModal.style.display = 'none';
-                
-                // Pause video
-                const video = document.getElementById('copyClientIdVideo');
-                if (video) {
-                    video.pause();
-                }
-            }
-        }
-        
         function showError(message) {
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = message;
@@ -1914,8 +1334,8 @@
         // Function to handle login
         function login() {
             // Check if credentials are configured
-            if (!CLIENT_ID || !HAS_CLIENT_SECRET) {
-                showError('Client credentials not configured. Please click "Enter Client Credentials" first.');
+            if (!CLIENT_ID) {
+                showError('Autodesk sign-in is not available right now. Please try again shortly or contact support.');
                 return;
             }
             
@@ -2575,15 +1995,15 @@
                     return;
                 }
 
-                // Wait for credentials to be loaded (max 5 seconds)
+                // Wait for the APS Client ID to be loaded (max 5 seconds)
                 let attempts = 0;
-                while ((!CLIENT_ID || !HAS_CLIENT_SECRET) && attempts < 50) {
+                while (!CLIENT_ID && attempts < 50) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     attempts++;
                 }
 
-                if (!CLIENT_ID || !HAS_CLIENT_SECRET) {
-                    showError('Client credentials not configured. Please enter your APS credentials first.');
+                if (!CLIENT_ID) {
+                    showError('Autodesk sign-in is not available right now. Please try again shortly or contact support.');
                     return;
                 }
                 

@@ -93,34 +93,6 @@ function decryptData(encrypted, context, saltHex, ivHex, authTagHex) {
     return decrypted;
 }
 
-// Fetch and decrypt a user's stored APS (Autodesk) credentials from Firestore.
-// Returns null if none are saved. Shared by /load-credentials (which only ever
-// returns clientId + whether a secret exists — never the secret itself) and
-// /api/aps/token (which uses the secret server-side to perform the actual
-// OAuth token exchange, so the browser never needs it at all).
-async function getDecryptedCredentials(userId) {
-    const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) return null;
-    const userData = userDoc.data();
-    if (!userData.clientId || !userData.clientSecret
-        || !userData.clientIdSalt || !userData.clientIdIV || !userData.clientIdAuthTag
-        || !userData.clientSecretSalt || !userData.clientSecretIV || !userData.clientSecretAuthTag) {
-        return null;
-    }
-    try {
-        return {
-            clientId: decryptData(userData.clientId, `credentials:${userId}`, userData.clientIdSalt, userData.clientIdIV, userData.clientIdAuthTag),
-            clientSecret: decryptData(userData.clientSecret, `credentials:${userId}`, userData.clientSecretSalt, userData.clientSecretIV, userData.clientSecretAuthTag)
-        };
-    } catch (error) {
-        // Data saved under a different ENCRYPTION_KEY (e.g. a different
-        // environment) can never be decrypted here - treat it as absent
-        // rather than 500ing every endpoint that needs credentials.
-        console.warn(`⚠️ Failed to decrypt stored credentials for user ${userId} (likely encrypted under a different key) - treating as not saved:`, error.message);
-        return null;
-    }
-}
-
 // ============================================================================
 // Error Sanitization Utility
 // ============================================================================
@@ -522,101 +494,12 @@ function writeEnvFile(envObj) {
     fs.writeFileSync(envPath, envContent);
 }
 
-// Endpoint to save credentials to .env file
-// Endpoint to save credentials (now uses Firebase and user authentication)
-app.post('/save-credentials', authenticateUser, async (req, res) => {
-    try {
-        const { clientId, clientSecret } = req.body;
-        const userId = req.user.uid;
-
-        // clientId is always required. clientSecret may be omitted/blank to mean
-        // "keep the existing saved secret" — the browser never has the current
-        // secret to redisplay/resend (see /api/aps/token), so the settings form
-        // only sends a new one when the operator actually types a replacement.
-        if (!clientId) {
-            return res.status(400).json({
-                success: false,
-                message: 'clientId is required'
-            });
-        }
-        if (!clientSecret) {
-            const existing = await getDecryptedCredentials(userId);
-            if (!existing) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'clientSecret is required (no existing secret saved to keep)'
-                });
-            }
-        }
-
-        try {
-            inputValidation.validateString(clientId, 'clientId', 1, 500);
-            if (clientSecret) {
-                inputValidation.validateString(clientSecret, 'clientSecret', 1, 500);
-            }
-        } catch (validationError) {
-            return res.status(400).json({
-                success: false,
-                message: validationError.message
-            });
-        }
-
-        // Encrypt clientId and clientSecret SEPARATELY (each gets its own random
-        // salt/IV) — encrypting two different plaintexts under the same key+IV,
-        // as this used to do, breaks GCM's security guarantees entirely.
-        const encClientId = encryptData(clientId, `credentials:${userId}`);
-        const update = {
-            clientId: encClientId.encrypted,
-            clientIdSalt: encClientId.salt,
-            clientIdIV: encClientId.iv,
-            clientIdAuthTag: encClientId.authTag,
-            credentialsUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-        if (clientSecret) {
-            const encClientSecret = encryptData(clientSecret, `credentials:${userId}`);
-            update.clientSecret = encClientSecret.encrypted;
-            update.clientSecretSalt = encClientSecret.salt;
-            update.clientSecretIV = encClientSecret.iv;
-            update.clientSecretAuthTag = encClientSecret.authTag;
-        }
-
-        // Save to Firestore user document (set+merge so a first-time save with no
-        // prior document works, same as an update to an existing one)
-        await db.collection('users').doc(userId).set(update, { merge: true });
-
-        res.json({ success: true, message: 'Credentials saved successfully' });
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to save credentials');
-        res.status(500).json({
-            success: false,
-            message: 'Error saving credentials',
-            ...sanitized
-        });
-    }
-});
-
-// Endpoint to load credentials from Firestore. Returns clientId (not secret —
-// it's needed client-side to build the Autodesk authorize-URL redirect, which
-// is not sensitive) and whether a secret is saved. The secret itself never
-// leaves the server; see /api/aps/token for how it's actually used.
-app.get('/load-credentials', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const credentials = await getDecryptedCredentials(userId);
-
-        res.json({
-            success: true,
-            clientId: credentials ? credentials.clientId : '',
-            hasSecret: !!credentials
-        });
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to load credentials');
-        res.status(500).json({
-            success: false,
-            message: 'Error loading credentials',
-            ...sanitized
-        });
-    }
+// Returns the app's single APS Client ID — not secret, needed client-side to
+// build the Autodesk authorize-URL redirect. One shared APS app is used for
+// every tenant now (see /api/aps/token for the server-side secret usage), so
+// there is nothing per-tenant left to save or load here.
+app.get('/api/aps-client-id', authenticateUser, async (req, res) => {
+    res.json({ success: true, clientId: process.env.APS_CLIENT_ID || '' });
 });
 
 // Proxies the Autodesk OAuth token exchange so the APS client secret never has
@@ -626,21 +509,19 @@ app.get('/load-credentials', authenticateUser, async (req, res) => {
 // resulting token data — never the client secret itself.
 app.post('/api/aps/token', authenticateUser, async (req, res) => {
     try {
-        const userId = req.user.uid;
         const { grantType, code, redirectUri, scope } = req.body;
 
         if (grantType !== 'authorization_code' && grantType !== 'client_credentials') {
             return res.status(400).json({ success: false, message: 'Invalid grantType' });
         }
 
-        const credentials = await getDecryptedCredentials(userId);
-        if (!credentials) {
-            return res.status(400).json({ success: false, message: 'No APS credentials configured for this account' });
+        if (!process.env.APS_CLIENT_ID || !process.env.APS_CLIENT_SECRET) {
+            return res.status(500).json({ success: false, message: 'APS credentials are not configured on this server' });
         }
 
         const params = new URLSearchParams();
-        params.append('client_id', credentials.clientId);
-        params.append('client_secret', credentials.clientSecret);
+        params.append('client_id', process.env.APS_CLIENT_ID);
+        params.append('client_secret', process.env.APS_CLIENT_SECRET);
         params.append('grant_type', grantType);
 
         if (grantType === 'authorization_code') {
@@ -1663,9 +1544,6 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
                     emailVerified: false,
                     createdAt: FieldValue.serverTimestamp(),
                     lastLogin: null,
-                    clientId: '',
-                    clientSecret: '',
-                    encryptionIV: '',
                     // Trial period fields
                     isTrial: licenseKey ? false : true,
                     trialStartDate: licenseKey ? null : admin.firestore.Timestamp.fromDate(now),
@@ -1830,8 +1708,7 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://0.0.0.0:${port}`);
     console.log('Available endpoints:');
-    console.log('  GET  /load-credentials');
-    console.log('  POST /save-credentials');
+    console.log('  GET  /api/aps-client-id');
     console.log('  POST /api/aps/token');
     console.log('  GET  /load');
     console.log('  POST /save');

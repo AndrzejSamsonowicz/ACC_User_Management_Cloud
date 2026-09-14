@@ -7,9 +7,8 @@ log('🔄 update_project_users.js loaded');
 
 /**
  * Session-long cache of known project roles (name.toLowerCase() -> id), per projectId.
- * Confirmed via the real ACC "Members" page's own network traffic: the roles list for
- * a project comes from the classic BIM 360 Admin API namespace, NOT construction/admin/v1
- * (which 404s for this resource) — GET /bim360/admin/v1/projects/{projectId}/roles.
+ * Project roles come from the documented BIM 360 Admin API — construction/admin/v1 returns
+ * 404 for this resource, use GET /bim360/admin/v1/projects/{projectId}/roles instead.
  */
 const projectRoleCache = new Map(); // projectId -> Map(nameLower -> id)
 
