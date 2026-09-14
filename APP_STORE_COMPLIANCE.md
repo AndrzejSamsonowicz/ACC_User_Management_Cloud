@@ -88,23 +88,29 @@ or deployed:
 ## 3. OAuth Scope Minimization `[BLOCKING]`
 
 - [ ] Audit every Autodesk API call the app makes and trim the scope string at
-      [index.html:1923](public/index.html:1923) — currently
-      `data:read data:write data:create account:read account:write user:read`. Drop any of
-      `data:write`, `data:create`, `account:write` not actually exercised by a real code
-      path. Over-broad scopes are a named, explicit rejection reason.
-- [ ] Add `offline_access` to the scope string (required for refresh tokens — see §4).
+      [index.html:1533](public/index.html:1533) — currently
+      `data:read data:write data:create account:read account:write user:read offline_access`.
+      Drop any of `data:write`, `data:create`, `account:write` not actually exercised by a
+      real code path. Over-broad scopes are a named, explicit rejection reason.
+- [x] `offline_access` added — done as part of §4.
 
-## 4. Token Handling `[BLOCKING]`
+## 4. Token Handling `[BLOCKING]` — Done in code
 
-- [ ] Request `offline_access`, capture the `refresh_token` returned on the OAuth callback.
-- [ ] Store it server-side, encrypted, using the same AES-256-GCM scheme already used for
-      other stored credentials in `server.js` — do not add a second encryption scheme.
-- [ ] Implement silent refresh: before an access token expires (~1hr), use the stored
-      refresh token to get a new access/refresh token pair server-side, transparently.
-      Currently there is no refresh path at all — `currentAccessToken` is held in a JS
-      variable and simply goes stale.
-- [ ] Never store any token in `localStorage`/`sessionStorage` (currently compliant by
-      omission — keep it that way once refresh tokens exist).
+- [x] `offline_access` requested; `authorization_code` and `refresh_token` grants both
+      capture the `refresh_token` Autodesk returns and store it — see
+      `storeApsRefreshToken()`/`getStoredApsRefreshToken()` in `server.js`, using the exact
+      same AES-256-GCM scheme as everything else (no second encryption path added).
+- [x] Silent refresh implemented: `scheduleTokenRefresh()` in `index.html` renews the access
+      token ~5 minutes before it expires, re-scheduling itself each time; on failure it falls
+      back to the "Login with Autodesk" screen instead of silently breaking.
+- [x] `trySilentAutodeskReconnect()` runs on page load (skipped when a fresh OAuth `code` is
+      in the URL) so returning to the app — including from `admin.html`'s "Go to App" — goes
+      straight to the Hubs view when a valid stored connection exists, instead of forcing a
+      fresh login click every time.
+- [x] The refresh token itself never reaches the browser — `/api/aps/token` now only ever
+      returns `access_token`/`expires_in`/`token_type`, for every grant type, even though
+      Autodesk's own response includes the refresh token. Access tokens still only ever live
+      in a JS variable, never `localStorage`/`sessionStorage`.
 
 ## 5. Region Routing `[BLOCKING]`
 

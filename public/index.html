@@ -1132,7 +1132,16 @@
                 
                 // Load the app's shared APS Client ID
                 await loadApsClientId();
-                
+
+                // Try to silently resume a previous Autodesk connection using the
+                // stored refresh token, so returning to this page (or coming back
+                // from admin.html) doesn't force a fresh "Login with Autodesk"
+                // click. Skipped when a fresh OAuth code is in the URL - window.onload
+                // handles that exchange itself, right below.
+                if (!new URLSearchParams(window.location.search).get('code')) {
+                    await trySilentAutodeskReconnect();
+                }
+
                 // Show license/admin info in UI
                 const licenseExpiry = data.licenseExpiry ? new Date(data.licenseExpiry) : null;
                 const trialEndDate = data.trialEndDate ? new Date(data.trialEndDate) : null;
@@ -1520,8 +1529,11 @@
                 return;
             }
             
-            // Updated scopes to include construction admin access
-            const scopes = encodeURIComponent('data:read data:write data:create account:read account:write user:read');
+            // Updated scopes to include construction admin access. offline_access
+            // gets a refresh token back so the connection can be silently renewed
+            // (see trySilentAutodeskReconnect/scheduleTokenRefresh) instead of
+            // requiring a fresh login every time the access token expires.
+            const scopes = encodeURIComponent('data:read data:write data:create account:read account:write user:read offline_access');
             // crypto.randomUUID() (not Math.random(), which is not a CSPRNG) — stored
             // so the callback can verify the returned state matches what THIS browser
             // tab initiated, before ever exchanging the code. See the state check in
@@ -1564,6 +1576,7 @@
 
                 const tokenData = await response.json();
                 currentAccessToken = tokenData.access_token; // Store the access token
+                scheduleTokenRefresh(tokenData.expires_in);
 
                 // Fetch the Autodesk user's own profile now, before any project list
                 // renders — checkIsProjectAdmin() needs currentAutodeskUserEmail to
@@ -1576,6 +1589,67 @@
                 showError(`Authentication error: ${error.message}`);
                 return null;
             }
+        }
+
+        // Asks the server to exchange the stored APS refresh token for a fresh
+        // access token (grantType: 'refresh_token' — see /api/aps/token). Returns
+        // the token data on success, or null if there's no stored connection yet,
+        // or it's no longer valid (revoked/expired) - both are normal, not errors.
+        async function refreshAutodeskAccessToken() {
+            try {
+                const response = await fetch(`${window.location.origin}/api/aps/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ grantType: 'refresh_token' })
+                });
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.error('Error refreshing Autodesk access token:', error);
+                return null;
+            }
+        }
+
+        // Renews the Autodesk connection shortly before the current access token
+        // expires (Autodesk tokens last ~1hr), so a long-open tab doesn't suddenly
+        // start failing API calls. Re-schedules itself after every successful
+        // refresh; on failure (connection revoked/expired), falls back to the
+        // "Login with Autodesk" screen instead of leaving the app silently broken.
+        let tokenRefreshTimer = null;
+        function scheduleTokenRefresh(expiresInSeconds) {
+            if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+            const refreshInMs = Math.max(((expiresInSeconds || 3600) - 300) * 1000, 10000);
+            tokenRefreshTimer = setTimeout(async () => {
+                const tokenData = await refreshAutodeskAccessToken();
+                if (tokenData && tokenData.access_token) {
+                    currentAccessToken = tokenData.access_token;
+                    scheduleTokenRefresh(tokenData.expires_in);
+                } else {
+                    console.warn('Autodesk connection could not be renewed - please log in again.');
+                    currentAccessToken = null;
+                    const content = document.getElementById('content');
+                    const loginCard = document.getElementById('login');
+                    if (content) content.style.display = 'none';
+                    if (loginCard) loginCard.style.display = 'flex';
+                }
+            }, refreshInMs);
+        }
+
+        // Called on page load (when not handling a fresh OAuth callback) to
+        // silently resume a previous Autodesk connection via the stored refresh
+        // token, so navigating back to this page doesn't require clicking
+        // "Login with Autodesk" again. No-ops quietly if nothing is stored yet.
+        async function trySilentAutodeskReconnect() {
+            const tokenData = await refreshAutodeskAccessToken();
+            if (!tokenData || !tokenData.access_token) return false;
+            currentAccessToken = tokenData.access_token;
+            scheduleTokenRefresh(tokenData.expires_in);
+            await fetchCurrentAutodeskUserProfile(currentAccessToken);
+            await getHubs(currentAccessToken);
+            return true;
         }
 
         // Fetches the currently-authenticated Autodesk user's own profile (their

@@ -93,6 +93,38 @@ function decryptData(encrypted, context, saltHex, ivHex, authTagHex) {
     return decrypted;
 }
 
+// Stores/replaces the user's APS (Autodesk) refresh token, encrypted the same
+// way as everything else in this file. Autodesk rotates the refresh token on
+// every use, so this is called again after every successful refresh, not just
+// the first login.
+async function storeApsRefreshToken(userId, refreshToken) {
+    const enc = encryptData(refreshToken, `aps-refresh:${userId}`);
+    await db.collection('users').doc(userId).set({
+        apsRefreshToken: enc.encrypted,
+        apsRefreshTokenSalt: enc.salt,
+        apsRefreshTokenIV: enc.iv,
+        apsRefreshTokenAuthTag: enc.authTag
+    }, { merge: true });
+}
+
+// Fetches and decrypts the user's stored APS refresh token. Returns null if
+// none is saved (never connected yet, or a previous refresh failed/expired).
+async function getStoredApsRefreshToken(userId) {
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) return null;
+    const userData = userDoc.data();
+    if (!userData.apsRefreshToken || !userData.apsRefreshTokenSalt
+        || !userData.apsRefreshTokenIV || !userData.apsRefreshTokenAuthTag) {
+        return null;
+    }
+    try {
+        return decryptData(userData.apsRefreshToken, `aps-refresh:${userId}`, userData.apsRefreshTokenSalt, userData.apsRefreshTokenIV, userData.apsRefreshTokenAuthTag);
+    } catch (error) {
+        console.warn(`⚠️ Failed to decrypt stored APS refresh token for user ${userId} (likely encrypted under a different key) - treating as not saved:`, error.message);
+        return null;
+    }
+}
+
 // ============================================================================
 // Error Sanitization Utility
 // ============================================================================
@@ -503,15 +535,19 @@ app.get('/api/aps-client-id', authenticateUser, async (req, res) => {
 });
 
 // Proxies the Autodesk OAuth token exchange so the APS client secret never has
-// to be sent to, stored in, or used from the browser. Supports the two grant
-// types this app needs: exchanging an authorization code (3-legged login) and
-// client_credentials (2-legged, for HQ/Admin API calls). Only ever returns the
-// resulting token data — never the client secret itself.
+// to be sent to, stored in, or used from the browser. Supports three grant
+// types: authorization_code (3-legged login), refresh_token (silent reconnect
+// using the refresh token stored server-side - see storeApsRefreshToken), and
+// client_credentials (2-legged, for HQ/Admin API calls). Autodesk rotates the
+// refresh token on every use; the new one is (re-)stored here whenever one
+// comes back. The refresh token itself is never sent to the browser - only
+// access_token/expires_in/token_type are, regardless of grant type.
 app.post('/api/aps/token', authenticateUser, async (req, res) => {
     try {
+        const userId = req.user.uid;
         const { grantType, code, redirectUri, scope } = req.body;
 
-        if (grantType !== 'authorization_code' && grantType !== 'client_credentials') {
+        if (grantType !== 'authorization_code' && grantType !== 'client_credentials' && grantType !== 'refresh_token') {
             return res.status(400).json({ success: false, message: 'Invalid grantType' });
         }
 
@@ -533,6 +569,12 @@ app.post('/api/aps/token', authenticateUser, async (req, res) => {
             }
             params.append('code', code);
             params.append('redirect_uri', redirectUri);
+        } else if (grantType === 'refresh_token') {
+            const storedRefreshToken = await getStoredApsRefreshToken(userId);
+            if (!storedRefreshToken) {
+                return res.status(400).json({ success: false, message: 'No Autodesk connection stored for this account' });
+            }
+            params.append('refresh_token', storedRefreshToken);
         } else {
             params.append('scope', typeof scope === 'string' && scope ? scope : 'account:read');
         }
@@ -551,7 +593,16 @@ app.post('/api/aps/token', authenticateUser, async (req, res) => {
             });
         }
 
-        res.json({ success: true, ...tokenData });
+        if (tokenData.refresh_token) {
+            await storeApsRefreshToken(userId, tokenData.refresh_token);
+        }
+
+        res.json({
+            success: true,
+            access_token: tokenData.access_token,
+            expires_in: tokenData.expires_in,
+            token_type: tokenData.token_type
+        });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to obtain access token');
         res.status(500).json({ success: false, message: 'Error obtaining access token', ...sanitized });
