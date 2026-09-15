@@ -224,11 +224,31 @@ must explicitly cover:
       showed the live Client ID; added an explicit "App Name: Forma User Management" line
       right above it so both are paired together in one place, not just on the same screen.
 
-## 12. Data Exposure `[VERIFY]`
+## 12. Data Exposure `[VERIFY]` — Real finding, fixed, applied locally
 
-- [ ] Confirm nothing in the app creates a publicly-reachable link or public storage bucket
-      exposing ACC project/user data — explicitly forbidden ("never expose data publicly
-      via shareable links or public storage").
+Audited for shareable links, public storage, and any client-side path that bypasses the
+server's own auth checks:
+
+- [x] No Google Cloud Storage usage anywhere in the app (no `@google-cloud/storage`, no
+      bucket calls) — all data lives in Firestore, reached only through server.js. Static
+      files are scoped to `public/` with `dotfiles: 'deny'`. No "share link"/public-link
+      feature exists anywhere in the codebase.
+- [x] **Real finding, now fixed**: `admin.html`'s "Extend License" action wrote directly to
+      Firestore from the browser (`licenses`/`users` collections) — the only admin action
+      that didn't go through a server endpoint. Since the Firebase JS SDK is not itself a
+      security boundary, this depended entirely on Firestore security rules (not in this
+      repo, configured in the Firebase Console) to stop a non-admin from replaying that same
+      write from their own browser console and granting themselves unlimited license time.
+      Fixed by adding `POST /api/admin/extend-license` (`authenticateAdmin`-gated, mirrors
+      the existing `/api/admin/revoke-license` pattern exactly) and pointing `admin.html` at
+      it instead.
+- [x] Swept the rest of the app for the same pattern: `index.html` and `login.html` both
+      still initialized a client-side Firestore instance (`db = firebase.firestore()`) with
+      **zero actual `.collection()` calls** anywhere in either file — dead code left over
+      from before everything moved server-side. Removed the unused `db` variable and the
+      now-unnecessary `firebase-firestore-compat.js` script tag from all three files
+      (`index.html`, `login.html`, `admin.html`) — no client-side Firestore access remains
+      anywhere in the app at all.
 
 ## 13. Publisher Registration & Business Setup `[NON-CODE]`
 

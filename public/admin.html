@@ -729,7 +729,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" integrity="sha384-nwX2Qpkhc2sv6L0ZPkLefLGguao67toSowvePuQvGF6cG+8MUphGI2uI94Ls3JF7" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check-compat.js" integrity="sha384-rxbD+YIVHadImwEcPc07/NNXIMwVf3RtXkQUgI0cE4GzDCFQ9IQ+kLvlefJ/Eb7E" crossorigin="anonymous"></script>
     
     <!-- Firebase Config -->
@@ -749,8 +748,7 @@
         appCheck.activate('6LfmUW0tAAAAADW2ftclIE1gW-ve6rTPPNYt4w4n', true);
         
         const auth = firebase.auth();
-        const db = firebase.firestore();
-        
+
         let currentUser = null;
         let authToken = null;
         let allUsers = [];
@@ -1336,26 +1334,26 @@
         async function confirmExtend() {
             try {
                 const days = parseInt(document.getElementById('extendDuration').value);
-                const license = allLicenses.find(l => l.licenseKey === currentExtendLicense);
-                const currentExpiry = new Date(license.expiryDate);
-                const newExpiry = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
-                
-                // Update in Firestore directly
-                await db.collection('licenses').doc(currentExtendLicense).update({
-                    expiryDate: firebase.firestore.Timestamp.fromDate(newExpiry)
+
+                const response = await fetch(`${serverURL}/api/admin/extend-license`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ licenseKey: currentExtendLicense, days })
                 });
-                
-                // Also update user document
-                if (license.userId) {
-                    await db.collection('users').doc(license.userId).update({
-                        licenseExpiry: firebase.firestore.Timestamp.fromDate(newExpiry)
-                    });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`License extended successfully!\nNew expiry: ${formatDate(new Date(data.newExpiry))}`);
+                    closeModal('extendModal');
+                    await refreshData();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + error.error);
                 }
-                
-                alert(`License extended successfully!\nNew expiry: ${formatDate(newExpiry)}`);
-                closeModal('extendModal');
-                await refreshData();
-                
+
             } catch (error) {
                 console.error('Extend error:', error);
                 alert('Failed to extend license');

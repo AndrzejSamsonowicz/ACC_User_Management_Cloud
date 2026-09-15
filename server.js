@@ -1089,6 +1089,41 @@ app.post('/api/admin/revoke-license', authenticateAdmin, async (req, res) => {
     }
 });
 
+// Extend license (admin only)
+app.post('/api/admin/extend-license', authenticateAdmin, async (req, res) => {
+    try {
+        const { licenseKey, days } = req.body;
+
+        if (!licenseKey || !days) {
+            return res.status(400).json({ error: 'License key and duration are required' });
+        }
+
+        const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+        if (!licenseDoc.exists) {
+            return res.status(404).json({ error: 'License not found' });
+        }
+
+        const licenseData = licenseDoc.data();
+        const currentExpiry = licenseData.expiryDate ? licenseData.expiryDate.toDate() : new Date();
+        const newExpiry = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
+
+        await db.collection('licenses').doc(licenseKey).update({
+            expiryDate: admin.firestore.Timestamp.fromDate(newExpiry)
+        });
+
+        if (licenseData.userId) {
+            await db.collection('users').doc(licenseData.userId).update({
+                licenseExpiry: admin.firestore.Timestamp.fromDate(newExpiry)
+            });
+        }
+
+        res.json({ success: true, newExpiry: newExpiry.toISOString() });
+    } catch (error) {
+        console.error('Error extending license:', error);
+        res.status(500).json({ error: 'Failed to extend license' });
+    }
+});
+
 // Activate license manually (admin only)
 app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
     try {
@@ -1774,6 +1809,7 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  GET  /api/admin/licenses');
     console.log('  GET  /api/admin/analytics?days=30');
     console.log('  POST /api/admin/revoke-license');
+    console.log('  POST /api/admin/extend-license');
     console.log('  POST /api/admin/activate-license');
     console.log('  POST /api/admin/deactivate-license');
     console.log('  POST /api/admin/delete-users');
