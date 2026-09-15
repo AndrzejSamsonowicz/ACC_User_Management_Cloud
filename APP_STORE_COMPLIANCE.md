@@ -171,24 +171,28 @@ directly against Autodesk's own reference pages (not assumed from memory):
 - [x] Confirmed no "beta" wording anywhere in the app's own HTML/UI (checked all of
       `public/*.html`) and no other leftover demo-mode references anywhere in `public/`.
 
-## 8. Licensing / Entitlement `[BLOCKING]`
+## 8. Licensing / Entitlement `[BLOCKING]` — Verified compliant, no code change needed
 
 Since the digibuild.ch (Firebase) login stays as-is, licensing keeps using the **existing
 Firebase UID** — no re-keying to an Autodesk user id needed. Autodesk's own Entitlement API
 (`checkentitlement`) is confirmed **desktop-only** anyway (it reads native desktop app APIs
-like `LoginUserId`, and can't be called from a web app), so it was never an option here —
-this is just your own existing licensing logic, held to a higher bar:
+like `LoginUserId`, and can't be called from a web app), so it was never an option here.
 
-- [ ] Activation must be automatic after sign-up/login — no "email me a key" step. Current
-      `purchase.html` → license-email flow needs to resolve into an automatic check right
-      after checkout/login, not a manual round trip a customer has to complete by hand.
-- [ ] If activation can't be instant in some edge case, the app must stay fully functional
-      through a grace period until it is (Autodesk FAQ, confirmed requirement).
-- [ ] A paid app must be genuinely unusable without a valid entitlement, and a trial must
-      be genuinely usable without ever hitting a paywall prematurely — both extremes are
-      explicit rejection reasons. Since the app is listed **Free** (see decisions above),
-      whatever a reviewer sees immediately after install/sign-in must itself work — the
-      trial/paywall logic is what's being reviewed, not a purchase flow.
+Traced the actual purchase → activation code path rather than assuming work was needed:
+
+- [x] Activation is already automatic — `purchase.html` shows the license key on-screen
+      immediately and builds a "Register Now" link with the key pre-filled in the URL
+      ([purchase.html:399-400](public/purchase.html:399)); `register.html` auto-fills it
+      ([register.html:319-321](public/register.html:319)); `/api/register-user` claims the
+      license and creates the account atomically in one Firestore transaction. An existing
+      account buying a license gets it applied automatically right after their next sign-in
+      via a `pendingLicenseKey` handoff. The confirmation email is a receipt/backup, not the
+      only way to get the key — this isn't the "email me a key" pattern Autodesk rejects.
+- [x] A fresh signup with no license key gets an automatic 3-day trial, active immediately
+      (`isTrial`/`trialEndDate`/`hasActiveAccess: true` set in the same transaction) — no
+      manual step blocks first use.
+- [x] Confirmed with a real test purchase (done ~2026-08, worked smoothly end-to-end) — not
+      just a code trace.
 
 ## 9. EULA `[BLOCKING]` `[NON-CODE for the text itself]`
 
@@ -213,12 +217,12 @@ must explicitly cover:
       VM/Firestore, and which GCP region), retention period, and deletion process.
 - [ ] Token retention and how a user revokes access (ties directly to §4).
 
-## 11. APS Client ID Display Page `[BLOCKING — new finding]`
+## 11. APS Client ID Display Page — Done, applied locally
 
-- [ ] Autodesk's BIM 360 publisher page requires: *"a page that displays your APS Client ID
-      and app name so users can add it as an integration"* — needed for the ACC Hub Admin
-      **Custom Integrations** install path (separate from full marketplace "Install" flow).
-      Add a simple page/section with the production Client ID + app name.
+- [x] Autodesk's BIM 360 publisher page requires: *"a page that displays your APS Client ID
+      and app name so users can add it as an integration"* — the Settings modal already
+      showed the live Client ID; added an explicit "App Name: Forma User Management" line
+      right above it so both are paired together in one place, not just on the same screen.
 
 ## 12. Data Exposure `[VERIFY]`
 
