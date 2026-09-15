@@ -77,7 +77,7 @@ or deployed:
       an `admin.html` screen to update the shared Client ID/Secret without SSH) — a nice-to
       -have, not required; `.env` alone is sufficient for now.
 
-## 2. OAuth Branding `[BLOCKING]` — Login button done and deployed
+## 2. OAuth Branding `[BLOCKING]` — Done, applied locally
 
 - [x] Login button now shows Autodesk's real, current, unmodified logo (the black
       symbol+wordmark, `autodesk-logo-blk.svg` in `public/`) followed by "Sign in" —
@@ -88,11 +88,12 @@ or deployed:
       on a white background rather than the app's blue, since Autodesk Black is their
       preferred version and White is only "acceptable against sufficiently dark backgrounds"
       — the app's blue isn't unambiguously dark enough to rely on that exception.
-- [ ] If displaying a BIM 360/ACC product thumbnail anywhere in the listing or app, use
-      Autodesk's provided asset unmodified (per the BIM 360 publisher page) — separate,
-      still open.
+- [x] Added a small "Compatible with BIM 360 & Autodesk Construction Cloud" badge on
+      `login.html` (the first screen anyone sees), using Autodesk's official, unmodified BIM
+      360 icon (`public/bim-360-icon-128px.png`, from their own asset zip
+      `images.autodesk.com/adsk/files/bim360_logos.zip`).
 
-## 3. OAuth Scope Minimization `[BLOCKING]` — Done, applied locally
+## 3. OAuth Scope Minimization `[BLOCKING]` — Done and deployed
 
 Audited every single call to `developer.api.autodesk.com` across all 10 files that make one
 (`index.html` and 9 `public/*.js` files), and verified the required scope for each API family
