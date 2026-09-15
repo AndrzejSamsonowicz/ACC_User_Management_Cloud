@@ -77,7 +77,7 @@ or deployed:
       an `admin.html` screen to update the shared Client ID/Secret without SSH) — a nice-to
       -have, not required; `.env` alone is sufficient for now.
 
-## 2. OAuth Branding `[BLOCKING]` — Login button done, applied locally
+## 2. OAuth Branding `[BLOCKING]` — Login button done and deployed
 
 - [x] Login button now shows Autodesk's real, current, unmodified logo (the black
       symbol+wordmark, `autodesk-logo-blk.svg` in `public/`) followed by "Sign in" —
@@ -92,14 +92,25 @@ or deployed:
       Autodesk's provided asset unmodified (per the BIM 360 publisher page) — separate,
       still open.
 
-## 3. OAuth Scope Minimization `[BLOCKING]`
+## 3. OAuth Scope Minimization `[BLOCKING]` — Done, applied locally
 
-- [ ] Audit every Autodesk API call the app makes and trim the scope string at
-      [index.html:1533](public/index.html:1533) — currently
-      `data:read data:write data:create account:read account:write user:read offline_access`.
-      Drop any of `data:write`, `data:create`, `account:write` not actually exercised by a
-      real code path. Over-broad scopes are a named, explicit rejection reason.
-- [x] `offline_access` added — done as part of §4.
+Audited every single call to `developer.api.autodesk.com` across all 10 files that make one
+(`index.html` and 9 `public/*.js` files), and verified the required scope for each API family
+directly against Autodesk's own reference pages (not assumed from memory):
+
+| Scope | Confirmed used by | Verdict |
+|---|---|---|
+| `data:read` | Data Management API — hubs/projects/folders browsing | Keep |
+| `data:write` | Folder permissions batch-create/update/delete — confirmed directly on Autodesk's `permissions:batch-create` reference page (`Required OAuth Scopes: data:write`) | Keep |
+| `data:create` | **No code path found** — no folder/item/version creation anywhere | **Removed** |
+| `account:read` | GET calls across Construction Admin, HQ, and BIM 360 Admin APIs | Keep |
+| `account:write` | PATCH/POST/DELETE project & account users, companies — confirmed directly on Autodesk's `PATCH projects/:project_id/users/user_id` reference page (`Required OAuth Scopes: account:write`) | Keep |
+| `user:read` | `/userinfo` (current user's own profile) | Keep |
+| `offline_access` | Refresh tokens (§4) | Keep |
+
+- [x] Only `data:create` was genuinely unused — removed from the scope string at
+      [index.html:1558](public/index.html:1558). Everything else the app requests, it
+      actually exercises somewhere in the codebase.
 
 ## 4. Token Handling `[BLOCKING]` — Mostly done, applied locally, not yet deployed
 

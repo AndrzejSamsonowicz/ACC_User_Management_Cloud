@@ -1548,14 +1548,19 @@
                 return;
             }
             
-            // Updated scopes to include construction admin access. offline_access
+            // Every scope below is exercised by a real code path (audited against
+            // every developer.api.autodesk.com call in this app) - data:read/write
+            // for Data Management + folder permissions, account:read/write for
+            // Construction Admin/HQ/BIM 360 Admin, user:read for /userinfo.
+            // data:create was requested but never used (no Data Management item/
+            // version/folder creation anywhere) and has been dropped. offline_access
             // gets a refresh token back so an already-connected session can be
             // silently renewed (see scheduleTokenRefresh) instead of the access
             // token just going stale mid-use. Each visit still requires an
             // explicit "Login with Autodesk" click - this only keeps that
             // connection alive during a single active session, it does not
             // reconnect automatically on a later visit.
-            const scopes = encodeURIComponent('data:read data:write data:create account:read account:write user:read offline_access');
+            const scopes = encodeURIComponent('data:read data:write account:read account:write user:read offline_access');
             // crypto.randomUUID() (not Math.random(), which is not a CSPRNG) — stored
             // so the callback can verify the returned state matches what THIS browser
             // tab initiated, before ever exchanging the code. See the state check in
