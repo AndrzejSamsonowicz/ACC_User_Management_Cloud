@@ -136,11 +136,19 @@ directly against Autodesk's own reference pages (not assumed from memory):
       Autodesk's own response includes the refresh token. Access tokens still only ever live
       in a JS variable, never `localStorage`/`sessionStorage`.
 
-## 5. Region Routing `[BLOCKING]`
+## 5. Region Routing — Verified not applicable, no code change needed
 
-- [ ] `selectHub(hubId, hubName, hubRegion)` receives `hubRegion` but never uses it — all
-      calls hard-coded to `https://developer.api.autodesk.com`. Route EMEA hubs to
-      Autodesk's EMEA base URL. A reviewer testing from the other region will trigger this.
+- [x] Researched directly against Autodesk's own documentation (dated, not assumed from
+      memory): *"3/18, 2024 update: All BIM 360 and Forma (Autodesk Forma) API supports
+      automatic region routing"* and, on the same page, *"Data Management API is not
+      affected."* The only APIs that ever needed a manual region header are Model Derivative
+      (thumbnails/manifests/metadata) and the pre-v7.27 Viewer — confirmed via a full audit
+      that this app calls neither anywhere. Every API this app actually uses (Data
+      Management hubs/projects/folders, Construction Admin, HQ, BIM 360 Admin, BIM 360 Docs
+      permissions) is either explicitly unaffected or auto-routed by Autodesk's backend.
+      `selectHub`'s unused `hubRegion` parameter isn't a bug — nothing needs it. The original
+      meeting-notes warning was accurate historically (pre-2024) but Autodesk resolved this
+      server-side since.
 
 ## 6. Documented APIs Only `[BLOCKING]`
 
@@ -151,13 +159,17 @@ directly against Autodesk's own reference pages (not assumed from memory):
       changed, to state it as a documented-API fact instead of a reverse-engineering
       narrative. Done locally — not yet committed or deployed.
 
-## 7. Remove Incompleteness / Beta Signals `[BLOCKING]`
+## 7. Remove Incompleteness / Beta Signals `[BLOCKING]` — Done, applied locally
 
-- [ ] Scrub "coming soon" wording for the Admin Dashboard —
-      [README.md:20](README.md:20) and [README.md:86](README.md:86).
-- [ ] Remove the `?demo=true` Firebase-auth bypass entirely — an unauthenticated path in a
-      submitted app is both a rejection risk and a real security issue.
-- [ ] Never use the word "beta" anywhere in the listing description or in-app UI.
+- [x] Scrubbed "coming soon" wording for the Admin Dashboard — [README.md:20](README.md:20)
+      and [README.md:86](README.md:86). It was just stale docs; `admin.html` has existed and
+      worked the whole time.
+- [x] Removed the `?demo=true` Firebase-auth bypass entirely — deleted `isDemoMode`, the
+      unauthenticated init path, `displayDemoInfo()`, and the two conditionals in
+      `update_project_users.js` that referenced it (fixed to always send the real auth
+      header now that there's no other mode).
+- [x] Confirmed no "beta" wording anywhere in the app's own HTML/UI (checked all of
+      `public/*.html`) and no other leftover demo-mode references anywhere in `public/`.
 
 ## 8. Licensing / Entitlement `[BLOCKING]`
 

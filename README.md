@@ -17,7 +17,7 @@
 - ✅ **Multi-tenant Support** - Isolated customer environments
 - ✅ **Rate Limiting** - DDoS protection
 - ✅ **Session Management** - Secure, persistent sessions
-- ✅ **Admin Dashboard** - User and license management (coming soon)
+- ✅ **Admin Dashboard** - User and license management
 
 ---
 
@@ -83,7 +83,7 @@ ACC_User_Management/
 ├── register.html           # New user registration
 ├── purchase.html           # License purchase (PayPal)
 ├── index.html              # Main application (authenticated)
-├── admin.html              # Admin dashboard (coming soon)
+├── admin.html              # Admin dashboard
 ├── server.js               # Express server with auth APIs
 ├── firebase-config.js      # Firebase client configuration
 ├── package.json            # Dependencies

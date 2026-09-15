@@ -83,15 +83,15 @@ async function updateProjectUsersFromMainList(projectId, accountId, accessToken,
         } else {
             // Fetch from server API with authentication (project-specific endpoint)
             const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-                headers: isDemoMode ? {} : {
+                headers: {
                     'Authorization': `Bearer ${authToken}`
                 }
             });
-            
+
             if (!importResponse.ok) {
                 if (importResponse.status === 401) {
                     alert('Session expired. Please login again.');
-                    if (!isDemoMode) await auth.signOut();
+                    await auth.signOut();
                     window.location.href = 'login.html';
                     return;
                 }
@@ -565,11 +565,11 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             // Fallback: Fetch data if cache not available
             log('⚠️ No cached data - fetching from API');
             const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-                headers: isDemoMode ? {} : {
+                headers: {
                     'Authorization': `Bearer ${authToken}`
                 }
             });
-            
+
             if (!importResponse.ok) {
                 throw new Error('Failed to load user permissions');
             }
