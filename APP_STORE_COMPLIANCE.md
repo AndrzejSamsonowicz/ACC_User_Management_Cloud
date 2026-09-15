@@ -88,10 +88,11 @@ or deployed:
       on a white background rather than the app's blue, since Autodesk Black is their
       preferred version and White is only "acceptable against sufficiently dark backgrounds"
       — the app's blue isn't unambiguously dark enough to rely on that exception.
-- [x] Added a small "Compatible with BIM 360 & Autodesk Construction Cloud" badge on
-      `login.html` (the first screen anyone sees), using Autodesk's official, unmodified BIM
-      360 icon (`public/bim-360-icon-128px.png`, from their own asset zip
-      `images.autodesk.com/adsk/files/bim360_logos.zip`).
+- [x] Added a small "Compatible with Autodesk Forma" badge on `login.html` (the first screen
+      anyone sees), using Autodesk's official Forma product icon
+      (`public/forma-product-icon.svg`, sourced directly from `autodesk.com`'s own Forma
+      product page) — swapped in for an earlier BIM 360-icon version per feedback that Forma
+      branding fits this app better than the legacy BIM 360 name.
 
 ## 3. OAuth Scope Minimization `[BLOCKING]` — Done and deployed
 
