@@ -653,6 +653,31 @@
             border-color: #0057A0 !important;
         }
 
+        /* Autodesk brand requirement for the OAuth login button: the real,
+           unmodified Autodesk logo followed by "Sign in" — on a light
+           background, since that's the one usage that's unambiguously
+           compliant (Autodesk Black is their preferred version; White is
+           only "acceptable against sufficiently dark backgrounds", which
+           this app's blue isn't clearly dark enough to count as). */
+        #login .login-card button.autodesk-signin-btn {
+            background-color: #ffffff !important;
+            color: #1a1a1a !important;
+            border: 1px solid #dcdcdc !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 10px !important;
+        }
+        #login .login-card button.autodesk-signin-btn:hover {
+            background-color: #f5f5f5 !important;
+            border-color: #b0b0b0 !important;
+        }
+        .autodesk-signin-logo {
+            height: 14px;
+            width: auto;
+            display: block;
+        }
+
         /* Admin Account banner — same content/ids, slimmer bar */
         #license-info-banner {
             padding: 8px 20px !important;
@@ -847,7 +872,10 @@
             <div id="error"></div>
             <button onclick="logout()">Logout</button>
             <button onclick="showCredentialsModal()">Settings</button>
-            <button onclick="login()">Login with Autodesk</button>
+            <button onclick="login()" class="autodesk-signin-btn">
+                <img src="autodesk-logo-blk.svg" alt="Autodesk" class="autodesk-signin-logo">
+                Sign in
+            </button>
             <div id="loginCardLicenseNote"></div>
         </div>
     </div>

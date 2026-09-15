@@ -77,13 +77,20 @@ or deployed:
       an `admin.html` screen to update the shared Client ID/Secret without SSH) — a nice-to
       -have, not required; `.env` alone is sufficient for now.
 
-## 2. OAuth Branding `[BLOCKING]`
+## 2. OAuth Branding `[BLOCKING]` — Login button done, applied locally
 
-- [ ] Replace the plain-text login button with the Autodesk logo + "Sign in" wording, using
-      Autodesk's unmodified brand asset. Current: [index.html:850](public/index.html:850)
-      — `<button onclick="login()">Login with Autodesk</button>`.
+- [x] Login button now shows Autodesk's real, current, unmodified logo (the black
+      symbol+wordmark, `autodesk-logo-blk.svg` in `public/`) followed by "Sign in" —
+      matches their own guidance verbatim: *"the app presents the Autodesk logo followed by
+      the 'Sign in' wording."* Sourced directly from Autodesk's own asset CDN
+      (`damassets.autodesk.net/content/dam/autodesk/logos/`), confirmed as the same file used
+      on their public Brand Hub page — not a third-party logo-scraping site. Put the button
+      on a white background rather than the app's blue, since Autodesk Black is their
+      preferred version and White is only "acceptable against sufficiently dark backgrounds"
+      — the app's blue isn't unambiguously dark enough to rely on that exception.
 - [ ] If displaying a BIM 360/ACC product thumbnail anywhere in the listing or app, use
-      Autodesk's provided asset unmodified (per the BIM 360 publisher page).
+      Autodesk's provided asset unmodified (per the BIM 360 publisher page) — separate,
+      still open.
 
 ## 3. OAuth Scope Minimization `[BLOCKING]`
 
