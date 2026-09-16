@@ -1775,19 +1775,35 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
             }
         });
         
-        res.json({ 
+        res.json({
             success: true,
             isAdmin: isAdmin,
             email: userData.email,
             licenseExpiry: licenseExpiry ? licenseExpiry.toISOString() : null,
             isTrial: isTrial,
             trialEndDate: trialEndDate ? trialEndDate.toISOString() : null,
+            // Admins are the app operator, not a customer - the EULA gate is for customers.
+            termsAccepted: isAdmin || !!userData.termsAcceptedAt,
             redirectTo: isAdmin ? 'admin.html' : 'index.html'
         });
         
     } catch (error) {
         console.error('Error validating login:', error);
         res.status(500).json({ error: 'Failed to validate login' });
+    }
+});
+
+// Records one-time EULA/Terms acceptance (first-login gate, see index.html).
+// Idempotent - re-accepting just refreshes the timestamp, never an error.
+app.post('/api/accept-terms', authenticateUser, async (req, res) => {
+    try {
+        await db.collection('users').doc(req.user.uid).update({
+            termsAcceptedAt: FieldValue.serverTimestamp()
+        });
+        res.json({ success: true });
+    } catch (error) {
+        const sanitized = sanitizeError(error, 'Failed to record terms acceptance');
+        res.status(500).json({ success: false, ...sanitized });
     }
 });
 
@@ -1810,6 +1826,7 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  GET  /api/admin/analytics?days=30');
     console.log('  POST /api/admin/revoke-license');
     console.log('  POST /api/admin/extend-license');
+    console.log('  POST /api/accept-terms');
     console.log('  POST /api/admin/activate-license');
     console.log('  POST /api/admin/deactivate-license');
     console.log('  POST /api/admin/delete-users');

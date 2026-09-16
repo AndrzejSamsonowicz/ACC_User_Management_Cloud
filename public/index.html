@@ -1142,7 +1142,13 @@
                 
                 // Set current user
                 currentUser = user;
-                
+
+                // First-login EULA/Terms gate - blocks until accepted (admins are
+                // exempt server-side, see /api/validate-login).
+                if (!data.termsAccepted) {
+                    await showTermsGate();
+                }
+
                 // Load the app's shared APS Client ID
                 await loadApsClientId();
 
@@ -1301,6 +1307,56 @@
         // (the token endpoint is now only called server-side, via /api/aps/token —
         // see getAccessToken()/get2LeggedToken() below)
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
+
+        // First-login EULA/Terms gate. Resolves once the user has checked the box,
+        // clicked Continue, and the server has confirmed the acceptance was recorded
+        // (see /api/accept-terms) - callers should await this before proceeding.
+        function showTermsGate() {
+            return new Promise((resolve) => {
+                const modalHTML = `
+                    <div id="termsGateModal" style="position: fixed; z-index: 5000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;">
+                        <div style="background-color: #fefefe; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 95%; max-width: 480px; padding: 24px; font-family: 'Artifact Elements', Arial, sans-serif;">
+                            <h3 style="margin: 0 0 12px 0; color: #333;">Terms &amp; Privacy</h3>
+                            <p style="font-size: 14px; color: #495057; margin: 0 0 16px 0;">
+                                Before continuing, please review our
+                                <a href="terms.html" target="_blank" rel="noopener" style="color: #0696D7;">Terms of Service</a>
+                                and
+                                <a href="privacy.html" target="_blank" rel="noopener" style="color: #0696D7;">Privacy Policy</a>.
+                            </p>
+                            <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: #333; margin-bottom: 20px; cursor: pointer;">
+                                <input type="checkbox" id="termsGateCheckbox" style="margin-top: 3px;">
+                                I have read and agree to the Terms of Service and Privacy Policy.
+                            </label>
+                            <button id="termsGateContinueBtn" disabled style="width: 100%; opacity: 0.5;">Continue</button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+                const checkbox = document.getElementById('termsGateCheckbox');
+                const continueBtn = document.getElementById('termsGateContinueBtn');
+
+                checkbox.addEventListener('change', () => {
+                    continueBtn.disabled = !checkbox.checked;
+                    continueBtn.style.opacity = checkbox.checked ? '1' : '0.5';
+                });
+
+                continueBtn.addEventListener('click', async () => {
+                    continueBtn.disabled = true;
+                    continueBtn.textContent = 'Please wait...';
+                    try {
+                        await fetch(`${window.location.origin}/api/accept-terms`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        });
+                    } catch (error) {
+                        console.error('Error recording terms acceptance:', error);
+                    }
+                    document.getElementById('termsGateModal').remove();
+                    resolve();
+                });
+            });
+        }
 
         function createCredentialsModal() {
             if (credentialsModal) return;

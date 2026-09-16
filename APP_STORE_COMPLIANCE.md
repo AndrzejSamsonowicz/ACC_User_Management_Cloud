@@ -194,28 +194,40 @@ Traced the actual purchase → activation code path rather than assuming work wa
 - [x] Confirmed with a real test purchase (done ~2026-08, worked smoothly end-to-end) — not
       just a code trace.
 
-## 9. EULA `[BLOCKING]` `[NON-CODE for the text itself]`
+## 9. EULA `[BLOCKING]` — Draft done, applied locally
 
-- [ ] Add a first-login "Accept Terms" gate in-app (one-time, per user) — Autodesk
-      explicitly recommends this exact pattern since their standard installer/listing flow
-      has no built-in EULA display mechanism for web apps.
-- [ ] Include the EULA text in the App Store listing description field.
-- [ ] If using a custom EULA (not just Autodesk's standard one), it must not conflict with
-      Autodesk's standard EULA and must include the mandatory minimum terms from Exhibit A
-      of the Publisher Agreement.
+- [x] Wrote `public/terms.html` — a Terms of Service covering the service description,
+      accounts, trial/subscription/payment terms (accurately describes the actual one-time
+      annual PayPal purchase — no auto-renewal claimed, since none exists), acceptable use,
+      the Autodesk relationship disclosure, IP, warranty disclaimer, liability cap,
+      termination, governing law (Switzerland — confirm), and contact.
+- [x] Added a first-login "Accept Terms" gate — `showTermsGate()` in `index.html`, blocking
+      until the user checks a box and clicks Continue; recorded server-side via the new
+      `POST /api/accept-terms` (`termsAcceptedAt` on the user's Firestore doc). Wired into
+      `/api/validate-login`'s response (`termsAccepted` field). Admins are exempt (they're
+      the operator, not a customer) so this only shows for real customers.
+- [x] Linked from `login.html`, `register.html`, and `purchase.html` footers.
+- **Still open, on you**: this is a first draft, not a substitute for real legal review —
+      please read it yourself and have someone qualified check it (especially the governing
+      law and liability sections) before treating it as final. Once approved, the same text
+      needs to go in the App Store listing description field too.
 
-## 10. Privacy Policy `[BLOCKING]` `[NON-CODE]`
+## 10. Privacy Policy `[BLOCKING]` — Draft done, applied locally
 
-Must be linked from both the App Store listing page and from within the app itself, and
-must explicitly cover:
-- [ ] What data is collected and why (ACC user/role/company/folder-permission data, license
-      records, encrypted Autodesk tokens).
-- [ ] That any third party the data is shared with provides equal protection.
-- [ ] Data retention and deletion policy.
-- [ ] How a user revokes consent / requests deletion.
-- [ ] What leaves Autodesk's platform, where it's stored (region/provider — i.e., this GCP
-      VM/Firestore, and which GCP region), retention period, and deletion process.
-- [ ] Token retention and how a user revokes access (ties directly to §4).
+- [x] Wrote `public/privacy.html` covering everything required: what's collected and why
+      (account info, cached ACC user/role/company/folder-permission data — explicitly *not*
+      project files, encrypted Autodesk tokens), the third parties involved (Google
+      Cloud/Firebase in europe-west6/Zurich, Autodesk, PayPal, the email provider) and that
+      each protects data to an equivalent standard, retention (30 days after account
+      closure, per your call), how to revoke consent/request deletion
+      (digibuild@digibuild.ch)
+      and how to revoke the Autodesk connection independently (via ACC's own Custom
+      Integrations panel — ties to §4), and token handling.
+- [x] Linked from the same first-login gate as the Terms, plus `login.html`,
+      `register.html`, and `purchase.html` footers.
+- **Still open, on you**: same as §9 — real legal review recommended before treating this as
+      final, and it needs to be linked from the App Store listing page itself once you're at
+      the submission step (§14).
 
 ## 11. APS Client ID Display Page — Done, applied locally
 
