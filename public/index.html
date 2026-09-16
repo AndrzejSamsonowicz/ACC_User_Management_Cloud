@@ -1004,7 +1004,7 @@
         // ========================================================================
         
         // Settings modal — now just shows how to add this app as a Custom
-        // Integration in ACC (the tenant-side authorization step); it no longer
+        // Integration in Autodesk Forma (the tenant-side authorization step); it no longer
         // collects any credentials.
         let credentialsModal = null;
 
@@ -1715,7 +1715,7 @@
         // Whether the current Autodesk user is a Project Admin (or account admin)
         // on the given project — used to disable project-management actions the
         // user doesn't have permission for, instead of letting them hit a 403 after
-        // clicking. Project Admin is a per-project permission in ACC (someone can be
+        // clicking. Project Admin is a per-project permission in Autodesk Forma (someone can be
         // admin on one project and not another), so this checks that project's own
         // user list rather than a cheaper but less accurate account-wide flag.
         // Fails closed: if we can't determine the answer, treat as not-admin.
@@ -1777,7 +1777,7 @@
                 // Fetch projects using Construction Admin API
                 const projects = await fetchAllProjects(hubId, twoLeggedToken);
                 
-                // Filter only ACC projects (platform: "acc")
+                // Filter only Autodesk Forma projects (platform value from the API is still "acc")
                 const accProjects = projects.filter(project => project.platform === 'acc');
                 
                 displayProjects(accProjects, hubName, hubId);
@@ -1891,7 +1891,7 @@
                 renderProjectsList(projects);
                 updateProjectCount(projects.length, projects.length);
             } else {
-                projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No ACC projects found in this hub.</div>';
+                projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No Autodesk Forma projects found in this hub.</div>';
                 updateProjectCount(0, 0);
             }
         }
@@ -1908,7 +1908,7 @@
             if (addWarning) addWarning.style.visibility = anyChecked ? 'hidden' : 'visible';
 
             // Built via DOM APIs (not innerHTML + template strings) so that project
-            // names — set by any project admin in the ACC hub, not something this app
+            // names — set by any project admin in the Autodesk Forma hub, not something this app
             // controls — can never break out of an HTML attribute or inline onclick
             // and execute script (stored XSS). textContent/dataset/addEventListener
             // are injection-proof by construction; escapeHtml() alone is not enough
@@ -3201,7 +3201,7 @@
                                 <th class="modal-editable modal-resizable-th" style="width: 15%;">Role<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Project Admin<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <!-- <th>Insight</th> Hidden: Insight always defaults to 'member' and doesn't support 'administrator' -->
-                                <!-- <th>Docs</th> Removed: Data Management is auto-granted by ACC -->
+                                <!-- <th>Docs</th> Removed: Data Management is auto-granted by Autodesk Forma -->
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Design Collaboration<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Model Coordination<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Preconstruction<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
