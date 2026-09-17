@@ -2570,8 +2570,10 @@
             let offset = 0;
             const limit = 100;
             let hasMoreData = true;
+            let pageCount = 0;
 
             while (hasMoreData) {
+                pageCount++;
                 const queryParams = new URLSearchParams({
                     'limit': limit.toString(),
                     'offset': offset.toString()
@@ -2580,32 +2582,61 @@
                 const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users?${queryParams}`;
                 log(`Fetching users: ${apiUrl}`);
 
-                const response = await fetch(apiUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                // Paced with retry/backoff on 429 - a project with many pages of
+                // users, fired back-to-back with no pacing, can trip Autodesk's
+                // rate limit on its own even without any concurrent requests.
+                let retryCount = 0;
+                const maxRetries = 3;
+                let response = null;
+                let usersData = null;
 
-                if (!response.ok) {
-                    let errorData;
-                    try {
-                        errorData = await response.json();
-                        log('Error response:', errorData);
-                    } catch (parseError) {
-                        const textError = await response.text();
-                        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
+                while (usersData === null && retryCount < maxRetries) {
+                    if (offset > 0 || retryCount > 0) {
+                        const delay = retryCount > 0 ? Math.pow(2, retryCount) * 1000 : 400;
+                        log(`⏳ Waiting ${delay}ms before request (page ${pageCount}, retry ${retryCount})...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                     }
-                    
-                    const errorMessage = errorData.message || 
-                                       errorData.error || 
-                                       errorData.error_description || 
-                                       (errorData.errors && errorData.errors[0] && errorData.errors[0].detail) ||
-                                       `HTTP ${response.status}: ${response.statusText}`;
-                    throw new Error(errorMessage);
+
+                    response = await fetch(apiUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.status === 429) {
+                        const retryAfter = response.headers.get('Retry-After');
+                        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, retryCount + 1) * 1000;
+                        log(`⚠️ Rate limited (429). Retrying after ${waitTime}ms...`);
+                        retryCount++;
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        let errorData;
+                        try {
+                            errorData = await response.json();
+                            log('Error response:', errorData);
+                        } catch (parseError) {
+                            const textError = await response.text();
+                            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
+                        }
+
+                        const errorMessage = errorData.message ||
+                                           errorData.error ||
+                                           errorData.error_description ||
+                                           (errorData.errors && errorData.errors[0] && errorData.errors[0].detail) ||
+                                           `HTTP ${response.status}: ${response.statusText}`;
+                        throw new Error(errorMessage);
+                    }
+
+                    usersData = await response.json();
                 }
 
-                const usersData = await response.json();
+                if (usersData === null) {
+                    throw new Error('HTTP 429: Too Many Requests (rate limited after multiple retries)');
+                }
+
                 log(`Fetched ${usersData.results?.length || 0} users at offset ${offset}`);
 
                 if (usersData.results && usersData.results.length > 0) {
