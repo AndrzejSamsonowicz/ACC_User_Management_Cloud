@@ -29,23 +29,21 @@ submitting.
 
 ---
 
-## 1. APS App Registration `[BLOCKING]` `[NON-CODE]`
+## 1. APS App Registration `[BLOCKING]` `[NON-CODE]` — Done
 
-- [ ] Register a **new** APS app for production use — do not reuse "Revit Query" (personal
-      test app) or "test2" (Server-to-Server test).
-- [ ] Application Type: **Traditional Web App**.
-- [ ] Grant Type: Authorization Code and Client Credentials (default for this type).
-- [ ] Callback URL list: only `https://usermgt.digibuild.ch/...` production URLs. Leave
-      `localhost` entries out of the production registration, or keep them isolated to a
-      separate dev-only APS app so the reviewer never sees stray/IP-based callback URLs.
-- [ ] API Access: select only the APIs actually called (Authentication, Data Management,
-      ACC Admin, BIM 360 Admin, userinfo) — don't leave the default broad selection.
+- [x] Registered a **new** APS app for production use (not "Revit Query" or "test2").
+- [x] Application Type: **Traditional Web App**, confirmed working end-to-end.
+- [x] Real `APS_CLIENT_ID`/`APS_CLIENT_SECRET` values are in the VM's `.env`.
+- **Not independently verified by me** (done by you in the APS portal, no way for me to
+      check from here): that the callback URL list only has the production URL (no stray
+      `localhost`/IP entries visible to a reviewer), and that API Access is scoped to only
+      the APIs actually used rather than left at the broad default. Worth a quick look at
+      the actual APS app settings before submitting, just to confirm.
 
-## 1b. Retire the Per-Tenant "Bring Your Own APS App" Flow `[BLOCKING]` — Done in code
+## 1b. Retire the Per-Tenant "Bring Your Own APS App" Flow `[BLOCKING]` — Done and deployed
 
 Model B means one publisher-owned Client ID/Secret for every tenant, in server env vars —
-there is nothing left for an end user to create or paste. Done locally, not yet committed
-or deployed:
+there is nothing left for an end user to create or paste.
 
 - [x] Removed the "Setup your application" modal in `public/index.html` (the 4-step
       guide + per-step videos: create APS app → add callback URL → add custom
@@ -88,11 +86,13 @@ or deployed:
       on a white background rather than the app's blue, since Autodesk Black is their
       preferred version and White is only "acceptable against sufficiently dark backgrounds"
       — the app's blue isn't unambiguously dark enough to rely on that exception.
-- [x] Added a small "Compatible with Autodesk Forma" badge on `login.html` (the first screen
-      anyone sees), using Autodesk's official Forma product icon
-      (`public/forma-product-icon.svg`, sourced directly from `autodesk.com`'s own Forma
-      product page) — swapped in for an earlier BIM 360-icon version per feedback that Forma
-      branding fits this app better than the legacy BIM 360 name.
+- [x] Added a "Compatible with [Autodesk Forma lockup]" badge on `login.html` (the first
+      screen anyone sees) — the real official "AUTODESK / Forma" wordmark lockup
+      (`public/forma-lockup-wht.png`, sourced from Autodesk's own training-platform asset
+      server, not recreated), shown white-on-a-dark-pill since only the white variant is
+      publicly available and recoloring it would alter the trademark. Went through two
+      earlier iterations (a plain icon, then a standalone product icon) before landing here
+      per feedback — both superseded, gone from the codebase now.
 
 ## 3. OAuth Scope Minimization `[BLOCKING]` — Done and deployed
 
@@ -114,7 +114,7 @@ directly against Autodesk's own reference pages (not assumed from memory):
       [index.html:1558](public/index.html:1558). Everything else the app requests, it
       actually exercises somewhere in the codebase.
 
-## 4. Token Handling `[BLOCKING]` — Mostly done, applied locally, not yet deployed
+## 4. Token Handling `[BLOCKING]` — Done and deployed
 
 - [x] `offline_access` requested; `authorization_code` and `refresh_token` grants both
       capture the `refresh_token` Autodesk returns and store it — see
@@ -150,14 +150,14 @@ directly against Autodesk's own reference pages (not assumed from memory):
       meeting-notes warning was accurate historically (pre-2024) but Autodesk resolved this
       server-side since.
 
-## 6. Documented APIs Only `[BLOCKING]`
+## 6. Documented APIs Only `[BLOCKING]` — Done and deployed
 
-- [x] Rewrite the comment at
+- [x] Rewrote the comment at
       [update_project_users.js:8-11](public/update_project_users.js:8) — it used to
       describe discovering the endpoint via *"the real ACC 'Members' page's own network
       traffic."* The endpoint itself is documented and unchanged; only the comment's wording
       changed, to state it as a documented-API fact instead of a reverse-engineering
-      narrative. Done locally — not yet committed or deployed.
+      narrative.
 
 ## 7. Remove Incompleteness / Beta Signals `[BLOCKING]` — Done, applied locally
 
@@ -194,7 +194,7 @@ Traced the actual purchase → activation code path rather than assuming work wa
 - [x] Confirmed with a real test purchase (done ~2026-08, worked smoothly end-to-end) — not
       just a code trace.
 
-## 9. EULA `[BLOCKING]` — Draft done, applied locally
+## 9. EULA `[BLOCKING]` — Draft done and deployed
 
 - [x] Wrote `public/terms.html` — a Terms of Service covering the service description,
       accounts, trial/subscription/payment terms (accurately describes the actual one-time
@@ -212,7 +212,7 @@ Traced the actual purchase → activation code path rather than assuming work wa
       law and liability sections) before treating it as final. Once approved, the same text
       needs to go in the App Store listing description field too.
 
-## 10. Privacy Policy `[BLOCKING]` — Draft done, applied locally
+## 10. Privacy Policy `[BLOCKING]` — Draft done and deployed
 
 - [x] Wrote `public/privacy.html` covering everything required: what's collected and why
       (account info, cached ACC user/role/company/folder-permission data — explicitly *not*
@@ -229,14 +229,14 @@ Traced the actual purchase → activation code path rather than assuming work wa
       final, and it needs to be linked from the App Store listing page itself once you're at
       the submission step (§14).
 
-## 11. APS Client ID Display Page — Done, applied locally
+## 11. APS Client ID Display Page — Done and deployed
 
 - [x] Autodesk's BIM 360 publisher page requires: *"a page that displays your APS Client ID
       and app name so users can add it as an integration"* — the Settings modal already
       showed the live Client ID; added an explicit "App Name: Forma User Management" line
       right above it so both are paired together in one place, not just on the same screen.
 
-## 12. Data Exposure `[VERIFY]` — Real finding, fixed, applied locally
+## 12. Data Exposure `[VERIFY]` — Real finding, fixed and deployed
 
 Audited for shareable links, public storage, and any client-side path that bypasses the
 server's own auth checks:

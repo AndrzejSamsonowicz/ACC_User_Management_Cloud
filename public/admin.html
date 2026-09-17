@@ -476,6 +476,18 @@
                 <div class="value" id="unpaidOrders">-</div>
                 <div class="subtext">Pending payment</div>
             </div>
+
+            <div class="stat-card">
+                <h3>Active Today</h3>
+                <div class="value" id="activeToday">-</div>
+                <div class="subtext">Logged in, last 24h</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Active This Week</h3>
+                <div class="value" id="activeThisWeek">-</div>
+                <div class="subtext">Logged in, last 7 days</div>
+            </div>
         </div>
         
         <!-- Alerts Section -->
@@ -1182,6 +1194,16 @@
             
             const unpaid = allLicenses.filter(l => l.status === 'pending').length;
             document.getElementById('unpaidOrders').textContent = unpaid;
+
+            // "Active" = has actually logged in within the window, per their own
+            // lastLogin timestamp - a simple, real proxy for tenant activity/load
+            // to cross-reference against VM CPU when deciding on instance sizing.
+            const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const activeToday = allUsers.filter(u => u.lastLogin && new Date(u.lastLogin) > oneDayAgo).length;
+            const activeThisWeek = allUsers.filter(u => u.lastLogin && new Date(u.lastLogin) > sevenDaysAgo).length;
+            document.getElementById('activeToday').textContent = activeToday;
+            document.getElementById('activeThisWeek').textContent = activeThisWeek;
         }
         
         // Check and display alerts

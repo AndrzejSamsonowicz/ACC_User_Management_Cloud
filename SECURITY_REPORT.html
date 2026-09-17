@@ -210,7 +210,7 @@
     <p class="subtitle">Forma User Management Application</p>
     <div class="meta-row">
       <span><strong>Prepared by:</strong> Digibuild</span>
-      <span><strong>Report Date:</strong> 7 August 2026</span>
+      <span><strong>Report Date:</strong> 16 September 2026</span>
       <span><strong>Application Version:</strong> v2.1.0</span>
       <span><strong>Classification:</strong> Confidential</span>
     </div>
@@ -242,9 +242,15 @@
       </tr>
       <tr>
         <td><strong>Access Tokens</strong></td>
-        <td>Autodesk API 2-legged tokens</td>
-        <td>Server memory only (not persisted)</td>
-        <td><span class="tick">✔</span> In-memory, never written to disk</td>
+        <td>Autodesk API access tokens (2-legged and 3-legged)</td>
+        <td>Server memory / browser memory only (not persisted)</td>
+        <td><span class="tick">✔</span> In-memory only, never written to disk or storage</td>
+      </tr>
+      <tr>
+        <td><strong>Refresh Tokens</strong></td>
+        <td>Autodesk OAuth refresh tokens (for silent reconnection)</td>
+        <td>Google Firestore (cloud)</td>
+        <td><span class="tick">✔</span> AES-256-GCM at rest; never sent to or held in the browser</td>
       </tr>
       <tr>
         <td><strong>Project / Folder Permissions</strong></td>
@@ -345,17 +351,17 @@
       <tr class="check-row">
         <td class="tick">✔</td>
         <td><strong>Role-Based Access Control (RBAC)</strong></td>
-        <td>Admin and standard user roles enforced server-side; admin checks performed in Firestore Security Rules</td>
+        <td>Admin and standard user roles enforced entirely server-side: every admin-only endpoint independently re-verifies the caller's Firebase ID token and checks their admin status against Firestore via the Admin SDK before acting</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
-        <td><strong>Firestore Security Rules</strong></td>
-        <td>Server-side rules prevent any authenticated user from accessing another user's data</td>
+        <td><strong>No Client-Side Database Access</strong></td>
+        <td>The browser never communicates with Firestore directly — no Firestore SDK is loaded on any page. Every data operation goes through an authenticated server-side endpoint, which performs its own authorization before touching the database. This removes reliance on separately-configured, client-facing database rules as a security boundary</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
         <td><strong>Per-User Data Isolation</strong></td>
-        <td>Multi-tenant architecture — each user can only read/write their own data partition</td>
+        <td>Multi-tenant architecture — every server-side query and write is scoped to the requesting user's own verified ID (from their Firebase token), so one user's data is never reachable from another user's session</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -390,7 +396,7 @@
         <td class="tick">✔</td>
         <td><strong>A01 — Broken Access Control</strong></td>
         <td><span class="badge badge-green">Mitigated</span></td>
-        <td>Firebase Security Rules + server-side admin middleware; per-user data isolation</td>
+        <td>Server-side admin middleware re-verifies caller identity and role on every request; no client-side database access exists; per-user data isolation enforced by scoping every query/write to the caller's own verified ID</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -606,7 +612,7 @@
       <tr class="check-row"><td class="tick">✔</td><td>JWT token-based session management</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Firebase App Check (reCAPTCHA v3 bot protection)</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Role-Based Access Control (RBAC)</td><td><span class="badge badge-green">Active</span></td></tr>
-      <tr class="check-row"><td class="tick">✔</td><td>Firestore server-side Security Rules</td><td><span class="badge badge-green">Active</span></td></tr>
+      <tr class="check-row"><td class="tick">✔</td><td>No client-side database access (server-side-only, via authenticated endpoints)</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>CORS restricted to whitelisted origins</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Rate limiting (API + authentication endpoints)</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>7 HTTP security headers (CSP, HSTS, X-Frame-Options, etc.)</td><td><span class="badge badge-green">Active</span></td></tr>
@@ -616,6 +622,7 @@
       <tr class="check-row"><td class="tick">✔</td><td>Request logging with IP tracking</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Secrets management via environment variables (no hardcoded keys)</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Server-side OAuth token exchange (Autodesk client secret never exposed to the browser)</td><td><span class="badge badge-green">Active</span></td></tr>
+      <tr class="check-row"><td class="tick">✔</td><td>Autodesk refresh tokens encrypted at rest (AES-256-GCM), never exposed to the browser</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>OAuth state parameter validation (CSRF protection on login flow)</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Static asset serving scoped to a dedicated public directory</td><td><span class="badge badge-green">Active</span></td></tr>
       <tr class="check-row"><td class="tick">✔</td><td>Per-user data isolation (multi-tenant)</td><td><span class="badge badge-green">Active</span></td></tr>
@@ -624,7 +631,7 @@
 
   <footer>
     <p>
-      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.1.0 | 7 August 2026<br>
+      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.1.0 | 16 September 2026<br>
       This document is confidential and intended solely for the named recipient. Reproduction or distribution without written consent is prohibited.<br>
       Infrastructure security certifications (GCP / Firebase): <em>cloud.google.com/security/compliance</em>
     </p>
