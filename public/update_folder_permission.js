@@ -57,12 +57,12 @@
         }
     }
 
-    function updateFolderSyncProgress(message, percent) {
+    function updateFolderSyncProgress(message, percent = null) {
         const statusEl = document.getElementById('folderSyncStatus');
         const barEl = document.getElementById('folderSyncBar');
 
         if (statusEl) statusEl.textContent = message;
-        if (barEl) {
+        if (barEl && percent !== null) {
             barEl.style.width = `${percent}%`;
         }
     }
@@ -332,7 +332,7 @@
     /**
      * Batch create folder permissions
      */
-    async function batchCreatePermissions(projectId, folderId, permissions, accessToken) {
+    async function batchCreatePermissions(projectId, folderId, folderName, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
         const BATCH_SIZE = 50; // Autodesk permissions:batch-create hard limit per request
@@ -343,6 +343,10 @@
         const allResults = [];
         for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
             const chunk = permissions.slice(i, i + BATCH_SIZE);
+            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
+            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
+            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
+            updateFolderSyncProgress(`Creating access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
 
             // Strip non-API fields before sending
             const apiPayload = chunk.map(p => ({
@@ -351,7 +355,7 @@
                 actions: p.actions
             }));
 
-            log(`📤 Creating ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
+            log(`📤 Creating ${apiPayload.length} permissions (batch ${chunkNum}/${totalChunks})...`);
             log(`📤 Payload:`, JSON.stringify(apiPayload));
 
             try {
@@ -387,7 +391,7 @@
     /**
      * Batch update folder permissions
      */
-    async function batchUpdatePermissions(projectId, folderId, permissions, accessToken) {
+    async function batchUpdatePermissions(projectId, folderId, folderName, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
         const BATCH_SIZE = 50; // Autodesk permissions:batch-update hard limit per request
@@ -398,6 +402,10 @@
         const allResults = [];
         for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
             const chunk = permissions.slice(i, i + BATCH_SIZE);
+            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
+            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
+            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
+            updateFolderSyncProgress(`Updating access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
 
             // Strip non-API fields before sending
             const apiPayload = chunk.map(p => ({
@@ -442,7 +450,7 @@
     /**
      * Batch delete folder permissions
      */
-    async function batchDeletePermissions(projectId, folderId, permissions, accessToken) {
+    async function batchDeletePermissions(projectId, folderId, folderName, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
         const BATCH_SIZE = 50; // Autodesk permissions:batch-delete hard limit per request
@@ -452,6 +460,10 @@
 
         for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
             const chunk = permissions.slice(i, i + BATCH_SIZE);
+            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
+            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
+            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
+            updateFolderSyncProgress(`Removing access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
 
             // Strip non-API fields before sending
             const apiPayload = chunk.map(p => ({
@@ -659,7 +671,8 @@
                 const batchPromises = batch.map(async (folder) => {
                     const folderName = `${folder.level2}${folder.level3 ? ' > ' + folder.level3 : ''}`;
                     log(`\n📂 Processing: ${folderName}`);
-                    
+                    updateFolderSyncProgress(`Reading current permissions for "${folderName}"...`);
+
                     try {
                         // Fetch current permissions from ACC
                         const currentPermissions = await fetchFolderPermissions(
@@ -835,6 +848,7 @@
                                     const result = await batchCreatePermissions(
                                         currentProjectData.projectId,
                                         folder.folderId,
+                                        folderName,
                                         permissions,
                                         currentProjectData.accessToken
                                     );
@@ -862,6 +876,7 @@
                                     const result = await batchUpdatePermissions(
                                         currentProjectData.projectId,
                                         folder.folderId,
+                                        folderName,
                                         permissions,
                                         currentProjectData.accessToken
                                     );
@@ -889,6 +904,7 @@
                                     const result = await batchDeletePermissions(
                                         currentProjectData.projectId,
                                         folder.folderId,
+                                        folderName,
                                         permissions,
                                         currentProjectData.accessToken
                                     );
