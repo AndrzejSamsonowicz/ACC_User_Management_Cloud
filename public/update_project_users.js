@@ -330,6 +330,24 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
         showInvalidRolesModal(dupHTML);
     }
 
+    // Handle unverified roles - the project's role catalog couldn't be fetched at all
+    // (currently an Autodesk API permission gap, not a bad role name), so these users
+    // got the account's default role instead of the one specified in the import.
+    if (result?.unverifiedRoles?.size > 0) {
+        let unverifiedHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Roles could not be verified - the account default role was used instead:</div>';
+        for (const [role, emails] of result.unverifiedRoles) {
+            unverifiedHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+            unverifiedHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
+            unverifiedHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => { unverifiedHTML += `<li>${escapeHtml(email)} - given the account default role instead</li>`; });
+            unverifiedHTML += '</ul></div>';
+        }
+        unverifiedHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+        unverifiedHTML += '<strong>Action Required:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
+        unverifiedHTML += '</div>';
+        showInvalidRolesModal(unverifiedHTML);
+    }
+
     // Show summary in the same style as multi-project
     _showMultiSyncResults([{ project: { name: projectName }, result, error: syncError }]);
 }
@@ -467,7 +485,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         deleted: 0,
         errors: [],
         invalidRoles: new Map(),
-        duplicateRoles: new Map()
+        duplicateRoles: new Map(),
+        unverifiedRoles: new Map()
     };
     
     // Disable sync button and show progress
@@ -587,13 +606,24 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             const knownRoleIds = importUser?.metadata?.roleIds;
             if (Array.isArray(knownRoleIds) && knownRoleIds.length > 0) {
                 const deduped = [...new Set(knownRoleIds)];
-                return { roleIds: deduped, invalidNames: [], duplicateNames: [] };
+                return { roleIds: deduped, invalidNames: [], duplicateNames: [], unverifiedNames: [] };
             }
 
             const rolesText = (importUser?.metadata?.allRoles || importUser?.metadata?.role || '').trim();
             const roleNames = rolesText ? rolesText.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-            if (roleNames.length > 0 && projectRoleIdByName.size > 0) {
+            if (roleNames.length > 0) {
+                if (projectRoleIdByName.size === 0) {
+                    // The project's role catalog couldn't be fetched at all (e.g. Autodesk
+                    // hasn't granted this API to the app) - names can't be checked either
+                    // way. Falls through to the account default role below, but flagged as
+                    // "unverified" rather than "invalid", since the role may well be real.
+                    if (accountUser?.default_role_id) {
+                        return { roleIds: [accountUser.default_role_id], invalidNames: [], duplicateNames: [], unverifiedNames: roleNames };
+                    }
+                    return { roleIds: [], invalidNames: [], duplicateNames: [], unverifiedNames: roleNames };
+                }
+
                 const roleIds = [];
                 const invalidNames = [];
                 const duplicateNames = [];
@@ -609,14 +639,14 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     if (id) roleIds.push(id); else invalidNames.push(name);
                 });
                 if (roleIds.length > 0) {
-                    return { roleIds, invalidNames, duplicateNames };
+                    return { roleIds, invalidNames, duplicateNames, unverifiedNames: [] };
                 }
             }
 
             if (accountUser?.default_role_id) {
-                return { roleIds: [accountUser.default_role_id], invalidNames: [], duplicateNames: [] };
+                return { roleIds: [accountUser.default_role_id], invalidNames: [], duplicateNames: [], unverifiedNames: [] };
             }
-            return { roleIds: [], invalidNames: [], duplicateNames: [] };
+            return { roleIds: [], invalidNames: [], duplicateNames: [], unverifiedNames: [] };
         };
 
         const recordInvalidProjectRoles = (invalidNames, email) => {
@@ -630,6 +660,13 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             duplicateNames.forEach(name => {
                 if (!results.duplicateRoles.has(name)) results.duplicateRoles.set(name, []);
                 results.duplicateRoles.get(name).push(email);
+            });
+        };
+
+        const recordUnverifiedRoles = (unverifiedNames, email) => {
+            unverifiedNames.forEach(name => {
+                if (!results.unverifiedRoles.has(name)) results.unverifiedRoles.set(name, []);
+                results.unverifiedRoles.get(name).push(email);
             });
         };
 
@@ -738,7 +775,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     if (accountUser.company_name) patchPayload.companyName = accountUser.company_name;
 
                     // A project user can have multiple roles (Forma) — map every role name to a project roleId
-                    const { roleIds, invalidNames, duplicateNames } = resolveRoleIds(importUser, accountUser);
+                    const { roleIds, invalidNames, duplicateNames, unverifiedNames } = resolveRoleIds(importUser, accountUser);
                     if (roleIds.length > 0) {
                         patchPayload.roleIds = roleIds;
                         log(`✓ Adding role IDs [${roleIds.join(', ')}] for ${userToPatch.email}`);
@@ -750,6 +787,10 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     if (duplicateNames.length > 0) {
                         console.warn(`⚠️ Duplicate role(s) removed for ${userToPatch.email}:`, duplicateNames);
                         recordDuplicateRoles(duplicateNames, userToPatch.email);
+                    }
+                    if (unverifiedNames.length > 0) {
+                        console.warn(`⚠️ Role(s) could not be verified (catalog unavailable) for ${userToPatch.email}:`, unverifiedNames);
+                        recordUnverifiedRoles(unverifiedNames, userToPatch.email);
                     }
                     
                     // === CHANGE DETECTION: skip PATCH if nothing has actually changed ===
@@ -933,7 +974,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                             }
 
                             // A project user can have multiple roles (Forma) — map every role name to a project roleId
-                            const { roleIds, invalidNames, duplicateNames } = resolveRoleIds(importUser, accountUser);
+                            const { roleIds, invalidNames, duplicateNames, unverifiedNames } = resolveRoleIds(importUser, accountUser);
                             if (roleIds.length > 0) {
                                 userPayload.roleIds = roleIds;
                             }
@@ -944,6 +985,10 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                             if (duplicateNames.length > 0) {
                                 console.warn(`⚠️ Duplicate role(s) removed for ${userToAdd.email}:`, duplicateNames);
                                 recordDuplicateRoles(duplicateNames, userToAdd.email);
+                            }
+                            if (unverifiedNames.length > 0) {
+                                console.warn(`⚠️ Role(s) could not be verified (catalog unavailable) for ${userToAdd.email}:`, unverifiedNames);
+                                recordUnverifiedRoles(unverifiedNames, userToAdd.email);
                             }
                         }
                         
@@ -1308,6 +1353,36 @@ async function saveAndSyncMultiProject(projects) {
         errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
         errorHTML += '</div>';
         showInvalidRolesModal(errorHTML);
+    }
+
+    // Collect and show ONE combined unverified-roles warning across all projects - the
+    // project role catalog couldn't be fetched at all (Autodesk API permission gap, not
+    // a bad role name), so these users got the account default role instead.
+    const allUnverifiedRoles = new Map();
+    allResults.forEach(({ project, result }) => {
+        if (result?.unverifiedRoles?.size > 0) {
+            for (const [role, emails] of result.unverifiedRoles) {
+                if (!allUnverifiedRoles.has(role)) allUnverifiedRoles.set(role, { emails: [], projects: [] });
+                const entry = allUnverifiedRoles.get(role);
+                emails.forEach(e => { if (!entry.emails.includes(e)) entry.emails.push(e); });
+                if (!entry.projects.includes(project.name)) entry.projects.push(project.name);
+            }
+        }
+    });
+    if (allUnverifiedRoles.size > 0) {
+        let unverifiedHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Roles could not be verified - the account default role was used instead:</div>';
+        for (const [role, { emails, projects: pNames }] of allUnverifiedRoles) {
+            unverifiedHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
+            unverifiedHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
+            if (pNames.length > 1) unverifiedHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
+            unverifiedHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            emails.forEach(email => { unverifiedHTML += `<li>${escapeHtml(email)} - given the account default role instead</li>`; });
+            unverifiedHTML += '</ul></div>';
+        }
+        unverifiedHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
+        unverifiedHTML += '<strong>Action Required:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
+        unverifiedHTML += '</div>';
+        showInvalidRolesModal(unverifiedHTML);
     }
 
     // Show summary
