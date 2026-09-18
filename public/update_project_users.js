@@ -70,39 +70,18 @@ async function updateProjectUsersFromMainList(projectId, accountId, accessToken,
     if (progressText) progressText.textContent = 'Analyzing users...';
     
     try {
-        // Load user permissions from Firestore (project-specific), unless overrideImportUsers supplied
+        // Always sourced from the live modal table - nothing is saved to or
+        // loaded from Firestore for this list.
         if (progressBar) progressBar.style.width = '40%';
-        
-        let importUsers, importData;
-        
-        if (overrideImportUsers) {
-            // Use live table data (manage/Existing Users mode — changes not yet saved to Firestore)
-            importUsers = overrideImportUsers;
-            importData = { users: importUsers };
-            log(`Using ${importUsers.length} users from live modal table (override)`);
-        } else {
-            // Fetch from server API with authentication (project-specific endpoint)
-            const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-                headers: {
-                    'Authorization': `Bearer ${authToken}`
-                }
-            });
 
-            if (!importResponse.ok) {
-                if (importResponse.status === 401) {
-                    alert('Session expired. Please login again.');
-                    await auth.signOut();
-                    window.location.href = 'login.html';
-                    return;
-                }
-                throw new Error('Failed to load user permissions');
-            }
-            
-            importData = await importResponse.json();
-            importUsers = importData.users || [];
-            log(`Loaded ${importUsers.length} users from Firestore for project ${projectId}`);
+        if (!overrideImportUsers) {
+            throw new Error('No user data provided to sync');
         }
-        
+
+        const importUsers = overrideImportUsers;
+        const importData = { users: importUsers };
+        log(`Using ${importUsers.length} users from live modal table`);
+
         // Fetch project users
         if (progressBar) progressBar.style.width = '60%';
         const projectUsers = await fetchAllProjectUsers(projectId, accessToken);
@@ -230,13 +209,13 @@ async function updateProjectUsersFromModalContext(overrideImportUsers = null) {
 }
 
 /**
- * Combined Save & Sync operation
- * 1. Saves table to JSON (Firestore)
- * 2. Triggers sync analysis
+ * Sync operation for "Add New Users" modes (single or multi-project):
+ * 1. Provisions imported users (account company/role, project metadata refresh)
+ * 2. Syncs directly from the live table data - nothing is saved to Firestore
  */
-async function saveAndSync() {
-    log('🔄 saveAndSync called - executing Save then Sync');
-    
+async function syncModalUsers() {
+    log('🔄 syncModalUsers called');
+
     try {
         const projectIds = userTableManager?.modalProjectIds;
         if (projectIds && projectIds.length > 1) {
@@ -244,18 +223,19 @@ async function saveAndSync() {
             return;
         }
 
-        // Step 1: Save the table data
-        log('Step 1: Saving table data...');
-        await saveModalTableToJson();
-        
-        // Step 2: Synchronize with account users
+        // Step 1: Provision account/project users (real Autodesk API work)
+        log('Step 1: Provisioning users...');
+        const ok = await prepareModalUsersBeforeSync();
+        if (!ok) return;
+
+        // Step 2: Synchronize directly from the live table data just collected
         log('Step 2: Synchronizing with account users...');
-        await updateProjectUsersFromModalContext();
-        
-        log('✅ Save & Sync completed successfully');
+        await updateProjectUsersFromModalContext(userTableManager.lastCollectedUserData);
+
+        log('✅ Sync completed successfully');
     } catch (error) {
-        console.error('❌ Error in Save & Sync:', error);
-        alert(`Error during Save & Sync: ${error.message}`);
+        console.error('❌ Error in Sync:', error);
+        alert(`Error during Sync: ${error.message}`);
     }
 }
 
@@ -550,39 +530,18 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             // Continue even if account update fails - user might not have permissions
         }
         
-        // STEP 2: Fetch all required data (OPTIMIZED: Use cache if available)
-        let importData, importUsers, projectUsers, importEmailMap, projectEmailMap;
-        
-        if (cachedData) {
-            // OPTIMIZATION: Use cached data from initial analysis
-            log('✅ Using cached data - skipping duplicate API calls');
-            importData = cachedData.importData;
-            importUsers = cachedData.importUsers;
-            projectUsers = cachedData.projectUsers;
-            importEmailMap = cachedData.importEmailMap;
-            projectEmailMap = cachedData.projectEmailMap;
-        } else {
-            // Fallback: Fetch data if cache not available
-            log('⚠️ No cached data - fetching from API');
-            const importResponse = await fetch(`${window.location.origin}/load-project-users/${projectId}`, {
-                headers: {
-                    'Authorization': `Bearer ${authToken}`
-                }
-            });
-
-            if (!importResponse.ok) {
-                throw new Error('Failed to load user permissions');
-            }
-            
-            importData = await importResponse.json();
-            projectUsers = await fetchAllProjectUsers(projectId, twoLeggedToken);
-            importUsers = importData.users || [];
-            
-            // Create lookup maps (filter out users without emails)
-            importEmailMap = new Map(importUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
-            projectEmailMap = new Map(projectUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
+        // STEP 2: Get import/project user data - always sourced from cachedData,
+        // which every caller builds from the live modal table (never Firestore).
+        if (!cachedData) {
+            throw new Error('No cached user data provided to executeSyncOperations');
         }
-        
+        log('✅ Using cached data - skipping duplicate API calls');
+        const importData = cachedData.importData;
+        const importUsers = cachedData.importUsers;
+        const projectUsers = cachedData.projectUsers;
+        const importEmailMap = cachedData.importEmailMap;
+        const projectEmailMap = cachedData.projectEmailMap;
+
         // Always fetch account users (needed for company/role)
         const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
         const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
@@ -1033,17 +992,36 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     }
                     
                     log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
-                    
-                    // Execute DELETE request
+
+                    // Execute DELETE request, with retry/backoff on 429 - deleting more
+                    // than ~50 users at concurrency=4 can exceed Autodesk's rate limit
+                    // even with the small per-request delay below.
                     const deleteUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`;
-                    const response = await fetch(deleteUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json'
+                    let response;
+                    let retryCount = 0;
+                    const maxRetries = 5;
+
+                    while (true) {
+                        response = await fetch(deleteUrl, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (response.status === 429 && retryCount < maxRetries) {
+                            const retryAfter = response.headers.get('Retry-After');
+                            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, retryCount + 1) * 1000;
+                            log(`⚠️ Rate limited (429) deleting ${userToDelete.email}. Retrying after ${waitTime}ms...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            retryCount++;
+                            continue;
                         }
-                    });
-                    
+
+                        break;
+                    }
+
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({ message: response.statusText }));
                         throw new Error(errorData.message || `HTTP ${response.status}`);
@@ -1200,11 +1178,15 @@ async function runSyncForProjectDirect(projectId, accountId, accessToken, tableU
 }
 
 /**
- * Save & Sync for multiple selected projects.
- * Saves the modal table to Firestore for each project, then syncs them all.
+ * Sync for multiple selected projects, from the live table data directly -
+ * nothing is saved to Firestore.
  */
 async function saveAndSyncMultiProject(projects) {
     log('🔄 saveAndSyncMultiProject called for', projects.length, 'projects');
+
+    if (userTableManager && typeof userTableManager.checkForDuplicateEmails === 'function') {
+        if (!userTableManager.checkForDuplicateEmails()) return;
+    }
 
     const tableUsers = (userTableManager && typeof userTableManager.collectTableUsers === 'function')
         ? userTableManager.collectTableUsers()
@@ -1247,12 +1229,11 @@ async function saveAndSyncMultiProject(projects) {
         if (barEl) barEl.style.width = `${Math.round((i / projects.length) * 100)}%`;
 
         try {
-            // Save table to Firestore for this project (skip account update — executeSyncOperations STEP 1 handles it)
             userTableManager.modalProjectId = project.id;
             userTableManager.modalProjectName = project.name;
-            await userTableManager.saveTableToJson(true); // skipAccountUpdate = true
 
-            // Run sync directly (no confirmation dialog)
+            // Run sync directly (no confirmation dialog) - account-level provisioning
+            // happens inside executeSyncOperations itself (STEP 1), using tableUsers.
             const result = await runSyncForProjectDirect(project.id, accountId, accessToken, tableUsers);
             allResults.push({ project, result, error: null });
         } catch (err) {
@@ -1351,7 +1332,7 @@ function _showMultiSyncResults(allResults) {
 // Expose global functions
 window.updateProjectUsersFromMainList = updateProjectUsersFromMainList;
 window.updateProjectUsersFromModalContext = updateProjectUsersFromModalContext;
-window.saveAndSync = saveAndSync;
+window.syncModalUsers = syncModalUsers;
 window.syncOnly = syncOnly;
 window.showUserListsDialog = showUserListsDialog;
 window.showInvalidRolesModal = showInvalidRolesModal;

@@ -683,87 +683,6 @@ app.get('/load', authenticateUser, async (req, res) => {
     }
 });
 
-// Endpoint to save project-specific users list to Firestore (encrypted, per project)
-app.post('/save-project-users/:projectId', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const projectId = req.params.projectId;
-        const usersData = req.body;
-        
-        // Input validation
-        try {
-            inputValidation.validateString(projectId, 'projectId', 1, 200);
-            inputValidation.validateObject(usersData, 'usersData');
-        } catch (validationError) {
-            return res.status(400).json({ 
-                success: false, 
-                message: validationError.message 
-            });
-        }
-        
-        console.log(`Saving project users list for project: ${projectId}, user: ${userId}`);
-        
-        // Encrypt the users data (fresh salt + IV on every save)
-        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-        const enc = encryptData(JSON.stringify(usersData), `projectusers:${userId}:${projectId}`);
-
-        // Save encrypted data to Firestore subcollection
-        await projectRef.set({
-            usersList_encrypted: enc.encrypted,
-            usersListSalt: enc.salt,
-            usersListIV: enc.iv,
-            usersListAuthTag: enc.authTag,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        console.log(`✅ Project users list saved successfully for project: ${projectId}`);
-        res.json({ success: true, message: 'Project users list saved successfully (encrypted)' });
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to save project users');
-        res.status(500).json({ success: false, message: 'Error saving project users list', ...sanitized });
-    }
-});
-
-// Endpoint to load project-specific users list from Firestore (decrypted)
-app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const projectId = req.params.projectId;
-        
-        console.log(`Loading project users list for project: ${projectId}, user: ${userId}`);
-        
-        // Load from Firestore user's projects subcollection
-        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-        const projectDoc = await projectRef.get();
-        
-        if (!projectDoc.exists) {
-            console.log(`No users list found for project: ${projectId}, returning empty list`);
-            return res.json({ users: [] });
-        }
-        
-        const projectData = projectDoc.data();
-        
-        // Check for encrypted data
-        if (projectData.usersList_encrypted && projectData.usersListIV && projectData.usersListSalt && projectData.usersListAuthTag) {
-            try {
-                const decryptedData = decryptData(projectData.usersList_encrypted, `projectusers:${userId}:${projectId}`, projectData.usersListSalt, projectData.usersListIV, projectData.usersListAuthTag);
-                console.log(`✅ Project users list loaded successfully for project: ${projectId}`);
-                res.json(JSON.parse(decryptedData));
-            } catch (decryptError) {
-                // Data saved under a different ENCRYPTION_KEY can never be
-                // decrypted here - treat it as absent rather than 500ing.
-                console.warn(`⚠️ Failed to decrypt project users list for project ${projectId} (likely encrypted under a different key) - returning empty list:`, decryptError.message);
-                res.json({ users: [] });
-            }
-        } else {
-            console.log(`No encrypted data found for project: ${projectId}, returning empty list`);
-            res.json({ users: [] });
-        }
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to load project users');
-        res.status(500).json({ success: false, message: 'Error loading project users list', ...sanitized });
-    }
-});
 
 // ============================================
 // Firebase Authentication Middleware
@@ -1673,8 +1592,6 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  POST /api/aps/token');
     console.log('  GET  /load');
     console.log('  POST /save');
-    console.log('  GET  /load-project-users/:projectId');
-    console.log('  POST /save-project-users/:projectId');
     console.log('');
     console.log('Admin API endpoints:');
     console.log('  GET  /api/admin/users');

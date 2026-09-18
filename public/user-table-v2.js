@@ -207,12 +207,12 @@ class UserTableManager extends TableCellInteraction {
             if (titleEl) titleEl.textContent = count > 1
                 ? `Add New Users — ${count} projects selected`
                 : `Add New Users — ${projectName}`;
-            if (saveSyncBtn) { saveSyncBtn.textContent = 'Save & Sync'; saveSyncBtn.onclick = () => saveAndSync(); }
+            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync'; saveSyncBtn.onclick = () => syncModalUsers(); }
         } else {
             this.modalMode = 'new';
             modal.classList.remove('modal-manage-mode');
             if (titleEl) titleEl.textContent = 'User Management';
-            if (saveSyncBtn) { saveSyncBtn.textContent = 'Save & Sync'; saveSyncBtn.onclick = () => saveAndSync(); }
+            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync'; saveSyncBtn.onclick = () => syncModalUsers(); }
         }
         
         // Update hub info display (after mode is set so multi-new check works)
@@ -1372,7 +1372,7 @@ class UserTableManager extends TableCellInteraction {
                 throw new Error('updateAccountUsersForAccount function not available');
             }
             
-            // Get fresh user data from the table that was just collected in saveTableToJson
+            // Get fresh user data from the table that was just collected in prepareUsersBeforeSync
             // This ensures we use the latest edited data, not stale data from server
             const userDataFromTable = this.lastCollectedUserData || null;
             
@@ -1432,7 +1432,7 @@ class UserTableManager extends TableCellInteraction {
         } catch (error) {
             console.error('❌ Error updating account users:', error);
             this.hideSaveProgress();
-            throw error; // Re-throw to be caught by saveTableToJson
+            throw error; // Re-throw to be caught by prepareUsersBeforeSync
         }
     }
 
@@ -1605,47 +1605,20 @@ class UserTableManager extends TableCellInteraction {
     /**
      * Save table data to JSON file (with optional account update)
      */
-    async saveTableToJson(skipAccountUpdate = false) {
-        log('💾 saveTableToJson() called, skipAccountUpdate:', skipAccountUpdate);
-        
+    /**
+     * Check for duplicate emails in the table (email is in cell[1]). Highlights
+     * offending rows and shows an inline warning if any are found.
+     * @returns {boolean} true if no duplicates (OK to proceed), false otherwise
+     */
+    checkForDuplicateEmails() {
         const tbody = document.getElementById(this.tableBodyId);
-        
-        // Check if hub has changed since modal was opened
-        if (!skipAccountUpdate && this.modalHubId && window.currentHubId) {
-            if (this.modalHubId !== window.currentHubId) {
-                const currentHubName = window.currentHubName || 'Unknown Hub';
-                const proceed = confirm(
-                    `⚠️ HUB MISMATCH DETECTED\n\n` +
-                    `This Users Main List was loaded from:\n` +
-                    `  "${this.modalHubName}" (${this.modalHubId})\n\n` +
-                    `But the currently selected hub is:\n` +
-                    `  "${currentHubName}" (${window.currentHubId})\n\n` +
-                    `The data in this table may be from "${this.modalHubName}" with roles that don't exist in "${currentHubName}".\n\n` +
-                    `RECOMMENDED: Close this modal, switch to "${this.modalHubName}", and reopen the Users Main List.\n\n` +
-                    `Do you want to continue saving anyway?\n` +
-                    `(This will save the current table data and try to update "${currentHubName}")`
-                );
-                
-                if (!proceed) {
-                    log('⚠️ User cancelled save due to hub mismatch');
-                    return;
-                }
-            }
-        }
-        
-        // Show initial progress if account update will run
-        if (!skipAccountUpdate) {
-            this.showSaveProgress('Validating data...', 5);
-        }
-        
-        // First, check for duplicate emails (email is now in cell[1], not cell[0])
         const emailsFound = new Map(); // Map of email -> array of row indices
         const duplicateEmails = [];
-        
+
         Array.from(tbody.rows).forEach((row, rowIndex) => {
             const emailCell = row.cells[1]; // Email is now in cell[1]
             const email = emailCell.textContent.trim().toLowerCase();
-            
+
             if (email) {
                 if (!emailsFound.has(email)) {
                     emailsFound.set(email, [rowIndex]);
@@ -1657,19 +1630,18 @@ class UserTableManager extends TableCellInteraction {
                 }
             }
         });
-        
+
         // If duplicates found, highlight them and show alert in modal
         if (duplicateEmails.length > 0) {
             log('❌ Duplicate emails found:', duplicateEmails);
-            
-            // Hide progress bar if showing
+
             this.hideSaveProgress();
-            
+
             // Clear all previous error highlighting
             Array.from(tbody.rows).forEach(row => {
                 row.cells[1].classList.remove('modal-error-cell');
             });
-            
+
             // Highlight all duplicate email cells
             duplicateEmails.forEach(duplicateEmail => {
                 const rowIndices = emailsFound.get(duplicateEmail);
@@ -1679,11 +1651,11 @@ class UserTableManager extends TableCellInteraction {
                     emailCell.classList.add('modal-error-cell');
                 });
             });
-            
+
             // Show alert in modal
             const alertDiv = document.getElementById('duplicateEmailAlert');
             const alertList = document.getElementById('duplicateEmailList');
-            
+
             if (alertDiv && alertList) {
                 // Build duplicate email list
                 const displayEmails = duplicateEmails.slice(0, 10);
@@ -1692,247 +1664,112 @@ class UserTableManager extends TableCellInteraction {
                 if (duplicateEmails.length > 10) {
                     listHTML += `<br>... and ${duplicateEmails.length - 10} more`;
                 }
-                
+
                 alertList.innerHTML = listHTML;
                 alertDiv.style.display = 'block';
-                
+
                 // Scroll to alert
                 alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-            
-            return; // Stop save operation
+
+            return false;
         }
-        
+
         // Hide duplicate alert if it was showing
         const alertDiv = document.getElementById('duplicateEmailAlert');
         if (alertDiv) {
             alertDiv.style.display = 'none';
         }
-        
-        // No duplicates - proceed with save
-        const users = [];
-        
-        Array.from(tbody.rows).forEach(row => {
-            const cells = Array.from(row.cells);
-            
-            // Skip rows that don't have enough cells (minimum: checkbox + email + company + role + 7 products = 11 cells)
-            // Note: Insight is not shown in UI but always included with access='member' in backend
-            if (cells.length < 11) {
-                console.warn('⚠️ Skipping row with insufficient cells:', cells.length);
-                return;
-            }
-            
-            const emailCell = cells[1];
-            if (!emailCell) {
-                console.warn('⚠️ Skipping row without email cell');
-                return;
-            }
-            
-            const email = (emailCell.textContent || emailCell.innerText || '').trim();
-            
-            if (email) {
-                log(`💾 Processing user: ${email}`);
-                const roleFields = this._extractRoleFields(cells[3]);
-                const user = {
-                    email: email.toLowerCase(), // Always save email in lowercase for consistency
-                    metadata: {
-                        company: (cells[2]?.textContent || cells[2]?.innerText || '').trim(),
-                        role: roleFields.role,
-                        allRoles: roleFields.allRoles,
-                        roleIds: roleFields.roleIds
-                    },
-                    products: []
-                };
 
-                log(`💾 Company: "${user.metadata.company}", Role: "${user.metadata.role}" (all roles: "${user.metadata.allRoles}")`);
-                
-                // Product keys and their corresponding cell indices
-                // Note: 'insight' is not in the UI but access level matches other products to avoid mixing
-                // Note: 'docs' (Data Management) is auto-granted by ACC — not in UI, not saved to JSON
-                const productMapping = [
-                    { key: 'projectAdministration', cellIndex: 4 },
-                    { key: 'insight', cellIndex: null }, // Not in UI, will be determined based on other products
-                    { key: 'designCollaboration', cellIndex: 5 },
-                    { key: 'modelCoordination', cellIndex: 6 },
-                    { key: 'takeoff', cellIndex: 7 },
-                    { key: 'build', cellIndex: 8 },
-                    { key: 'cost', cellIndex: 9 },
-                    { key: 'forma', cellIndex: 10 }
-                ];
-                
-                // First pass: collect all product access levels (except insight)
-                const productAccesses = [];
-                productMapping.forEach(({ key, cellIndex }) => {
-                    if (key === 'insight') return; // Skip insight for now
-                    
-                    const cell = cells[cellIndex];
-                    const access = cell?.getAttribute('data-value') || 'none';
-                    productAccesses.push(access);
-                });
-                
-                // Determine insight access: if ANY product is 'administrator', insight must also be 'administrator'
-                // API constraint: cannot mix 'member' and 'administrator' levels
-                const hasAdministrator = productAccesses.some(access => access === 'administrator');
-                const insightAccess = hasAdministrator ? 'administrator' : 'member';
-                
-                // Second pass: build products array with correct insight access
-                productMapping.forEach(({ key, cellIndex }) => {
-                    let access;
-                    if (key === 'insight') {
-                        access = insightAccess;
-                    } else {
-                        const cell = cells[cellIndex];
-                        access = cell?.getAttribute('data-value') || 'none';
-                    }
-                    user.products.push({
-                        key: key,
-                        access: access
-                    });
-                });
-                
-                users.push(user);
+        return true;
+    }
+
+    /**
+     * Provision imported users before syncing: validates the table, then
+     * updates the account (company/default role) and refreshes existing
+     * project users' metadata. Does NOT persist anything to Firestore - the
+     * caller passes the freshly-collected live table data straight to the
+     * sync step afterward (this.lastCollectedUserData).
+     * @returns {boolean} true if provisioning succeeded and sync should proceed
+     */
+    async prepareUsersBeforeSync() {
+        log('🔄 prepareUsersBeforeSync() called');
+
+        // Check if hub has changed since modal was opened
+        if (this.modalHubId && window.currentHubId && this.modalHubId !== window.currentHubId) {
+            const currentHubName = window.currentHubName || 'Unknown Hub';
+            const proceed = confirm(
+                `⚠️ HUB MISMATCH DETECTED\n\n` +
+                `This Users Main List was loaded from:\n` +
+                `  "${this.modalHubName}" (${this.modalHubId})\n\n` +
+                `But the currently selected hub is:\n` +
+                `  "${currentHubName}" (${window.currentHubId})\n\n` +
+                `The data in this table may be from "${this.modalHubName}" with roles that don't exist in "${currentHubName}".\n\n` +
+                `RECOMMENDED: Close this modal, switch to "${this.modalHubName}", and reopen the Users Main List.\n\n` +
+                `Do you want to continue anyway?\n` +
+                `(This will update account/project users for "${currentHubName}")`
+            );
+
+            if (!proceed) {
+                log('⚠️ User cancelled due to hub mismatch');
+                return false;
             }
-        });
-        
-        // Store the collected user data so updateAccountUsersBeforeSave can use fresh data
-        this.lastCollectedUserData = users;
-        
-        const jsonData = {
-            users: users,
-            exportDate: new Date().toISOString()
-        };
-        
-        log(`💾 Saving ${users.length} users to server`);
-        log('💾 Sample user data:', users[0]);
-        
-        // Update progress if account update will run
-        if (!skipAccountUpdate) {
-            this.showSaveProgress('Saving...', 30);
         }
-        
-        // Check if we have a project ID
+
+        this.showSaveProgress('Validating data...', 5);
+
+        if (!this.checkForDuplicateEmails()) {
+            return false;
+        }
+
+        // Collect current table data - also stashed for the account-update step below
+        this.lastCollectedUserData = this.collectTableUsers();
+        log(`💾 Preparing ${this.lastCollectedUserData.length} users for sync`);
+        log('💾 Sample user data:', this.lastCollectedUserData[0]);
+
         if (!this.modalProjectId) {
-            console.error('❌ No project ID available for saving data');
+            console.error('❌ No project ID available');
             alert('Error: No project selected');
             this.hideSaveProgress();
-            return;
+            return false;
         }
-        
-        // Run account update AND project update BEFORE saving to JSON (if not skipped)
-        if (!skipAccountUpdate && this.modalHubId && this.modalProjectId) {
+
+        if (this.modalHubId) {
             try {
-                // STEP 1: Update ACCOUNT users (company_id, default_role)
+                // STEP 1: Update ACCOUNT users (company_id, default_role) - this is
+                // what actually provisions brand-new imported users at the account
+                // level, so the project-add step below can include their company/role.
                 log('🔄 Step 1: Starting account user update...');
+                this.showSaveProgress('Updating account users...', 30);
                 const accountId = this.modalHubId; // Hub ID is the account ID
                 await this.updateAccountUsersBeforeSave(accountId);
                 log('✅ Account users updated successfully');
-                
-                // Progress at 50% after account update
-                this.showSaveProgress('Updating project users...', 50);
-                
+
+                this.showSaveProgress('Updating project users...', 60);
+
                 // STEP 2: Update PROJECT users (companyId, companyName, roleIds, products)
                 log('🔄 Step 2: Starting project user update...');
-                
-                // Check if updateProjectUsers function is available
+
                 if (typeof updateProjectUsers !== 'function') {
                     throw new Error('updateProjectUsers function not available');
                 }
-                
-                // Get current access token
+
                 const accessToken = window.currentAccessToken || (window.getAuthToken && window.getAuthToken());
                 if (!accessToken) {
                     throw new Error('Access token not available for project update');
                 }
-                
-                // Call project users update (this syncs company/role from account to project)
+
                 await updateProjectUsers(this.modalProjectId, accountId, accessToken, null);
                 log('✅ Project users updated successfully');
-                
-                // Continue at 70% progress after both updates
-                this.showSaveProgress('Saving to database...', 70);
             } catch (error) {
                 console.error('❌ User update failed:', error);
-                // Show error to user
-                this.showSaveError(`User update failed: ${error.message}\n\nData was NOT saved to prevent inconsistency.`);
-                return; // Stop save operation if update fails
+                this.showSaveError(`User update failed: ${error.message}\n\nSync was NOT performed to prevent inconsistency.`);
+                return false;
             }
         }
-        
-        // Save to server (project-specific users list in Firestore)
-        try {
-            // Get auth token from global scope (set by Firebase auth in index.html)
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            
-            // Refresh token before saving (Firebase tokens expire after 1 hour)
-            let token = null;
-            if (window.refreshAuthToken) {
-                log('🔄 Refreshing auth token before save...');
-                token = await window.refreshAuthToken();
-            } else {
-                token = window.getAuthToken && window.getAuthToken();
-            }
-            
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            } else {
-                console.error('❌ No authentication token available');
-                this.hideSaveProgress();
-                this.showSaveError('Authentication required. Please log in again.');
-                return;
-            }
-            
-            log('💾 Sending save request to server...');
-            const response = await fetch(`${window.location.origin}/save-project-users/${this.modalProjectId}`, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(jsonData)
-            });
-            
-            log('💾 Server response status:', response.status, response.statusText);
-            
-            // Check HTTP status first
-            if (!response.ok) {
-                const errorData = await response.json();
-                const errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`;
-                console.error('❌ Server returned error:', response.status, errorMessage);
-                this.hideSaveProgress();
-                
-                // Show specific error based on status
-                if (response.status === 401) {
-                    this.showSaveError('Authentication failed. Please log in again.');
-                } else if (response.status === 403) {
-                    this.showSaveError('Permission denied. You do not have access to save this data.');
-                } else {
-                    this.showSaveError(`Failed to save: ${errorMessage}`);
-                }
-                return;
-            }
-            
-            // Parse successful response
-            const data = await response.json();
-            
-            if (data.success) {
-                log('✅ Data saved to JSON successfully for project:', this.modalProjectId);
-                
-                // Show final success message
-                this.showSaveProgress('Complete!', 100);
-                setTimeout(() => {
-                    this.hideSaveProgress();
-                }, 1500);
-            } else {
-                // Should not happen if response.ok is true, but handle it anyway
-                const errorMessage = data.message || 'Unknown error';
-                console.error('❌ Save failed:', errorMessage);
-                this.hideSaveProgress();
-                this.showSaveError(`Failed to save: ${errorMessage}`);
-            }
-        } catch (error) {
-            console.error('❌ Network error saving to server:', error);
-            this.hideSaveProgress();
-            this.showSaveError(`Network error: ${error.message}`);
-        }
+
+        this.hideSaveProgress();
+        return true;
     }
 
     /**
@@ -2361,60 +2198,12 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
             await this._loadTableDataFromAPI();
             return;
         }
-        
-        const loadUrl = `${window.location.origin}/load-project-users/${this.modalProjectId}`;
-        log('📊 Fetching from:', loadUrl);
-        
-        // Prepare headers with refreshed auth token
-        const headers = {};
-        let token = null;
-        if (window.refreshAuthToken) {
-            log('🔄 Refreshing auth token before load...');
-            token = await window.refreshAuthToken();
-        } else {
-            token = window.getAuthToken && window.getAuthToken();
-        }
-        
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        fetch(loadUrl, { headers })
-            .then(response => {
-                log('📊 Response status:', response.status);
-                log('📊 Response OK:', response.ok);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(jsonData => {
-                log('📊 Data loaded from server:', jsonData);
-                log('📊 Number of users:', jsonData.users ? jsonData.users.length : 0);
-                
-                // Store original data for comparison later
-                this.originalJsonData = JSON.parse(JSON.stringify(jsonData)); // Deep copy
-                
-                if (jsonData.users && jsonData.users.length > 0) {
-                    log('📊 Found', jsonData.users.length, 'users, calling populateTableFromData');
-                    this.populateTableFromData(jsonData.users);
-                } else {
-                    log('📊 No users data in JSON, adding default row');
-                    this.addRow(); // Add default row if no saved data
-                }
-            })
-            .catch(error => {
-                console.error('❌ Error loading modal data:', error);
-                console.error('❌ Error name:', error.name);
-                console.error('❌ Error message:', error.message);
-                console.error('❌ Error stack:', error.stack);
-                log('📊 Adding default row due to error');
-                
-                // Show user-friendly error message
-                alert(`Failed to load user data from server:\n${error.message}\n\nPlease make sure the server is running (npm start or node server.js)`);
-                
-                this.addRow(); // Add default row if loading fails
-            });
+
+        // "new" / "multi-new" modes always start blank, ready for import - nothing
+        // is persisted between sessions (users list is provisioned + synced live,
+        // never saved to Firestore).
+        log('📊 Starting with a blank table (mode:', this.modalMode, ')');
+        this.addRow();
     }
 
     /**
@@ -2643,7 +2432,7 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
 
     /**
      * Collect current table data as user objects (without saving to Firestore).
-     * Returns the same format as saveTableToJson so sync can use live table state.
+     * Returns the same format as prepareUsersBeforeSync so sync can use live table state.
      */
     collectTableUsers() {
         const tbody = document.getElementById(this.tableBodyId);
@@ -2799,10 +2588,11 @@ function clearModalTable() {
     }
 }
 
-async function saveModalTableToJson() {
+async function prepareModalUsersBeforeSync() {
     if (userTableManager) {
-        return await userTableManager.saveTableToJson();
+        return await userTableManager.prepareUsersBeforeSync();
     }
+    return false;
 }
 
 function importCSV() {
