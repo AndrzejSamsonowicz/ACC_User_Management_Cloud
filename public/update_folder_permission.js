@@ -506,6 +506,19 @@
                     return;
                 }
 
+                // Refresh project membership right before syncing - this modal's
+                // cached list is a snapshot from when it opened, and goes stale if
+                // users were removed from the project via a different flow while
+                // it stayed open. Without this, userExistsInProject() below would
+                // still say a just-deleted user "exists", and ACC's own API would
+                // reject the whole batch with ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE.
+                try {
+                    updateFolderSyncProgress('Refreshing project membership...', 2);
+                    currentProjectUsersRaw = await fetchAllProjectUsers(currentProjectData.projectId, currentProjectData.accessToken);
+                } catch (refreshError) {
+                    console.warn('⚠️ Failed to refresh project users before sync, using cached list:', refreshError.message);
+                }
+
                 log('\n🔄 ========== READING FROM MODEL ==========');
 
                 // Extract folders and permissions from folderUserAssignments,
