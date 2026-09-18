@@ -133,6 +133,18 @@
             `;
         }
 
+        if ((summary.inactiveUsers || []).length > 0) {
+            html += `
+                <div style="margin-bottom: 15px;">
+                    <strong>Some users are inactive and will not be added to the folder:</strong><br>
+                    <div style="font-size: 12px; color: #666; margin-top: 2px;">They haven't logged into Autodesk yet - add them again once they accept their invite.</div>
+                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
+                        ${summary.inactiveUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⏳ ${escapeHtml(u)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         if ((summary.inheritedConflicts || []).length > 0) {
             html += `
                 <div style="margin-bottom: 15px;">
@@ -264,6 +276,27 @@
 
         const user = currentProjectUsersRaw.find(u => u.id === subjectId);
         return !!user;
+    }
+
+    /**
+     * Check if a user has accepted their project invite (status "active").
+     * A newly-added project user starts as "pending" until they log in at
+     * least once - ACC's folder-permissions API rejects granting access to
+     * a pending user with ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE.
+     * Only meaningful once the user's existence has already been confirmed.
+     */
+    function isUserActiveInProject(subjectId, subjectType, currentProjectUsersRaw) {
+        if (subjectType !== 'USER') {
+            return true; // Companies and roles have no "pending" state here
+        }
+
+        const user = currentProjectUsersRaw && currentProjectUsersRaw.find(u => u.id === subjectId);
+        // If status isn't present in the data we have, don't block on it.
+        if (!user || !user.status) {
+            return true;
+        }
+
+        return user.status === 'active';
     }
 
     /**
@@ -597,6 +630,7 @@
                 deleted: 0,
                 skippedAdmins: 0,
                 skippedNonExistent: 0,
+                skippedInactive: 0,
                 skippedIncomplete: 0,
                 skippedInherited: 0,
                 errors: [],
@@ -604,6 +638,7 @@
                 updatedUsers: [],
                 deletedUsers: [],
                 nonExistentUsers: [],
+                inactiveUsers: [],
                 incompleteUsers: [],
                 inheritedConflicts: []
             };
@@ -704,6 +739,10 @@
                                     syncSummary.skippedNonExistent++;
                                     // Always add to show every occurrence across folders
                                     syncSummary.nonExistentUsers.push(jsonPerm.user);
+                                } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    log(`  ⚠️ SKIP CREATE: User is inactive/pending (${jsonPerm.user})`);
+                                    syncSummary.skippedInactive++;
+                                    syncSummary.inactiveUsers.push(jsonPerm.user);
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                     log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
@@ -731,6 +770,10 @@
                                         syncSummary.skippedNonExistent++;
                                         // Always add to show every occurrence across folders
                                         syncSummary.nonExistentUsers.push(jsonPerm.user);
+                                    } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                        log(`  ⚠️ SKIP UPDATE: User is inactive/pending (${jsonPerm.user})`);
+                                        syncSummary.skippedInactive++;
+                                        syncSummary.inactiveUsers.push(jsonPerm.user);
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
                                         log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
