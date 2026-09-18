@@ -33,12 +33,21 @@ submitting.
 
 - [x] Registered a **new** APS app for production use (not "Revit Query" or "test2").
 - [x] Application Type: **Traditional Web App**, confirmed working end-to-end.
-- [x] Real `APS_CLIENT_ID`/`APS_CLIENT_SECRET` values are in the VM's `.env`.
-- **Not independently verified by me** (done by you in the APS portal, no way for me to
-      check from here): that the callback URL list only has the production URL (no stray
-      `localhost`/IP entries visible to a reviewer), and that API Access is scoped to only
-      the APIs actually used rather than left at the broad default. Worth a quick look at
-      the actual APS app settings before submitting, just to confirm.
+- [x] Real `APS_CLIENT_ID`/`APS_CLIENT_SECRET` values are in the VM's `.env` (updated directly
+      on the VM via `nano`, never shared in chat).
+- [x] Callback URL registered: `https://usermgt.digibuild.ch/index.html` — the only redirect
+      URI the app ever constructs (`REDIRECT_URI = window.location.origin + '/index.html'` in
+      `index.html`, and it's the only file that builds an Autodesk authorize URL anywhere in
+      `public/`), confirmed against a real production log line. No stray `localhost`/IP
+      entries needed.
+- [x] API Access scoped down from the broad default to exactly the four APIs the app needs —
+      **confirmed working end-to-end** (not just a guess from the endpoint list): **BIM 360
+      API**, **Data Management API**, **Forma API (formerly ACC)**, **User Profile API**.
+      Everything else (AEC Data Model, Manufacturing, PLM, Tandem, Model Derivative,
+      Webhooks, etc.) left unchecked.
+- [x] Added the app as a **Custom Integration** on the production Hub with the new Client ID.
+- [x] End-to-end tested: real "Login with Autodesk" through the new app, hubs and projects
+      loading correctly with exactly the four APIs above checked.
 
 ## 1b. Retire the Per-Tenant "Bring Your Own APS App" Flow `[BLOCKING]` — Done and deployed
 
