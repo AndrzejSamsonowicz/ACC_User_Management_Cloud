@@ -485,14 +485,34 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         const percentage = Math.round((completedOperations / totalOperations) * 100);
         syncButton.textContent = `Processing... ${percentage}%`;
     };
+
+    // Show what's actually happening right now (e.g. "Deleting bob@x.com...") in
+    // whichever sync overlay is currently on screen, plus move its progress bar.
+    // Without this, a large batch (hundreds of users) just sits on a frozen
+    // "Processing..." bar for the whole duration and looks like the app hung.
+    const updateSyncStatus = (message) => {
+        const singleEl = document.getElementById('singleSyncStatus');
+        if (singleEl) {
+            singleEl.textContent = message;
+            const barEl = document.getElementById('singleSyncBar');
+            if (barEl && totalOperations > 0) {
+                barEl.style.width = `${Math.round((completedOperations / totalOperations) * 100)}%`;
+            }
+            return;
+        }
+        const multiEl = document.getElementById('multiSyncStatus');
+        if (multiEl) multiEl.textContent = message;
+    };
     
     try {
         // Get 2-legged token
         updateProgress();
+        updateSyncStatus('Connecting...');
         const twoLeggedToken = await get2LeggedToken();
-        
+
         // STEP 1: Update account users first (company and role from Users Main List)
         log('🚀 STEP 1: Updating account users with company and role from Users Main List');
+        updateSyncStatus('Updating account & company info for imported users...');
         try {
             // Pass cached/live import users so company & role come from the current table, not stale Firestore data
             const accountUpdateResult = await updateAccountUsersForAccount(accountId, {performOps: true}, projectId, cachedData?.importUsers || null);
@@ -543,10 +563,12 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         const projectEmailMap = cachedData.projectEmailMap;
 
         // Always fetch account users (needed for company/role)
+        updateSyncStatus('Fetching current account members...');
         const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
         const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
 
         // Get this project's role catalog (cached after the first fetch this session)
+        updateSyncStatus('Fetching project role catalog...');
         const projectRoleIdByName = await getProjectRoleCatalog(projectId, accessToken);
 
         // Resolve the roleIds to send for a user: a project user can have multiple roles
@@ -672,7 +694,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                 }
                 
                 const email = userToPatch.email.toLowerCase();
-                
+                updateSyncStatus(`Updating ${userToPatch.email}...`);
+
                 try {
                     // Get data from all sources
                     const importUser = importEmailMap.get(email);
@@ -933,7 +956,15 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     }
                     
                     log(`Batch ${batchIndex + 1}: Adding ${usersToAdd.length} users`);
-                    
+
+                    // Added via one batched API call (Autodesk's limit), so there's no
+                    // true per-email progress here - name the first user plus a count
+                    // so it's still clear which users this batch covers.
+                    const batchPreview = usersToAdd.length > 1
+                        ? `${usersToAdd[0].email} and ${usersToAdd.length - 1} more`
+                        : usersToAdd[0].email;
+                    updateSyncStatus(`Adding ${batchPreview} (batch ${batchIndex + 1}/${batches.length})...`);
+
                     // Execute POST request
                     const postUrl = `https://developer.api.autodesk.com/construction/admin/v2/projects/${projectId}/users:import`;
                     const response = await fetch(postUrl, {
@@ -981,7 +1012,9 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     console.warn('Skipping user with no email in DELETE operation');
                     return { success: false, skipped: true };
                 }
-                
+
+                updateSyncStatus(`Deleting ${userToDelete.email}...`);
+
                 try {
                     // Get userId from project users
                     const projectUser = projectEmailMap.get(userToDelete.email.toLowerCase());
