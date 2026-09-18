@@ -302,41 +302,53 @@
     async function batchCreatePermissions(projectId, folderId, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
-        try {
-            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-create`;
-            
+        const BATCH_SIZE = 50; // Autodesk permissions:batch-create hard limit per request
+        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
+        const folderUrn = encodeURIComponent(folderId);
+        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-create`;
+
+        const allResults = [];
+        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
+            const chunk = permissions.slice(i, i + BATCH_SIZE);
+
             // Strip non-API fields before sending
-            const apiPayload = permissions.map(p => ({
+            const apiPayload = chunk.map(p => ({
                 subjectId: p.subjectId,
                 subjectType: p.subjectType,
                 actions: p.actions
             }));
-            
-            log(`📤 Creating ${apiPayload.length} permissions...`);
-            log(`📤 Payload:`, JSON.stringify(apiPayload));
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(apiPayload)
-            });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            log(`📤 Creating ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
+            log(`📤 Payload:`, JSON.stringify(apiPayload));
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(apiPayload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                allResults.push(...(data.results || []));
+            } catch (error) {
+                console.error(`Error creating permissions:`, error);
+                return { success: false, error: error.message, results: allResults };
             }
 
-            const data = await response.json();
-            return { success: true, results: data.results || [] };
-        } catch (error) {
-            console.error(`Error creating permissions:`, error);
-            return { success: false, error: error.message };
+            if (i + BATCH_SIZE < permissions.length) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
         }
+
+        return { success: true, results: allResults };
     }
 
     /**
@@ -345,41 +357,53 @@
     async function batchUpdatePermissions(projectId, folderId, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
-        try {
-            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-update`;
-            
+        const BATCH_SIZE = 50; // Autodesk permissions:batch-update hard limit per request
+        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
+        const folderUrn = encodeURIComponent(folderId);
+        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-update`;
+
+        const allResults = [];
+        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
+            const chunk = permissions.slice(i, i + BATCH_SIZE);
+
             // Strip non-API fields before sending
-            const apiPayload = permissions.map(p => ({
+            const apiPayload = chunk.map(p => ({
                 subjectId: p.subjectId,
                 subjectType: p.subjectType,
                 actions: p.actions
             }));
-            
-            log(`📤 Updating ${apiPayload.length} permissions...`);
-            log(`📤 Payload:`, JSON.stringify(apiPayload));
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(apiPayload)
-            });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            log(`📤 Updating ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
+            log(`📤 Payload:`, JSON.stringify(apiPayload));
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(apiPayload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                allResults.push(...(data.results || []));
+            } catch (error) {
+                console.error(`Error updating permissions:`, error);
+                return { success: false, error: error.message, results: allResults };
             }
 
-            const data = await response.json();
-            return { success: true, results: data.results || [] };
-        } catch (error) {
-            console.error(`Error updating permissions:`, error);
-            return { success: false, error: error.message };
+            if (i + BATCH_SIZE < permissions.length) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
         }
+
+        return { success: true, results: allResults };
     }
 
     /**
@@ -388,45 +412,54 @@
     async function batchDeletePermissions(projectId, folderId, permissions, accessToken) {
         if (permissions.length === 0) return { success: true, results: [] };
 
-        try {
-            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-delete`;
-            
+        const BATCH_SIZE = 50; // Autodesk permissions:batch-delete hard limit per request
+        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
+        const folderUrn = encodeURIComponent(folderId);
+        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-delete`;
+
+        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
+            const chunk = permissions.slice(i, i + BATCH_SIZE);
+
             // Strip non-API fields before sending
-            const apiPayload = permissions.map(p => ({
+            const apiPayload = chunk.map(p => ({
                 subjectId: p.subjectId,
                 subjectType: p.subjectType
             }));
-            
-            log(`📤 Deleting ${apiPayload.length} permissions...`);
+
+            log(`📤 Deleting ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
             log(`📤 DELETE API URL: ${apiUrl}`);
             log(`📤 DELETE Request Body:`, JSON.stringify(apiPayload, null, 2));
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(apiPayload)
-            });
 
-            log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(apiPayload)
+                });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+                log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const responseText = await response.text();
+                log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
+            } catch (error) {
+                console.error(`Error deleting permissions:`, error);
+                return { success: false, error: error.message };
             }
 
-            const responseText = await response.text();
-            log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
-
-            return { success: true };
-        } catch (error) {
-            console.error(`Error deleting permissions:`, error);
-            return { success: false, error: error.message };
+            if (i + BATCH_SIZE < permissions.length) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
         }
+
+        return { success: true };
     }
 
     // Flag to prevent multiple simultaneous syncs
