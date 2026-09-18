@@ -216,7 +216,8 @@ const inputValidation = {
 };
 
 // Middleware to parse JSON bodies
-app.use(express.json());
+// Default 100kb limit is too small for bulk operations (e.g. saving a few hundred imported users).
+app.use(express.json({ limit: '10mb' }));
 
 // Force HTTPS redirect (except for localhost or when disabled via env var)
 app.use((req, res, next) => {
@@ -761,161 +762,6 @@ app.get('/load-project-users/:projectId', authenticateUser, async (req, res) => 
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to load project users');
         res.status(500).json({ success: false, message: 'Error loading project users list', ...sanitized });
-    }
-});
-
-// Endpoint to save folder permissions
-// Endpoint to save folder permissions (per user, per project in Firestore)
-app.post('/save-folder-permissions', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const { projectName, hubId, projectId, data } = req.body;
-        
-        // Input validation
-        try {
-            inputValidation.validateString(hubId, 'hubId', 1, 200);
-            inputValidation.validateString(projectId, 'projectId', 1, 200);
-            if (projectName) {
-                inputValidation.validateString(projectName, 'projectName', 1, 500);
-            }
-            inputValidation.validateObject(data, 'data');
-        } catch (validationError) {
-            return res.status(400).json({ 
-                success: false, 
-                message: validationError.message 
-            });
-        }
-        
-        if (!hubId || !projectId) {
-            return res.status(400).json({ success: false, message: 'Hub ID and Project ID are required' });
-        }
-        
-        // Create unique key using hubId_projectId
-        const permissionKey = `${hubId}_${projectId}`;
-        
-        // Encrypt the folder permissions data (fresh salt + IV on every save)
-        const userDoc = await db.collection('users').doc(userId).get();
-        const existingIVs = (userDoc.exists && userDoc.data().folderPermissionsIVs) || {};
-        const existingSalts = (userDoc.exists && userDoc.data().folderPermissionsSalts) || {};
-        const existingAuthTags = (userDoc.exists && userDoc.data().folderPermissionsAuthTags) || {};
-
-        const enc = encryptData(JSON.stringify(data), `folderperms:${userId}:${permissionKey}`);
-        existingSalts[permissionKey] = enc.salt;
-        existingIVs[permissionKey] = enc.iv;
-        existingAuthTags[permissionKey] = enc.authTag;
-
-        // Save to Firestore under user's document
-        const folderPermissions = userDoc.exists ? (userDoc.data().folderPermissions || {}) : {};
-        folderPermissions[permissionKey] = enc.encrypted;
-
-        await db.collection('users').doc(userId).set({
-            folderPermissions: folderPermissions,
-            folderPermissionsSalts: existingSalts,
-            folderPermissionsIVs: existingIVs,
-            folderPermissionsAuthTags: existingAuthTags
-        }, { merge: true });
-        
-        console.log(`💾 Saved encrypted folder permissions for user ${userId}, project ${permissionKey}`);
-        res.json({ 
-            success: true, 
-            message: 'Folder permissions saved successfully (encrypted)',
-            permissionKey: permissionKey
-        });
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to save folder permissions');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error saving folder permissions', 
-            ...sanitized
-        });
-    }
-});
-
-// Endpoint to load folder permissions (per user, per project from Firestore)
-app.get('/load-folder-permissions/:hubId/:projectId', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const { hubId, projectId } = req.params;
-        
-        if (!hubId || !projectId) {
-            return res.status(400).json({ success: false, message: 'Hub ID and Project ID are required' });
-        }
-        
-        const permissionKey = `${hubId}_${projectId}`;
-        
-        // Load from Firestore
-        const userDoc = await db.collection('users').doc(userId).get();
-        
-        if (!userDoc.exists) {
-            return res.json({ success: true, data: null, exists: false });
-        }
-        
-        const userData = userDoc.data();
-        const folderPermissions = userData.folderPermissions || {};
-        const folderPermissionsIVs = userData.folderPermissionsIVs || {};
-        const folderPermissionsSalts = userData.folderPermissionsSalts || {};
-        const folderPermissionsAuthTags = userData.folderPermissionsAuthTags || {};
-
-        if (folderPermissions[permissionKey] && folderPermissionsIVs[permissionKey] && folderPermissionsSalts[permissionKey] && folderPermissionsAuthTags[permissionKey]) {
-            try {
-                const decryptedData = decryptData(
-                    folderPermissions[permissionKey],
-                    `folderperms:${userId}:${permissionKey}`,
-                    folderPermissionsSalts[permissionKey],
-                    folderPermissionsIVs[permissionKey],
-                    folderPermissionsAuthTags[permissionKey]
-                );
-
-                res.json({
-                    success: true,
-                    data: JSON.parse(decryptedData),
-                    exists: true
-                });
-            } catch (decryptError) {
-                // Data saved under a different ENCRYPTION_KEY can never be
-                // decrypted here - treat it as absent rather than 500ing.
-                console.warn(`⚠️ Failed to decrypt folder permissions for ${permissionKey} (likely encrypted under a different key) - treating as not saved:`, decryptError.message);
-                res.json({ success: true, data: null, exists: false });
-            }
-        } else {
-            res.json({ 
-                success: true, 
-                data: null,
-                exists: false
-            });
-        }
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to load folder permissions');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error loading folder permissions', 
-            ...sanitized
-        });
-    }
-});
-
-// Endpoint to check if folder permissions exist (per user, per project)
-app.get('/check-folder-permissions/:hubId/:projectId', authenticateUser, async (req, res) => {
-    try {
-        const userId = req.user.uid;
-        const { hubId, projectId } = req.params;
-        const permissionKey = `${hubId}_${projectId}`;
-        
-        const userDoc = await db.collection('users').doc(userId).get();
-        
-        if (!userDoc.exists) {
-            return res.json({ exists: false, permissionKey: permissionKey });
-        }
-        
-        const folderPermissions = userDoc.data().folderPermissions || {};
-        
-        res.json({ 
-            exists: !!folderPermissions[permissionKey],
-            permissionKey: permissionKey
-        });
-    } catch (error) {
-        const sanitized = sanitizeError(error, 'Failed to check permissions');
-        res.json({ exists: false, ...sanitized });
     }
 });
 
@@ -1807,6 +1653,19 @@ app.post('/api/accept-terms', authenticateUser, async (req, res) => {
     }
 });
 
+// Body-parser errors (oversized or malformed JSON) are thrown before any route's own
+// try/catch runs. Without this, Express's default handler sends an HTML error page,
+// which breaks every client-side call sites doing response.json().
+app.use((err, req, res, next) => {
+    if (err.type === 'entity.too.large' || err.status === 413) {
+        return res.status(413).json({ error: 'Request too large. Try importing a smaller batch of users.' });
+    }
+    if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+        return res.status(400).json({ error: 'Malformed request body.' });
+    }
+    next(err);
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://0.0.0.0:${port}`);
     console.log('Available endpoints:');
@@ -1816,9 +1675,6 @@ app.listen(port, '0.0.0.0', () => {
     console.log('  POST /save');
     console.log('  GET  /load-project-users/:projectId');
     console.log('  POST /save-project-users/:projectId');
-    console.log('  POST /save-folder-permissions');
-    console.log('  GET  /load-folder-permissions/:projectName');
-    console.log('  GET  /check-folder-permissions/:projectName');
     console.log('');
     console.log('Admin API endpoints:');
     console.log('  GET  /api/admin/users');
