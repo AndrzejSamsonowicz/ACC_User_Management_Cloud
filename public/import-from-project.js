@@ -589,20 +589,46 @@ async function loadProjectsForImport(hubId) {
         let hasMoreData = true;
 
         while (hasMoreData) {
-            if (offset > 0) {
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
-
             const url = `https://developer.api.autodesk.com/project/v1/hubs/b.${hubId}/projects?page[limit]=${limit}&page[offset]=${offset}`;
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
 
-            if (!response.ok) {
-                throw new Error(`Failed to load projects: ${response.status} ${response.statusText}`);
+            // Paced with retry/backoff on 429 - a hub with many pages of projects,
+            // fired back-to-back with no pacing, can trip Autodesk's rate limit on
+            // its own even without any concurrent requests (same fix as
+            // fetchAllProjectUsers in index.html).
+            let retryCount = 0;
+            const maxRetries = 3;
+            let response = null;
+            let data = null;
+
+            while (data === null && retryCount < maxRetries) {
+                if (offset > 0 || retryCount > 0) {
+                    const delay = retryCount > 0 ? Math.pow(2, retryCount) * 1000 : 300;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+
+                response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+
+                if (response.status === 429) {
+                    const retryAfter = response.headers.get('Retry-After');
+                    const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, retryCount + 1) * 1000;
+                    log(`⚠️ Rate limited (429) loading projects. Retrying after ${waitTime}ms...`);
+                    retryCount++;
+                    continue;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load projects: ${response.status} ${response.statusText}`);
+                }
+
+                data = await response.json();
             }
 
-            const data = await response.json();
+            if (data === null) {
+                throw new Error('Failed to load projects: HTTP 429 Too Many Requests (rate limited after multiple retries)');
+            }
+
             allProjects = allProjects.concat(data.data);
 
             if (data.data.length < limit) {
