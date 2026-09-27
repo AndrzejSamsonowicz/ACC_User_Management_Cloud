@@ -132,7 +132,7 @@ Step "Deploying on VM ($VmHost)"
 # Sent base64-encoded as an argument rather than piped: PowerShell 5.1 prepends a
 # BOM when piping to native commands, which would break the script's first line.
 $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remote))
-ssh -i $SshKey -o BatchMode=yes -o ConnectTimeout=15 "$SshUser@$VmHost" "echo $b64 | base64 -d | sudo -n -u $AppUser -H bash"
+ssh -i $SshKey -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 "$SshUser@$VmHost" "echo $b64 | base64 -d | sudo -n -u $AppUser -H bash"
 $code = $LASTEXITCODE
 
 switch ($code) {
@@ -141,6 +141,7 @@ switch ($code) {
     20 { Write-Host "`nDry run complete - nothing changed." -ForegroundColor Yellow; exit 0 }
     3  { Fail "VM has uncommitted local edits (see above) - resolve on the VM first" }
     4  { Fail "new version was unhealthy and was rolled back" }
+    255 { Fail "SSH connection lost. The VM may have finished anyway - run .\deploy.ps1 -DryRun to see its state; if it's already on the new commit but you're unsure it reloaded, run .\deploy.ps1 -Force" }
     default { Fail "remote step exited with code $code" }
 }
 
