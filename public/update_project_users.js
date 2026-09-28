@@ -12,6 +12,31 @@ log('🔄 update_project_users.js loaded');
  */
 const projectRoleCache = new Map(); // projectId -> Map(nameLower -> id)
 
+/**
+ * Post-provisioning account user list, fetched once per table snapshot + account.
+ * executeSyncOperations needs it after STEP 1 (so brand-new users have ids and
+ * company_id), but account-level state doesn't change between projects of the
+ * same sync - multi-project sync used to re-paginate the whole account per project.
+ */
+const _syncAccountUsersMemo = new WeakMap(); // importUsers array -> Map(accountId -> Promise<users[]>)
+
+function getAccountUsersForSync(accountId, importUsers) {
+    if (!Array.isArray(importUsers)) {
+        return accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
+    }
+    let byAccount = _syncAccountUsersMemo.get(importUsers);
+    if (!byAccount) {
+        byAccount = new Map();
+        _syncAccountUsersMemo.set(importUsers, byAccount);
+    }
+    if (!byAccount.has(accountId)) {
+        const promise = accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
+        byAccount.set(accountId, promise);
+        promise.catch(() => byAccount.delete(accountId));
+    }
+    return byAccount.get(accountId);
+}
+
 async function fetchProjectRoles(projectId, accessToken) {
     let allRoles = [];
     let offset = 0;
@@ -19,7 +44,7 @@ async function fetchProjectRoles(projectId, accessToken) {
     let hasMore = true;
     while (hasMore) {
         const url = `https://developer.api.autodesk.com/bim360/admin/v1/projects/${projectId}/roles?limit=${limit}&offset=${offset}`;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const res = await apsFetch(url,{ headers: { Authorization: `Bearer ${accessToken}` } });
         if (!res.ok) {
             const errorText = await res.text().catch(() => '');
             console.warn(`⚠️ Failed to fetch project roles: ${res.status} - ${errorText}`);
@@ -269,7 +294,7 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     document.body.insertAdjacentHTML('beforeend', `
         <div id="singleSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
             <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${projectName}</h3>
+                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${escapeHtml(projectName)}</h3>
                 <div id="singleSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Processing...</div>
                 <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
                     <div id="singleSyncBar" style="background:#0696D7;height:100%;width:30%;transition:width 0.3s;"></div>
@@ -472,8 +497,10 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
     
     // Check if there are any operations to perform
     if (totalOperations === 0) {
-        alert('No operations selected. Please enable at least one checkbox (Update/Add/Delete).');
-        return;
+        // Direct mode (single/multi-project sync) has no checkboxes - nothing to do is
+        // a valid outcome, not a reason to block the run with an alert per project.
+        if (!isDirectMode) alert('No operations selected. Please enable at least one checkbox (Update/Add/Delete).');
+        return { updated: 0, added: 0, deleted: 0, errors: [], invalidRoles: new Map(), duplicateRoles: new Map(), unverifiedRoles: new Map() };
     }
     
     let completedOperations = 0;
@@ -524,10 +551,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
     };
     
     try {
-        // Get 2-legged token
         updateProgress();
         updateSyncStatus('Connecting...');
-        const twoLeggedToken = await get2LeggedToken();
 
         // STEP 1: Update account users first (company and role from Users Main List)
         log('🚀 STEP 1: Updating account users with company and role from Users Main List');
@@ -581,14 +606,15 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         const importEmailMap = cachedData.importEmailMap;
         const projectEmailMap = cachedData.projectEmailMap;
 
-        // Always fetch account users (needed for company/role)
-        updateSyncStatus('Fetching current account members...');
-        const accountUsers = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
+        // Account users (needed for company/role) and this project's role catalog are
+        // independent - fetch them concurrently. Account users are fetched once per
+        // table snapshot (post-STEP 1), the role catalog once per project per session.
+        updateSyncStatus('Fetching account members and project roles...');
+        const [accountUsers, projectRoleIdByName] = await Promise.all([
+            getAccountUsersForSync(accountId, importUsers),
+            getProjectRoleCatalog(projectId, accessToken)
+        ]);
         const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
-
-        // Get this project's role catalog (cached after the first fetch this session)
-        updateSyncStatus('Fetching project role catalog...');
-        const projectRoleIdByName = await getProjectRoleCatalog(projectId, accessToken);
 
         // Resolve the roleIds to send for a user: a project user can have multiple roles
         // (Autodesk Forma). Prefer the ORIGINAL role IDs captured when the row was loaded
@@ -700,29 +726,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         // Execute PATCH operations (OPTIMIZED: Parallel processing with concurrency control)
         if (enableUpdate && listToPatch.length > 0) {
             log('\n=== PATCH Operation - Updating Users (Parallel Processing) ===');
-            
-            // Helper function for parallel execution with concurrency limit
-            const executeInParallel = async (items, concurrency, executor) => {
-                const results = [];
-                const executing = [];
-                
-                for (const [index, item] of items.entries()) {
-                    const promise = executor(item, index).then(result => {
-                        executing.splice(executing.indexOf(promise), 1);
-                        return result;
-                    });
-                    
-                    results.push(promise);
-                    executing.push(promise);
-                    
-                    if (executing.length >= concurrency) {
-                        await Promise.race(executing);
-                    }
-                }
-                
-                return Promise.all(results);
-            };
-            
+
             // PATCH executor function
             const patchUser = async (userToPatch) => {
                 if (!userToPatch.email) {
@@ -820,8 +824,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     
                     log(`PATCH user ${userToPatch.email}:`, patchPayload);
                     
-                    // Execute PATCH request
-                    const response = await fetch(
+                    // Execute PATCH request (apsFetch retries on 429 / Retry-After)
+                    const response = await apsFetch(
                         `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`,
                         {
                             method: 'PATCH',
@@ -848,6 +852,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                             console.warn(`⚠️ Product not activated for ${userToPatch.email}: ${errorDetail}`);
                             console.warn(`⚠️ Skipping user - project doesn't have required products activated`);
                             results.errors.push(`Skipped ${userToPatch.email}: ${errorDetail}`);
+                            completedOperations++;
+                            updateProgress();
                             return { success: false, email: userToPatch.email, skipped: true, reason: 'Product not activated' };
                         }
                         
@@ -865,9 +871,6 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     results.updated++;
                     completedOperations++;
                     updateProgress();
-                    
-                    // OPTIMIZATION: Reduced delay from 100ms to 20ms
-                    await new Promise(resolve => setTimeout(resolve, 20));
                     return { success: true, email: userToPatch.email };
                     
                 } catch (error) {
@@ -879,9 +882,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                 }
             };
             
-            // OPTIMIZATION: Process 4 users in parallel (up from 1)
             log(`Processing ${listToPatch.length} PATCH operations with concurrency=4`);
-            await executeInParallel(listToPatch, 4, patchUser);
+            await runWithConcurrency(listToPatch, 4, patchUser);
         }
         
         // === POST Operation - Add users ===
@@ -1012,7 +1014,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
 
                     // Execute POST request
                     const postUrl = `https://developer.api.autodesk.com/construction/admin/v2/projects/${projectId}/users:import`;
-                    const response = await fetch(postUrl, {
+                    const response = await apsFetch(postUrl, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
@@ -1038,11 +1040,6 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     results.errors.push(`Batch ${batchIndex + 1} add failed: ${error.message}`);
                     completedOperations += batch.length;
                     updateProgress();
-                }
-                
-                // OPTIMIZATION: Reduced delay between batches from 500ms to 200ms
-                if (batchIndex < batches.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
             }
         }
@@ -1071,34 +1068,17 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     
                     log(`DELETE user ${userToDelete.email} (ID: ${projectUser.id})`);
 
-                    // Execute DELETE request, with retry/backoff on 429 - deleting more
-                    // than ~50 users at concurrency=4 can exceed Autodesk's rate limit
-                    // even with the small per-request delay below.
+                    // Execute DELETE request (apsFetch retries on 429 / Retry-After -
+                    // deleting more than ~50 users at concurrency=4 can exceed
+                    // Autodesk's rate limit)
                     const deleteUrl = `https://developer.api.autodesk.com/construction/admin/v1/projects/${projectId}/users/${projectUser.id}`;
-                    let response;
-                    let retryCount = 0;
-                    const maxRetries = 5;
-
-                    while (true) {
-                        response = await fetch(deleteUrl, {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Content-Type': 'application/json'
-                            }
-                        });
-
-                        if (response.status === 429 && retryCount < maxRetries) {
-                            const retryAfter = response.headers.get('Retry-After');
-                            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, retryCount + 1) * 1000;
-                            log(`⚠️ Rate limited (429) deleting ${userToDelete.email}. Retrying after ${waitTime}ms...`);
-                            await new Promise(resolve => setTimeout(resolve, waitTime));
-                            retryCount++;
-                            continue;
+                    const response = await apsFetch(deleteUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
                         }
-
-                        break;
-                    }
+                    });
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({ message: response.statusText }));
@@ -1109,9 +1089,6 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     results.deleted++;
                     completedOperations++;
                     updateProgress();
-                    
-                    // OPTIMIZATION: Reduced delay from 100ms to 20ms
-                    await new Promise(resolve => setTimeout(resolve, 20));
                     return { success: true, email: userToDelete.email };
                     
                 } catch (error) {
@@ -1123,31 +1100,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                 }
             };
             
-            // Helper function for parallel execution with concurrency limit
-            const executeInParallelDelete = async (items, concurrency, executor) => {
-                const results = [];
-                const executing = [];
-                
-                for (const [index, item] of items.entries()) {
-                    const promise = executor(item, index).then(result => {
-                        executing.splice(executing.indexOf(promise), 1);
-                        return result;
-                    });
-                    
-                    results.push(promise);
-                    executing.push(promise);
-                    
-                    if (executing.length >= concurrency) {
-                        await Promise.race(executing);
-                    }
-                }
-                
-                return Promise.all(results);
-            };
-            
-            // OPTIMIZATION: Process 4 users in parallel
             log(`Processing ${listToDelete.length} DELETE operations with concurrency=4`);
-            await executeInParallelDelete(listToDelete, 4, deleteUser);
+            await runWithConcurrency(listToDelete, 4, deleteUser);
         }
         
         // Show results in modal
@@ -1164,7 +1118,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         
         if (results.errors.length > 0) {
             summaryHTML += `<br><strong style="color: #dc3545;">Errors (${results.errors.length}):</strong><br>`;
-            summaryHTML += results.errors.slice(0, 5).map(err => `<span style="color: #666; font-size: 12px;">• ${err}</span>`).join('<br>');
+            summaryHTML += results.errors.slice(0, 5).map(err => `<span style="color: #666; font-size: 12px;">• ${escapeHtml(err)}</span>`).join('<br>');
             if (results.errors.length > 5) {
                 summaryHTML += `<br><span style="color: #666; font-size: 12px;">... and ${results.errors.length - 5} more errors. Check console for details.</span>`;
             }
@@ -1299,26 +1253,29 @@ async function saveAndSyncMultiProject(projects) {
     const statusEl = document.getElementById('multiSyncStatus');
     const barEl = document.getElementById('multiSyncBar');
 
-    const allResults = [];
-
-    for (let i = 0; i < projects.length; i++) {
-        const project = projects[i];
-        if (statusEl) statusEl.textContent = `(${i + 1}/${projects.length}) ${project.name}`;
-        if (barEl) barEl.style.width = `${Math.round((i / projects.length) * 100)}%`;
-
+    // Projects are independent, so sync a few at once instead of strictly one after
+    // another. Account-level provisioning (STEP 1) and the account user list are
+    // memoized per tableUsers snapshot, so they run once no matter how many projects;
+    // the first project to reach them does the work and the others await the same
+    // promise. apsFetch absorbs any extra rate limiting from the added concurrency.
+    const PROJECT_CONCURRENCY = 3;
+    let finished = 0;
+    const allResults = await runWithConcurrency(projects, PROJECT_CONCURRENCY, async (project) => {
+        let entry;
         try {
-            userTableManager.modalProjectId = project.id;
-            userTableManager.modalProjectName = project.name;
-
             // Run sync directly (no confirmation dialog) - account-level provisioning
             // happens inside executeSyncOperations itself (STEP 1), using tableUsers.
             const result = await runSyncForProjectDirect(project.id, accountId, accessToken, tableUsers);
-            allResults.push({ project, result, error: null });
+            entry = { project, result, error: null };
         } catch (err) {
             console.error(`Error syncing project ${project.name}:`, err);
-            allResults.push({ project, result: null, error: err.message });
+            entry = { project, result: null, error: err.message };
         }
-    }
+        finished++;
+        if (statusEl) statusEl.textContent = `(${finished}/${projects.length}) done - last: ${project.name}`;
+        if (barEl) barEl.style.width = `${Math.round((finished / projects.length) * 100)}%`;
+        return entry;
+    });
 
     // Complete progress bar
     if (barEl) barEl.style.width = '100%';
@@ -1395,13 +1352,15 @@ async function saveAndSyncMultiProject(projects) {
 function _showMultiSyncResults(allResults) {
     const title = allResults.length === 1 ? 'Sync Complete' : 'Multi-Project Sync Complete';
     const rows = allResults.map(({ project, result, error }) => {
+        // project.name and error text originate from ACC / API responses - escape
+        const safeName = escapeHtml(project.name);
         if (error) {
-            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifact Elements',Arial,sans-serif;">Error: ${error}</td></tr>`;
+            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifact Elements',Arial,sans-serif;">Error: ${escapeHtml(error)}</td></tr>`;
         }
         const r = result || {};
         const deletedPart = r.deleted > 0 ? ` &bull; <span style="color:#dc3545;">Deleted: ${r.deleted}</span>` : '';
         const errNote = r.errors?.length ? ` &bull; <span style="color:#dc3545;">${r.errors.length} error(s)</span>` : '';
-        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${project.name}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
+        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
     }).join('');
 
     document.body.insertAdjacentHTML('beforeend', `

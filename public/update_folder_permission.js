@@ -92,7 +92,7 @@
                 <div style="margin-bottom: 15px;">
                     <strong>Created Users:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e8f5e9; border-radius: 4px;">
-                        ${summary.createdUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✓ ${u}</div>`).join('')}
+                        ${summary.createdUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✓ ${escapeHtml(u)}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -103,7 +103,7 @@
                 <div style="margin-bottom: 15px;">
                     <strong>Updated Users:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e3f2fd; border-radius: 4px;">
-                        ${summary.updatedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">↻ ${u}</div>`).join('')}
+                        ${summary.updatedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">↻ ${escapeHtml(u)}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -114,7 +114,7 @@
                 <div style="margin-bottom: 15px;">
                     <strong>Deleted Users:</strong><br>
                     <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #ffebee; border-radius: 4px;">
-                        ${summary.deletedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✗ ${u}</div>`).join('')}
+                        ${summary.deletedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✗ ${escapeHtml(u)}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -219,63 +219,63 @@
      * Fetch current folder permissions from ACC
      */
     async function fetchFolderPermissions(projectId, folderId, accessToken) {
-        try {
-            const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-            const folderUrn = encodeURIComponent(folderId);
-            const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions`;
-            
-            log(`📥 Fetching permissions for folder: ${folderId}`);
-            
-            const response = await fetch(apiUrl, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
+        const folderUrn = encodeURIComponent(folderId);
+        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions`;
 
-            if (!response.ok) {
-                console.warn(`⚠️ Failed to fetch permissions: ${response.status}`);
-                return [];
+        log(`📥 Fetching permissions for folder: ${folderId}`);
+
+        const response = await apsFetch(apiUrl, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
             }
+        });
 
-            const data = await response.json();
-            log(`📥 Raw API response:`, data);
-            
-            const results = Array.isArray(data) ? data : (data.results || []);
-            log(`📥 Processing ${results.length} permission entries`);
-            
-            const permissions = results.map(perm => ({
-                subjectId: perm.subjectId,
-                subjectType: perm.subjectType,
-                actions: perm.actions || [],
-                inheritActions: perm.inheritActions || [],
-                name: perm.name,
-                email: perm.email
-            }));
-            
-            log(`📥 Returning ${permissions.length} permissions`);
-            return permissions;
-        } catch (error) {
-            console.error(`Error fetching folder permissions:`, error);
-            return [];
+        // Throw rather than return [] - an empty list means "no explicit permissions",
+        // so diffing against it would CREATE for subjects that already have access and
+        // silently skip every DELETE. The caller records the folder as an error instead.
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Could not read current permissions (HTTP ${response.status}${errorText ? `: ${errorText.slice(0, 200)}` : ''})`);
         }
+
+        const data = await response.json();
+        log(`📥 Raw API response:`, data);
+
+        const results = Array.isArray(data) ? data : (data.results || []);
+        log(`📥 Processing ${results.length} permission entries`);
+
+        const permissions = results.map(perm => ({
+            subjectId: perm.subjectId,
+            subjectType: perm.subjectType,
+            actions: perm.actions || [],
+            inheritActions: perm.inheritActions || [],
+            name: perm.name,
+            email: perm.email
+        }));
+
+        log(`📥 Returning ${permissions.length} permissions`);
+        return permissions;
     }
 
     /**
      * Check if a user exists in the project
      */
-    function userExistsInProject(subjectId, subjectType, currentProjectUsersRaw) {
+    // The helpers below take `usersById` (Map projectUserId -> project user), built
+    // once per sync - they run for every permission entry in every folder, and a
+    // linear find() over all project users each time made the diff O(entries x users).
+    function userExistsInProject(subjectId, subjectType, usersById) {
         if (subjectType !== 'USER') {
             return true; // Companies and roles are not checked
         }
 
-        if (!currentProjectUsersRaw) {
+        if (!usersById) {
             console.warn('No raw user data available to check user existence');
             return false;
         }
 
-        const user = currentProjectUsersRaw.find(u => u.id === subjectId);
-        return !!user;
+        return usersById.has(subjectId);
     }
 
     /**
@@ -285,12 +285,12 @@
      * a pending user with ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE.
      * Only meaningful once the user's existence has already been confirmed.
      */
-    function isUserActiveInProject(subjectId, subjectType, currentProjectUsersRaw) {
+    function isUserActiveInProject(subjectId, subjectType, usersById) {
         if (subjectType !== 'USER') {
             return true; // Companies and roles have no "pending" state here
         }
 
-        const user = currentProjectUsersRaw && currentProjectUsersRaw.find(u => u.id === subjectId);
+        const user = usersById && usersById.get(subjectId);
         // If status isn't present in the data we have, don't block on it.
         if (!user || !user.status) {
             return true;
@@ -302,17 +302,17 @@
     /**
      * Check if a user is a project admin
      */
-    function isProjectAdmin(subjectId, subjectType, currentProjectUsersRaw) {
+    function isProjectAdmin(subjectId, subjectType, usersById) {
         if (subjectType !== 'USER') {
             return false;
         }
 
-        if (!currentProjectUsersRaw) {
+        if (!usersById) {
             console.warn('No raw user data available to check admin status');
             return false;
         }
 
-        const user = currentProjectUsersRaw.find(u => u.id === subjectId);
+        const user = usersById.get(subjectId);
         if (!user) {
             return false;
         }
@@ -359,7 +359,7 @@
             log(`📤 Payload:`, JSON.stringify(apiPayload));
 
             try {
-                const response = await fetch(apiUrl, {
+                const response = await apsFetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
@@ -380,9 +380,6 @@
                 return { success: false, error: error.message, results: allResults };
             }
 
-            if (i + BATCH_SIZE < permissions.length) {
-                await new Promise(resolve => setTimeout(resolve, 400));
-            }
         }
 
         return { success: true, results: allResults };
@@ -418,7 +415,7 @@
             log(`📤 Payload:`, JSON.stringify(apiPayload));
 
             try {
-                const response = await fetch(apiUrl, {
+                const response = await apsFetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
@@ -439,9 +436,6 @@
                 return { success: false, error: error.message, results: allResults };
             }
 
-            if (i + BATCH_SIZE < permissions.length) {
-                await new Promise(resolve => setTimeout(resolve, 400));
-            }
         }
 
         return { success: true, results: allResults };
@@ -476,7 +470,7 @@
             log(`📤 DELETE Request Body:`, JSON.stringify(apiPayload, null, 2));
 
             try {
-                const response = await fetch(apiUrl, {
+                const response = await apsFetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
@@ -499,9 +493,6 @@
                 return { success: false, error: error.message };
             }
 
-            if (i + BATCH_SIZE < permissions.length) {
-                await new Promise(resolve => setTimeout(resolve, 400));
-            }
         }
 
         return { success: true };
@@ -563,6 +554,9 @@
                 } catch (refreshError) {
                     console.warn('⚠️ Failed to refresh project users before sync, using cached list:', refreshError.message);
                 }
+                const usersById = currentProjectUsersRaw
+                    ? new Map(currentProjectUsersRaw.map(u => [u.id, u]))
+                    : null;
 
                 log('\n🔄 ========== READING FROM MODEL ==========');
 
@@ -655,20 +649,14 @@
                 inheritedConflicts: []
             };
 
-            // Process folders in PARALLEL batches for speed
-            const BATCH_SIZE = 5; // Process 5 folders at a time
-            const folderBatches = [];
-            for (let i = 0; i < jsonData.folders.length; i += BATCH_SIZE) {
-                folderBatches.push(jsonData.folders.slice(i, i + BATCH_SIZE));
-            }
+            // Process folders through a worker pool: up to FOLDER_CONCURRENCY in
+            // flight at all times (fixed Promise.all batches stalled every batch on
+            // its slowest folder). Rate limiting is absorbed by apsFetch.
+            const FOLDER_CONCURRENCY = 5;
 
-            log(`📦 Processing ${jsonData.folders.length} folders in ${folderBatches.length} batches of ${BATCH_SIZE}`);
+            log(`📦 Processing ${jsonData.folders.length} folders with concurrency=${FOLDER_CONCURRENCY}`);
 
-            for (let batchIndex = 0; batchIndex < folderBatches.length; batchIndex++) {
-                const batch = folderBatches[batchIndex];
-                
-                // Process batch in parallel
-                const batchPromises = batch.map(async (folder) => {
+                const processFolder = async (folder) => {
                     const folderName = `${folder.level2}${folder.level3 ? ' > ' + folder.level3 : ''}`;
                     log(`\n📂 Processing: ${folderName}`);
                     updateFolderSyncProgress(`Reading current permissions for "${folderName}"...`);
@@ -747,16 +735,16 @@
                             
                             if (!accPermMap.has(key)) {
                                 // Check if user exists in project
-                                if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP CREATE: User doesn't exist in project (${jsonPerm.user})`);
                                     syncSummary.skippedNonExistent++;
                                     // Always add to show every occurrence across folders
                                     syncSummary.nonExistentUsers.push(jsonPerm.user);
-                                } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP CREATE: User is inactive/pending (${jsonPerm.user})`);
                                     syncSummary.skippedInactive++;
                                     syncSummary.inactiveUsers.push(jsonPerm.user);
-                                } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
                                 } else if (inherited && inherited.level >= requestedLevel) {
@@ -778,16 +766,16 @@
                                 
                                 if (!actionsMatch) {
                                     // Check if user exists in project
-                                    if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    if (!userExistsInProject(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                         log(`  ⚠️ SKIP UPDATE: User doesn't exist in project (${jsonPerm.user})`);
                                         syncSummary.skippedNonExistent++;
                                         // Always add to show every occurrence across folders
                                         syncSummary.nonExistentUsers.push(jsonPerm.user);
-                                    } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    } else if (!isUserActiveInProject(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                         log(`  ⚠️ SKIP UPDATE: User is inactive/pending (${jsonPerm.user})`);
                                         syncSummary.skippedInactive++;
                                         syncSummary.inactiveUsers.push(jsonPerm.user);
-                                    } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, currentProjectUsersRaw)) {
+                                    } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                         log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
                                     } else if (inherited && inherited.level >= requestedLevel) {
@@ -810,7 +798,7 @@
                         // Check for DELETE
                         accPermMap.forEach((accPerm, key) => {
                             if (!jsonPermMap.has(key)) {
-                                if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType, currentProjectUsersRaw)) {
+                                if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
                                     syncSummary.skippedAdmins++;
                                 } else {
@@ -923,47 +911,44 @@
 
                     } catch (error) {
                         console.error(`❌ Error processing folder ${folderName}:`, error);
-                        return { 
-                            folderName, 
-                            results: { 
-                                created: 0, 
-                                updated: 0, 
-                                deleted: 0, 
-                                errors: [error.message],
+                        return {
+                            folderName,
+                            results: {
+                                created: 0,
+                                updated: 0,
+                                deleted: 0,
+                                errors: [`${folderName}: ${error.message}`],
                                 createdUsers: [],
                                 updatedUsers: [],
                                 deletedUsers: []
-                            } 
+                            }
                         };
                     }
-                });
+                };
 
-                // Wait for batch to complete
-                const batchResults = await Promise.all(batchPromises);
-                
-                // Update summary and progress
-                batchResults.forEach(({ folderName, results }) => {
-                    log(`📦 Batch result for ${folderName}:`, results);
-                    syncSummary.processedFolders++;
-                    syncSummary.created += results.created;
-                    syncSummary.updated += results.updated;
-                    syncSummary.deleted += results.deleted;
-                    syncSummary.errors.push(...results.errors);
-                    if (results.createdUsers) {
-                        log(`  Adding ${results.createdUsers.length} created users`);
-                        syncSummary.createdUsers.push(...results.createdUsers);
-                    }
-                    if (results.updatedUsers) {
-                        log(`  Adding ${results.updatedUsers.length} updated users`);
-                        syncSummary.updatedUsers.push(...results.updatedUsers);
-                    }
-                    if (results.deletedUsers) {
-                        log(`  Adding ${results.deletedUsers.length} deleted users`);
-                        syncSummary.deletedUsers.push(...results.deletedUsers);
-                    }
-                });
-                
-                // Update progress after each batch
+            await runWithConcurrency(jsonData.folders, FOLDER_CONCURRENCY, async (folder) => {
+                const { folderName, results } = await processFolder(folder);
+
+                // Update summary and progress as each folder finishes
+                log(`📦 Folder result for ${folderName}:`, results);
+                syncSummary.processedFolders++;
+                syncSummary.created += results.created;
+                syncSummary.updated += results.updated;
+                syncSummary.deleted += results.deleted;
+                syncSummary.errors.push(...results.errors);
+                if (results.createdUsers) {
+                    log(`  Adding ${results.createdUsers.length} created users`);
+                    syncSummary.createdUsers.push(...results.createdUsers);
+                }
+                if (results.updatedUsers) {
+                    log(`  Adding ${results.updatedUsers.length} updated users`);
+                    syncSummary.updatedUsers.push(...results.updatedUsers);
+                }
+                if (results.deletedUsers) {
+                    log(`  Adding ${results.deletedUsers.length} deleted users`);
+                    syncSummary.deletedUsers.push(...results.deletedUsers);
+                }
+
                 const progressPercent = (syncSummary.processedFolders / syncSummary.totalFolders) * 100;
                 updateFolderSyncProgress(`Syncing permissions... ${syncSummary.processedFolders}/${syncSummary.totalFolders} folders`, progressPercent);
                 log(`📊 Progress: ${Math.round(progressPercent)}% (${syncSummary.processedFolders}/${syncSummary.totalFolders} folders)`);
@@ -976,7 +961,7 @@
                     updatedUsers: syncSummary.updatedUsers.length,
                     deletedUsers: syncSummary.deletedUsers.length
                 });
-            }
+            });
 
             // Remove test code section
             log('\n🔄 ========== SYNC COMPLETE ==========');

@@ -1745,22 +1745,12 @@ class UserTableManager extends TableCellInteraction {
                 await this.updateAccountUsersBeforeSave(accountId);
                 log('✅ Account users updated successfully');
 
-                this.showSaveProgress('Updating project users...', 60);
-
-                // STEP 2: Update PROJECT users (companyId, companyName, roleIds, products)
-                log('🔄 Step 2: Starting project user update...');
-
-                if (typeof updateProjectUsers !== 'function') {
-                    throw new Error('updateProjectUsers function not available');
-                }
-
-                const accessToken = window.currentAccessToken || (window.getAuthToken && window.getAuthToken());
-                if (!accessToken) {
-                    throw new Error('Access token not available for project update');
-                }
-
-                await updateProjectUsers(this.modalProjectId, accountId, accessToken, null);
-                log('✅ Project users updated successfully');
+                // Project-level PATCH/POST is done by executeSyncOperations (called
+                // right after this returns) from this same live table snapshot, with
+                // change detection. The legacy manage_project_users.js pass that used
+                // to run here PATCHed every user a second time, sequentially, from
+                // Firestore data loaded at page init and a project-user list cached
+                // from whichever project was synced first in the session.
             } catch (error) {
                 console.error('❌ User update failed:', error);
                 this.showSaveError(`User update failed: ${error.message}\n\nSync was NOT performed to prevent inconsistency.`);

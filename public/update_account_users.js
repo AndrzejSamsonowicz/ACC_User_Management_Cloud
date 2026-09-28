@@ -23,24 +23,11 @@ async function get2LeggedTokenWithWriteScope() {
     }
 
     try {
-        const response = await fetch(`${window.location.origin}/api/aps/token`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            // Based on APS docs, HQ APIs require account:read and account:write scopes
-            body: JSON.stringify({ grantType: 'client_credentials', scope: 'account:read account:write data:read' })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Token error: ${errorData.message || 'Unknown error'}`);
-        }
-
-        const tokenData = await response.json();
+        // Based on APS docs, HQ APIs require account:read and account:write scopes.
+        // Cached until near expiry (getCached2LeggedToken in index.html).
+        const token = await getCached2LeggedToken('account:read account:write data:read');
         log('Got 2-legged token with account:write scope');
-        return tokenData.access_token;
+        return token;
     } catch (error) {
         console.error('Error getting 2-legged token with write scope:', error);
         throw new Error(`Authentication error: ${error.message}`);
@@ -189,7 +176,7 @@ async function patchUser(accountId, userId, token, body) {
     if (body.default_role !== undefined) cleanBody.default_role = body.default_role;
     if (body.status !== undefined) cleanBody.status = body.status;
     
-    const res = await fetch(url, {
+    const res = await apsFetch(url, {
         method: 'PATCH',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -380,7 +367,34 @@ async function importUsers(accountId, token, usersArray) {
 
 // Main function - compute lists and (optionally) perform operations
 // If importUsersList is provided, use that instead of loading from server
+// Account-level provisioning is identical for every project a table snapshot is
+// synced to, but was re-run per call: once in prepareUsersBeforeSync and again in
+// executeSyncOperations (single project), and once per project in multi-project
+// sync - each run = token calls + full account-user + company pagination + PATCHes.
+// Memoize by snapshot identity (collectTableUsers() returns a fresh array per sync,
+// so a new sync always re-runs) and account.
+const _accountUpdateMemo = new WeakMap(); // importUsersList -> Map(accountId -> Promise<results>)
+
 async function updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null, importUsersList = null) {
+    if (!options.performOps || !Array.isArray(importUsersList)) {
+        return _updateAccountUsersForAccount(accountId, options, projectId, importUsersList);
+    }
+    let byAccount = _accountUpdateMemo.get(importUsersList);
+    if (!byAccount) {
+        byAccount = new Map();
+        _accountUpdateMemo.set(importUsersList, byAccount);
+    }
+    if (byAccount.has(accountId)) {
+        log('♻️ Account users already updated for this table snapshot - reusing result');
+        return byAccount.get(accountId);
+    }
+    const promise = _updateAccountUsersForAccount(accountId, options, projectId, importUsersList);
+    byAccount.set(accountId, promise);
+    promise.catch(() => byAccount.delete(accountId)); // let a failed run be retried
+    return promise;
+}
+
+async function _updateAccountUsersForAccount(accountId, options = {performOps: false}, projectId = null, importUsersList = null) {
     console.log('🚨🚨🚨 UPDATE_ACCOUNT_USERS.JS VERSION v=2026030821 LOADED 🚨🚨🚨');
     log('⚙️ updateAccountUsersForAccount called for account:', accountId, 'projectId:', projectId, 'userDataProvided:', !!importUsersList, options);
 
@@ -486,10 +500,12 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             }
         }
 
-        // Build email -> accountUser map (exact match)
+        // Build email -> accountUser map (case-insensitive - emails differing only in
+        // case are the same Autodesk identity; an exact match made existing members
+        // look new, so they were re-POSTed and never got their company/role PATCH)
         const accountByEmail = new Map();
         accountUsers.forEach(u => {
-            if (u.email) accountByEmail.set(u.email, u);
+            if (u.email) accountByEmail.set(u.email.toLowerCase(), u);
         });
 
         // Fetch companies and build name -> id map (case-insensitive)
@@ -519,7 +535,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             
             console.log(`📝 Processing ${email}: company="${companyName}", role="${role}"`);
 
-            const accountUser = accountByEmail.get(email);
+            const accountUser = accountByEmail.get(email.toLowerCase());
             if (accountUser) {
                 // Check if role or company has changed
                 const companyId = companyName ? companyMap.get(companyName.toLowerCase()) : null;
@@ -646,19 +662,14 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
             log('🚀 Attempting real operations with 2-legged token + account:write scope');
         }
 
-        // PATCH existing users with rate limiting (OPTIMIZED)
-        // Process in small batches with delays to avoid API rate limits
-        const PATCH_BATCH_SIZE = 5; // OPTIMIZATION: Increased from 3 to 5 users at a time
-        const DELAY_BETWEEN_BATCHES = 400; // OPTIMIZATION: Reduced from 1500ms to 400ms
-        
-        log(`📝 Processing ${toPatch.length} PATCH operations in batches of ${PATCH_BATCH_SIZE} (OPTIMIZED)`);
-        
-        for (let i = 0; i < toPatch.length; i += PATCH_BATCH_SIZE) {
-            const batch = toPatch.slice(i, i + PATCH_BATCH_SIZE);
-            log(`📝 Processing PATCH batch ${Math.floor(i / PATCH_BATCH_SIZE) + 1}/${Math.ceil(toPatch.length / PATCH_BATCH_SIZE)} (users ${i + 1}-${Math.min(i + PATCH_BATCH_SIZE, toPatch.length)} of ${toPatch.length})`);
-            
-            // Process batch sequentially to avoid Promise.all issues with error handling
-            for (const item of batch) {
+        // PATCH existing users through a small worker pool. Rate limiting is
+        // handled by apsFetch inside patchUser (backs off on 429 / Retry-After),
+        // so no fixed sleeps between requests are needed.
+        const PATCH_CONCURRENCY = 4;
+
+        log(`📝 Processing ${toPatch.length} PATCH operations with concurrency=${PATCH_CONCURRENCY}`);
+
+        await runWithConcurrency(toPatch, PATCH_CONCURRENCY, async (item) => {
                 try {
                     const body = {};
                     if (item.companyId) body.company_id = item.companyId;
@@ -668,7 +679,7 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                     if (Object.keys(body).length === 0) {
                         log(`⏭️ Skipping patch for ${item.email} - no data to update`);
                         results.patched.push({ email: item.email, skipped: true });
-                        continue;
+                        return;
                     }
                     
                     log(`📝 Attempting to update ${item.email} with:`, body);
@@ -786,22 +797,11 @@ async function updateAccountUsersForAccount(accountId, options = {performOps: fa
                             }
                         }
                     }
-                    
-                    // OPTIMIZATION: Reduced delay from 200ms to 50ms between individual requests within batch
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
                 } catch (err) {
                     console.error(`❌ Outer catch - Patch error for ${item.email}:`, err.message);
                     results.errors.push({ email: item.email, operation: 'PATCH', error: err.message });
                 }
-            }
-            
-            // Add delay between batches (except for the last batch)
-            if (i + PATCH_BATCH_SIZE < toPatch.length) {
-                log(`⏱️ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
-                await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
-            }
-        }
+        });
 
         // POST new users in batches (API takes an array)
         console.log('📍 REACHED POST SECTION - about to add', toAdd.length, 'users');
