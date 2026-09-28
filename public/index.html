@@ -7,6 +7,14 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Forma User Management</title>
+    <script>
+        // Set before first paint — see html.aps-returning CSS below.
+        if (/[?&]code=/.test(location.search)) {
+            document.documentElement.classList.add('aps-returning');
+            // Fail-safe: never leave the user stuck behind the overlay.
+            setTimeout(() => document.documentElement.classList.remove('aps-returning'), 30000);
+        }
+    </script>
     <!-- Version: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
@@ -45,6 +53,24 @@
         
         body.auth-verified #authLoadingOverlay {
             display: none;
+        }
+
+        /* Returning from Autodesk sign-in (?code= in the URL): keep the blue
+           loading screen up through the token exchange and hub fetch, so the
+           login card never flashes between Autodesk and the app. Cleared by
+           getHubs() on success, or showError() on failure. */
+        html.aps-returning body.auth-verified #authLoadingOverlay {
+            display: flex;
+        }
+        html.aps-returning #authLoadingOverlay {
+            flex-direction: column;
+            gap: 18px;
+        }
+        html.aps-returning #authLoadingOverlay::after {
+            content: 'Signing you in with Autodesk…';
+            color: #fff;
+            font-size: 15px;
+            letter-spacing: 0.01em;
         }
         
         .hub-item {
@@ -1593,6 +1619,7 @@
         }
 
         function showError(message) {
+            document.documentElement.classList.remove('aps-returning');
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
@@ -2328,7 +2355,8 @@
                 // Show content and hide login
                 document.getElementById('login').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
-                
+                document.documentElement.classList.remove('aps-returning');
+
                 // Hide the trial/license banner when Autodesk interface is shown
                 const banner = document.getElementById('license-info-banner');
                 if (banner) {
@@ -2390,6 +2418,7 @@
                 if (processedCode === code) {
                     // This code was already used, just clean up the URL silently
                     window.history.replaceState({}, document.title, window.location.pathname);
+                    document.documentElement.classList.remove('aps-returning');
                     return;
                 }
 
