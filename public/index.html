@@ -825,6 +825,62 @@
             opacity: 0.5;
         }
 
+        /* Project list is split into groups by the current user's admin
+           status: projects they can manage first, then any still being
+           checked, then a divider and the ones they can't manage. */
+        .project-group-heading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 22px 0 4px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #3c3c3c;
+        }
+        .project-group-heading:first-child { margin-top: 4px; }
+        .project-group-heading .count {
+            display: inline-block;
+            min-width: 22px;
+            padding: 1px 7px;
+            border-radius: 10px;
+            background: #e6f4fb;
+            color: #0057A0;
+            font-size: 12px;
+            text-align: center;
+        }
+        .project-group-heading::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #d5d5d5;
+        }
+        .project-group[hidden], .project-group-heading[hidden] { display: none; }
+
+        /* The divider before non-admin projects is the heavier rule, so the
+           boundary between "can manage" and "can't" is unmistakable while
+           scrolling a long list. */
+        .project-group-heading--locked {
+            margin-top: 36px;
+            color: #6b6b6b;
+        }
+        .project-group-heading--locked::after {
+            height: 2px;
+            background: #bdbdbd;
+        }
+        .project-group-heading--locked .count {
+            background: #ececec;
+            color: #6b6b6b;
+        }
+        .project-group-heading--pending { color: #6b6b6b; font-weight: 500; }
+        .project-group-heading--pending .count { background: #f1f1f1; color: #6b6b6b; }
+
+        .project-item.project-item--locked {
+            background-color: #f4f4f4 !important;
+            border-color: #e3e3e3 !important;
+            cursor: default !important;
+        }
+        .project-item.project-item--locked strong { color: #777 !important; }
+
         .project-btn-update {
             background-color: #0696D7 !important;
             color: #fff !important;
@@ -1920,9 +1976,50 @@
                 return;
             }
 
-            projects.forEach(project => {
+            // Three groups: projects the user administers (top), ones whose
+            // permission check is still running, and — below a divider — ones
+            // they can't manage. Items move between groups as each async admin
+            // check resolves, keeping the original (API) order within a group.
+            const makeGroup = (headingText, modifier) => {
+                const heading = document.createElement('div');
+                heading.className = 'project-group-heading' + (modifier ? ` project-group-heading--${modifier}` : '');
+                const label = document.createElement('span');
+                label.textContent = headingText;
+                const count = document.createElement('span');
+                count.className = 'count';
+                heading.append(label, count);
+                const container = document.createElement('div');
+                container.className = 'project-group';
+                projectsList.append(heading, container);
+                return { heading, container, count };
+            };
+            const groups = {
+                admin: makeGroup('Projects you administer'),
+                pending: makeGroup('Checking your permissions…', 'pending'),
+                locked: makeGroup("You're not a project admin on these", 'locked')
+            };
+            const refreshGroupHeadings = () => {
+                Object.values(groups).forEach(g => {
+                    const n = g.container.childElementCount;
+                    g.count.textContent = n;
+                    g.heading.hidden = n === 0;
+                    g.container.hidden = n === 0;
+                });
+            };
+            const placeInGroup = (item, groupKey) => {
+                const container = groups[groupKey].container;
+                if (item.parentElement === container) return;
+                const order = Number(item.dataset.order);
+                const next = Array.from(container.children).find(el => Number(el.dataset.order) > order);
+                container.insertBefore(item, next || null);
+                item.classList.toggle('project-item--locked', groupKey === 'locked');
+                refreshGroupHeadings();
+            };
+
+            projects.forEach((project, index) => {
                 const item = document.createElement('div');
                 item.className = 'project-item';
+                item.dataset.order = index;
                 item.style.cssText = 'margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa; cursor: pointer;';
                 item.addEventListener('click', (event) => toggleProjectCheckbox(event, project.id));
 
@@ -1986,10 +2083,17 @@
                     existingUsersBtn.disabled = !isAdmin;
                     foldersBtn.disabled = !isAdmin;
                     checkbox.disabled = !isAdmin;
+                    // A project the user can't manage must never stay selected
+                    // (e.g. picked up by Check All while its check was pending).
+                    if (!isAdmin && checkbox.checked) {
+                        checkbox.checked = false;
+                        window.checkedProjectIds?.delete(project.id);
+                    }
                     const title = isAdmin ? '' : 'You must be a project administrator on this project to do this.';
                     existingUsersBtn.title = title;
                     foldersBtn.title = title;
                     checkbox.title = title;
+                    placeInGroup(item, isAdmin ? 'admin' : 'locked');
                 };
 
                 if (projectAdminAccessCache.has(project.id)) {
@@ -2027,15 +2131,17 @@
                 contentCol.appendChild(btnCol);
                 row.appendChild(contentCol);
                 item.appendChild(row);
-                projectsList.appendChild(item);
+                if (!item.parentElement) placeInGroup(item, 'pending');
             });
+            refreshGroupHeadings();
         }
 
         function onProjectCheckboxChange() {
             const checkedIds = window.checkedProjectIds || (window.checkedProjectIds = new Set());
             // Sync DOM state into the persistent set
+            // Disabled = not a project admin (or check still pending): never selectable.
             document.querySelectorAll('.project-select-cb').forEach(cb => {
-                if (cb.checked) checkedIds.add(cb.dataset.projectId);
+                if (cb.checked && !cb.disabled) checkedIds.add(cb.dataset.projectId);
                 else checkedIds.delete(cb.dataset.projectId);
             });
             const anyChecked = checkedIds.size > 0;
@@ -2059,8 +2165,11 @@
         }
 
         function checkAllProjects() {
-            // Only affect currently visible checkboxes
-            document.querySelectorAll('.project-select-cb').forEach(cb => cb.checked = true);
+            // Only affect currently visible checkboxes, and skip projects the user
+            // isn't a project admin on — pushing users there would fail.
+            document.querySelectorAll('.project-select-cb').forEach(cb => {
+                if (!cb.disabled) cb.checked = true;
+            });
             onProjectCheckboxChange();
         }
 
