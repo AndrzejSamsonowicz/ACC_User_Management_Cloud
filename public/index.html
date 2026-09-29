@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Forma User Management</title>
+    <title>Forma User Manager</title>
     <script>
         // Set before first paint — see html.aps-returning CSS below.
         if (/[?&]code=/.test(location.search)) {
@@ -17,10 +17,8 @@
     </script>
     <!-- Version: 2025-02-18-17 - PRODUCTION LOGGING SYSTEM -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
-        
         * {
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
         
         /* Auth loading overlay */
@@ -30,7 +28,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: #0696D7;
+            background: #fff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -38,11 +36,11 @@
         }
         
         #authLoadingOverlay .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid white;
+            border: 3px solid #EEEEEE;
+            border-top: 3px solid #0696D7;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
         }
         
@@ -68,59 +66,12 @@
         }
         html.aps-returning #authLoadingOverlay::after {
             content: 'Signing you in with Autodesk…';
-            color: #fff;
-            font-size: 15px;
-            letter-spacing: 0.01em;
-        }
-        
-        .hub-item {
-            padding: 10px;
-            margin: 5px 0;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+            color: #3C3C3C;
             font-size: 14px;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .hub-name {
-            font-weight: 500;
-        }
-        
-        .hub-region {
-            color: #6c757d;
-            font-size: 12px;
-            margin-left: 10px;
-        }
-        
-        .hub-item:hover {
-            background-color: #e9ecef;
-        }
-        
-        .hub-item.selected {
-            background-color: #0696D7;
-            color: white;
-        }
-        
-        .hub-item.selected .hub-region {
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .no-results {
-            padding: 20px;
-            text-align: center;
-            color: #6c757d;
-            font-style: italic;
-            font-family: 'Artifact Elements', Arial, sans-serif;
         }
         
         /* Unified button styling */
-        button, .btn {
+        button:where(:not([class*="fm-"])), .btn {
             background-color: #0696D7 !important;
             color: white !important;
             padding: 12px 20px !important;
@@ -128,7 +79,7 @@
             border-radius: 5px !important;
             cursor: pointer !important;
             font-size: 14px !important;
-            font-family: 'Artifact Elements', Arial, sans-serif !important;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif !important;
             font-weight: 400 !important;
             min-width: 200px !important;
             height: 44px !important;
@@ -139,11 +90,11 @@
             margin: 4px !important;
         }
         
-        button:hover, .btn:hover {
+        button:where(:not([class*="fm-"])):hover, .btn:hover {
             background-color: #0580C0 !important;
         }
 
-        button:active, .btn:active {
+        button:where(:not([class*="fm-"])):active, .btn:active {
             background-color: #046BA5 !important;
         }
 
@@ -152,14 +103,14 @@
            appearance and make a disabled button look identical to an enabled one
            (just silently unclickable), e.g. #addNewUsersBtn before a project is
            selected or before the permission check for it resolves. */
-        button:disabled, .btn:disabled {
+        button:where(:not([class*="fm-"])):disabled, .btn:disabled {
             background-color: #e0e0e0 !important;
             color: #999 !important;
             cursor: not-allowed !important;
             opacity: 0.7;
         }
 
-        button:disabled:hover, .btn:disabled:hover {
+        button:where(:not([class*="fm-"])):disabled:hover, .btn:disabled:hover {
             background-color: #e0e0e0 !important;
         }
 
@@ -184,7 +135,7 @@
             height: 100%;
             border-radius: 0;
             box-shadow: none;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             display: flex;
             flex-direction: column;
         }
@@ -203,7 +154,7 @@
         .user-modal-header h3 {
             margin: 0;
             color: #333;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
 
         .user-modal-close {
@@ -212,7 +163,7 @@
             font-weight: bold;
             cursor: pointer;
             line-height: 1;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
 
         .user-modal-close:hover,
@@ -222,7 +173,7 @@
 
         .user-modal-body {
             padding: 20px;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             flex: 1;
             overflow-y: auto;
         }
@@ -263,14 +214,14 @@
                100% instead of just growing off-screen. */
             table-layout: fixed;
             width: 100%;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
 
         .modal-table th, .modal-table td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
 
         /* Long unbreakable values (an email address has no spaces to wrap
@@ -288,7 +239,7 @@
             background-color: #f2f2f2;
             position: sticky;
             top: 0;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             font-weight: 700;
         }
 
@@ -422,7 +373,7 @@
             z-index: 4000;
             max-width: 300px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             border: 1px solid #ccc;
         }
         
@@ -432,7 +383,7 @@
             background-color: #f5f5f5;
             border-radius: 4px;
             font-size: 14px;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         }
         
         .modal-error-cell {
@@ -575,478 +526,161 @@
             color: #555;
         }
 
-        /* ================================================================
-           Landing page (pre- and post-Autodesk-login) — same visual
-           language as the User Management / folder modals: compact outlined
-           buttons instead of the site-wide 200px blue pills, tighter
-           header, quieter neutrals. Visual only — every id/onclick/
-           addEventListener below is untouched, so hub selection, project
-           checkboxes, filtering, and the admin gate all behave exactly as
-           before. */
-        /* Pre-login screen — same layout as login.html: solid blue backdrop,
-           a centered white card. #login is a fixed full-viewport overlay so
-           centering doesn't depend on body's own layout, and it disappears
-           automatically (taking the card with it) the instant JS sets
-           #login.style.display = 'none' after a successful Autodesk login —
-           no extra logic needed. */
-        #login {
-            position: fixed;
-            inset: 0;
-            background: #0696D7;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            z-index: 1;
-        }
-        .login-card {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 440px;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-        .login-card h1 {
-            font-size: 22px !important;
-            font-weight: 700 !important;
-            margin: 0 0 6px !important;
-            color: #0696D7;
-            text-align: center;
-        }
-        .login-card-subtitle {
-            margin: 0 0 20px;
-            color: #6c757d;
-            font-size: 13.5px;
-            text-align: center;
-            line-height: 1.5;
-        }
-        #loginCardLicenseNote {
-            width: 100%;
-            margin-top: 20px;
-            padding-top: 16px;
-            border-top: 1px solid #dee2e6;
-            text-align: center;
-            font-size: 12px;
-            color: #6c757d;
-            line-height: 1.5;
-        }
-        #loginCardLicenseNote:empty {
-            display: none;
-        }
-        #loginCardLicenseNote a {
-            color: #0696D7;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        #loginCardLicenseNote a:hover {
-            text-decoration: underline;
-        }
-        #error {
-            display: none;
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            font-size: 13.5px;
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-            box-sizing: border-box;
-        }
-
-        /* Pre-login button group (Logout / Settings / Login with Autodesk) —
-           all blue, all the same width. */
-        #login .login-card button {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border: 1px solid #0696D7 !important;
-            padding: 8px 16px !important;
-            border-radius: 4px !important;
-            font-size: 13px !important;
-            font-weight: 700 !important;
-            min-width: 0 !important;
-            width: 240px !important;
-            height: auto !important;
-            margin: 0 !important;
-        }
-        #login .login-card button:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-
-        /* Autodesk brand requirement for the OAuth login button: the real,
-           unmodified Autodesk logo followed by "Sign in" — on a light
-           background, since that's the one usage that's unambiguously
-           compliant (Autodesk Black is their preferred version; White is
-           only "acceptable against sufficiently dark backgrounds", which
-           this app's blue isn't clearly dark enough to count as). */
-        #login .login-card button.autodesk-signin-btn {
-            background-color: #ffffff !important;
-            color: #1a1a1a !important;
-            border: 1px solid #dcdcdc !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 10px !important;
-        }
-        #login .login-card button.autodesk-signin-btn:hover {
-            background-color: #f5f5f5 !important;
-            border-color: #b0b0b0 !important;
-        }
-        .autodesk-signin-logo {
-            height: 14px;
-            width: auto;
-            display: block;
-        }
-
-        /* Admin Account banner — same content/ids, slimmer bar */
-        #license-info-banner {
-            padding: 8px 20px !important;
-            font-size: 12.5px !important;
-            background: #0696D7 !important;
-        }
-
-        /* Hubs panel */
-        #hubsPanel {
-            background: #fafbfc;
-        }
-        #hubsPanel h3 {
-            font-size: 12px !important;
-            text-transform: uppercase;
-            letter-spacing: .04em;
-            color: #888;
-            font-weight: 700 !important;
-        }
-        #hubsPanel button {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border: 1px solid #0696D7 !important;
-            border-radius: 4px !important;
-            font-size: 12.5px !important;
-            font-weight: 700 !important;
-            min-width: 0 !important;
-            height: auto !important;
-            padding: 7px 14px !important;
-            margin: 0 !important;
-        }
-        #hubsPanel button:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-        #hubFilter {
-            border-radius: 4px;
-            font-size: 12.5px;
-            outline: none;
-            transition: border-color .2s, box-shadow .2s;
-        }
-        #hubFilter:focus {
-            border-color: #0696D7;
-            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.14);
-        }
-        .hub-item {
-            border-radius: 4px !important;
-            font-size: 12.5px !important;
-            padding: 8px 10px !important;
-        }
-
-        /* Projects panel header actions */
-        #projectsHeader h3 {
-            font-size: 15px;
-            font-weight: 700;
-            color: #1b2430;
-        }
-        #projectsHeader > div > div button,
-        #buttonExplanations button {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border: 1px solid #0696D7 !important;
-            border-radius: 4px !important;
-            font-size: 12.5px !important;
-            font-weight: 700 !important;
-            min-width: 0 !important;
-            height: auto !important;
-            padding: 7px 14px !important;
-            margin: 0 !important;
-        }
-        #projectsHeader > div > div button:hover,
-        #buttonExplanations button:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-        #addNewUsersBtn {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border-color: #0696D7 !important;
-        }
-        #addNewUsersBtn:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-        /* #addNewUsersBtn's own !important blue (needed to beat the generic
-           button rule) would otherwise also beat the site-wide
-           button:disabled rule, since an ID selector outranks it — making a
-           disabled button look identical to an enabled one again (the exact
-           bug fixed earlier this session). Restated here with matching ID
-           specificity so disabled still reads as disabled. */
-        #addNewUsersBtn:disabled {
-            background-color: #e0e0e0 !important;
-            color: #999 !important;
-            border-color: #d0d0d0 !important;
-            cursor: not-allowed !important;
-            opacity: 0.7;
-        }
-        #projectFilter {
-            border-radius: 4px !important;
-            outline: none;
-            transition: border-color .2s, box-shadow .2s;
-        }
-        #projectFilter:focus {
-            border-color: #0696D7 !important;
-            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.14);
-        }
-
-        /* Project Action Buttons — !important added so these actually win
-           over the site-wide button rule (previously they didn't, which is
-           why every button rendered as an identical blue pill regardless of
-           these classes). */
-        .project-btn {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            padding: 7px 14px !important;
-            border-radius: 4px !important;
-            font-size: 12.5px !important;
-            font-weight: 700 !important;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border: 1px solid #0696D7 !important;
-            outline: none;
-            min-width: 0 !important;
-            height: auto !important;
-            margin: 0 !important;
-        }
-        .project-btn:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-
-        /* Explicit disabled styling — the colored button classes below set their
-           own background/text color, which would otherwise mask the browser's
-           default disabled appearance and make a disabled button look identical
-           to an enabled one (just silently unclickable). */
-        .project-btn:disabled {
-            background-color: #e0e0e0 !important;
-            border-color: #d0d0d0 !important;
-            color: #999 !important;
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-
-        .project-select-cb:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        /* Project list is split into groups by the current user's admin
-           status: projects they can manage first, then any still being
-           checked, then a divider and the ones they can't manage. */
-        .project-group-heading {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 22px 0 4px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #3c3c3c;
-        }
-        .project-group-heading:first-child { margin-top: 4px; }
-        .project-group-heading .count {
-            display: inline-block;
-            min-width: 22px;
-            padding: 1px 7px;
-            border-radius: 10px;
-            background: #e6f4fb;
-            color: #0057A0;
-            font-size: 12px;
-            text-align: center;
-        }
-        .project-group-heading::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #d5d5d5;
-        }
-        .project-group[hidden], .project-group-heading[hidden] { display: none; }
-
-        /* The divider before non-admin projects is the heavier rule, so the
-           boundary between "can manage" and "can't" is unmistakable while
-           scrolling a long list. */
-        .project-group-heading--locked {
-            margin-top: 36px;
-            color: #6b6b6b;
-        }
-        .project-group-heading--locked::after {
-            height: 2px;
-            background: #bdbdbd;
-        }
-        .project-group-heading--locked .count {
-            background: #ececec;
-            color: #6b6b6b;
-        }
-        .project-group-heading--pending { color: #6b6b6b; font-weight: 500; }
-        .project-group-heading--pending .count { background: #f1f1f1; color: #6b6b6b; }
-
-        .project-item.project-item--locked {
-            background-color: #f4f4f4 !important;
-            border-color: #e3e3e3 !important;
-            cursor: default !important;
-        }
-        .project-item.project-item--locked strong { color: #777 !important; }
-
-        .project-btn-update {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border: 1px solid #0696D7 !important;
-        }
-
-        .project-btn-update:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-
-        .project-btn-add {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            border: 1px solid #0696D7 !important;
-        }
-
-        .project-btn-add:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-
-        .project-btn-delete {
-            background-color: #dc3545 !important;
-            color: #fff !important;
-            border: 1px solid #dc3545 !important;
-        }
-
-        .project-btn-delete:hover {
-            background-color: #c82333 !important;
-            border-color: #c82333 !important;
-        }
+        /* Elements kept only because existing scripts toggle them; the Forma
+           shell replaces what they used to show. */
+        #viewAccountUsersBtn, #buttonExplanations { display: none !important; }
+        #addNewUsersBtn { display: inline-flex !important; }
+        .project-select-cb:disabled { cursor: not-allowed; }
     </style>
+    <link rel="stylesheet" href="shared/forma-theme.css">
+    <link rel="stylesheet" href="shared/forma-app.css">
 </head>
-<body style="font-family: 'Artifact Elements', Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden;">
+<body class="fm fm-app">
     <!-- Auth loading overlay -->
     <div id="authLoadingOverlay">
         <div class="spinner"></div>
     </div>
-    
-    <div id="login">
-        <div class="login-card">
-            <h1>Forma User Management</h1>
-            <p class="login-card-subtitle">To use this app, follow the steps in "Settings".</p>
-            <div id="error"></div>
-            <button onclick="logout()">Logout</button>
-            <button onclick="showCredentialsModal()">Settings</button>
-            <button onclick="login()" class="autodesk-signin-btn">
-                <img src="autodesk-logo-blk.svg" alt="Autodesk" class="autodesk-signin-logo">
-                Sign in
-            </button>
-            <div id="loginCardLicenseNote"></div>
-        </div>
-    </div>
-    <div id="content" style="display: none; flex: 1; min-height: 0;">
-        <div style="display: flex; height: 100%;">
-            <!-- Left side - Hubs list (1/4 width) -->
-            <div id="hubsPanel" style="width: 25%; border-right: 2px solid #ddd; padding: 20px; overflow-y: auto; font-family: 'Artifact Elements', Arial, sans-serif;">
-                <!-- Logout Button -->
-                <div style="margin-bottom: 15px;">
-                    <button onclick="logout()" style="
-                        background-color: #0696D7;
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
-                        font-size: 14px;
-                        width: 100%;
-                    ">
-                        Logout
-                    </button>
-                </div>
-                
-                <h3 style="font-family: 'Artifact Elements', Arial, sans-serif;">Hubs</h3>
-                <div id="hubsFilter" style="margin-bottom: 15px;">
-                    <input type="text" id="hubFilter" placeholder="Filter hubs..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Artifact Elements', Arial, sans-serif;">
-                </div>
-                <div id="hubsList"></div>
-            </div>
-            
-            <!-- Right side - Projects list (3/4 width) -->
-            <div id="projectsPanel" style="width: 75%; padding: 20px; overflow-y: auto; font-family: 'Artifact Elements', Arial, sans-serif;">
-                <div id="projectsHeader" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 id="selectedHubTitle" style="font-family: 'Artifact Elements', Arial, sans-serif;">Select a hub to view projects</h3>
-                        <div style="display: flex; gap: 10px; align-items: flex-start;">
-                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                                <button id="addNewUsersBtn" onclick="openMultiProjectNewUsersModal()" disabled style="display: none;">
-                                    Add New Project Users
-                                </button>
-                                <span id="addNewUsersBtnWarning" style="visibility: hidden; color: #E8A838; font-size: 12px; font-style: italic; font-family: 'Artifact Elements', Arial, sans-serif;">&#9888; Select at least one project</span>
-                            </div>
-                            <button id="viewAccountUsersBtn" onclick="" style="display: none;">
-                                View Account Users
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Admin Note -->
-                    <div id="adminNote" style="margin-bottom: 12px; display: none; padding: 10px 12px; background-color: #e7f3ff; border: 1px solid #b3d9ff; border-left: 3px solid #0696D7; border-radius: 4px; font-size: 13px; color: #0077B6;">
-                        <strong>ℹ️ Note:</strong> You must be a project administrator to manage project users.
-                    </div>
 
-                    <!-- Project Filter -->
-                    <div id="projectFilterContainer" style="margin-bottom: 20px; display: none; align-items: center; flex-wrap: wrap; gap: 0;">
-                        <label for="projectFilter" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #333; margin-right: 10px;">Filter projects:</label>
-                        <input 
-                            type="text" 
-                            id="projectFilter" 
-                            placeholder="Type to filter projects by name..." 
-                            style="
-                                padding: 8px 12px;
-                                border: 1px solid #ccc;
-                                border-radius: 4px;
-                                font-family: 'Artifact Elements', Arial, sans-serif;
-                                font-size: 14px;
-                                width: 300px;
-                                outline: none;
-                            "
-                            oninput="filterProjects()"
-                        />
-                        <span id="projectCount" style="margin-left: 15px; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #666;"></span>
-                        <label id="showOnlySelectedLabel" style="margin-left: 18px; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #333; display: none; align-items: center; gap: 6px; cursor: pointer; user-select: none; vertical-align: middle;">
-                            <input type="checkbox" id="showOnlySelectedCb" onchange="filterProjects()" style="width:15px; height:15px; cursor:pointer;">
-                            Show only selected
-                        </label>
+    <header class="fm-header">
+        <a class="fm-brand" href="index.html" aria-label="Forma User Manager by Digibuild">
+            <span class="fm-brand-tile"><img src="forma-user-manager-mark.svg" alt=""></span>
+            <span class="fm-brand-text"><span class="fm-brand-name">Forma User Manager</span><span class="fm-brand-by">by Digibuild</span></span>
+        </a>
+        <div class="fm-hub-picker" id="hubPicker" hidden>
+            <button type="button" class="fm-hub-btn" id="hubPickerBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hubPopover">
+                <span class="fm-hub-tile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.7" aria-hidden="true"><path d="M5 20V5.5L13 4v16M13 9h6v11M3.5 20h17M8 8h2M8 11.5h2M8 15h2M15.5 12.5h1.5M15.5 16h1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="fm-ell" id="hubPickerLabel">Choose a hub</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="fm-popover" id="hubPopover" hidden>
+                <input type="text" id="hubFilter" class="fm-input" placeholder="Search hubs" aria-label="Search hubs">
+                <div class="fm-popover-list" id="hubsList"></div>
+            </div>
+        </div>
+        <div class="fm-header-right">
+            <span class="fm-header-note" id="licenseHeaderNote"></span>
+            <div class="fm-account">
+                <button type="button" class="fm-account-btn" id="accountMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu" aria-label="Your account">
+                    <span class="fm-avatar fm-avatar-lg" id="accountAvatar"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="fm-popover fm-popover-right" id="accountMenu" hidden>
+                    <div class="fm-account-head">
+                        <strong id="accountEmail"></strong>
+                        <span class="fm-muted" id="accountAutodesk">Autodesk: not connected</span>
                     </div>
-                    
-                    <!-- Button Explanations -->
-                    <div id="buttonExplanations" style="margin-bottom: 10px; flex-shrink: 0; display: none;">
-                        <div style="display: flex; gap: 8px;">
-                            <button onclick="checkAllProjects()" style="min-width: unset !important; height: 28px !important; padding: 4px 12px !important; font-size: 12px !important; margin: 0 !important;">Check All</button>
-                            <button onclick="uncheckAllProjects()" style="min-width: unset !important; height: 28px !important; padding: 4px 12px !important; font-size: 12px !important; margin: 0 !important;">Uncheck All</button>
-                        </div>
+                    <hr class="fm-divider">
+                    <a class="fm-menu-item" id="accountAdminLink" href="admin.html" hidden>Admin dashboard</a>
+                    <a class="fm-menu-item" href="purchase.html">License and billing</a>
+                    <button type="button" class="fm-menu-item" onclick="logout()">Sign out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="fm-shell">
+        <nav class="fm-nav" aria-label="Main">
+            <button type="button" class="fm-nav-item is-active" id="navProjects"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"/></svg>Projects</button>
+            <button type="button" class="fm-nav-item" id="navAccountUsers" disabled title="Choose a hub first"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><path d="M15.5 5.2a3 3 0 010 5.6M17.5 14.3c1.8.7 3 2.3 3.4 4.7" stroke-linecap="round"/></svg>Account users</button>
+            <div class="fm-nav-bottom">
+                <button type="button" class="fm-nav-item" id="navConnection" onclick="showCredentialsModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" stroke-linecap="round"/></svg>Autodesk connection</button>
+            </div>
+        </nav>
+
+        <main class="fm-main">
+            <!-- Connect Autodesk (shown until the Autodesk sign-in completes) -->
+            <section id="login" class="fm-connect">
+                <div class="fm-connect-inner">
+                    <div>
+                        <h1 class="fm-page-title">Connect your Autodesk account</h1>
+                        <p class="fm-lead">The app works inside your Forma hubs, so it signs in with your Autodesk account. A Forma account admin allows the app once per account.</p>
+                    </div>
+                    <div id="error" class="fm-alert fm-alert-error" role="alert"></div>
+                    <ol class="fm-steps">
+                        <li class="fm-step">
+                            <span class="fm-step-num num">1</span>
+                            <div class="fm-step-body">
+                                <div>
+                                    <h2>Allow the app in your Forma account</h2>
+                                    <p>In Forma Account Admin, open Settings, then Custom Integrations, and add a custom integration with this client ID. Skip this if your account admin already did it.</p>
+                                </div>
+                                <div class="fm-copy-row">
+                                    <div class="fm-copy-field">
+                                        <span class="fm-muted">Client ID</span>
+                                        <span class="fm-copy-value" id="connectClientId">Loading</span>
+                                    </div>
+                                    <button type="button" class="fm-btn" id="copyClientIdBtn" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"/></svg><span>Copy</span></button>
+                                </div>
+                                <button type="button" class="fm-btn fm-btn-text" style="padding: 0" onclick="openCustomIntegrationVideo()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l5 3.5-5 3.5z" fill="currentColor"/></svg>Watch how to add a custom integration</button>
+                            </div>
+                        </li>
+                        <li class="fm-step">
+                            <span class="fm-step-num is-primary num">2</span>
+                            <div class="fm-step-body">
+                                <div>
+                                    <h2>Sign in with Autodesk</h2>
+                                    <p>Autodesk's sign-in page opens, then brings you straight back to your projects.</p>
+                                </div>
+                                <button type="button" class="fm-btn fm-btn-adsk" onclick="login()">
+                                    <img src="autodesk-logo-blk.svg" alt="Autodesk"><span>Sign in</span>
+                                </button>
+                            </div>
+                        </li>
+                    </ol>
+                    <p class="fm-muted" style="margin: 0; font-size: 13px">Autodesk shows an error about this app after sign-in? Step 1 probably isn't done for your account yet. Ask your Forma account admin.</p>
+                    <div id="loginCardLicenseNote" class="fm-license-note"></div>
+                </div>
+            </section>
+
+            <!-- Projects -->
+            <section id="content" style="display: none;">
+                <div id="projectsHeader" class="fm-page" style="display: none;">
+                    <div class="fm-page-head">
+                        <h1 class="fm-page-title" id="selectedHubTitle">Projects</h1>
+                        <ol class="fm-stepper" aria-label="Adding people to projects">
+                            <li class="is-current"><span class="fm-step-dot num">1</span>Choose projects</li>
+                            <li class="fm-step-line" aria-hidden="true"></li>
+                            <li><span class="fm-step-dot num">2</span>People</li>
+                            <li class="fm-step-line" aria-hidden="true"></li>
+                            <li><span class="fm-step-dot num">3</span>Sync</li>
+                        </ol>
+                    </div>
+                    <p id="adminNote" class="fm-lead" style="display: none;">Pick the projects that should get the same people. You can only change projects where you're a project admin.</p>
+                    <div class="fm-tabs" role="tablist" aria-label="Which projects to show">
+                        <button type="button" class="fm-tab is-active" role="tab" aria-selected="true" id="tabAllProjects">All projects <span class="num" id="tabAllCount"></span></button>
+                        <button type="button" class="fm-tab" role="tab" aria-selected="false" id="tabSelectedProjects">Selected <span class="num" id="tabSelectedCount">0</span></button>
+                    </div>
+                    <div id="projectFilterContainer" class="fm-toolbar" style="display: none;">
+                        <label class="fm-search">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg>
+                            <input type="text" id="projectFilter" class="fm-input" placeholder="Search by project name" aria-label="Search by project name" oninput="filterProjects()">
+                        </label>
+                        <span id="projectCount" class="fm-muted"></span>
+                        <input type="checkbox" id="showOnlySelectedCb" hidden onchange="filterProjects()">
+                        <span id="showOnlySelectedLabel" hidden></span>
+                    </div>
+                    <div id="buttonExplanations"></div>
+                    <button id="viewAccountUsersBtn" type="button" tabindex="-1" aria-hidden="true"></button>
+                </div>
+                <div id="projectsList" class="fm-table">
+                    <div class="fm-empty">
+                        <h2>Choose a hub</h2>
+                        <span>Pick the Forma hub you want to work in from the menu at the top.</span>
                     </div>
                 </div>
-                <div id="projectsList"></div>
+            </section>
+
+            <div class="fm-tray" id="projectTray" hidden>
+                <div class="fm-tray-info">
+                    <strong><span class="num" id="traySelCount">0</span> <span id="traySelNoun">projects</span> selected</strong>
+                    <span class="fm-muted fm-ell" id="traySelNames"></span>
+                    <span class="fm-muted" id="addNewUsersBtnWarning">Select the projects that should get the same people.</span>
+                </div>
+                <div class="fm-tray-actions">
+                    <button type="button" class="fm-btn fm-btn-text" id="trayClearBtn" onclick="uncheckAllProjects()">Clear selection</button>
+                    <button type="button" class="fm-btn fm-btn-primary" id="addNewUsersBtn" onclick="openMultiProjectNewUsersModal()" disabled>Add people to selected projects</button>
+                </div>
             </div>
+        </main>
     </div>
 
     <!-- Firebase SDK -->
@@ -1106,6 +740,8 @@
         // projectId -> boolean, cached for the session so re-rendering the project
         // list (e.g. filtering) doesn't repeat the permission check.
         const projectAdminAccessCache = new Map();
+        // Project member counts, filled in by checkIsProjectAdmin().
+        const projectMemberCount = new Map();
 
         // Caps how many of a given async operation run at once, queuing the rest
         // FIFO. checkIsProjectAdmin() fires one Autodesk API call per uncached
@@ -1278,6 +914,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     CLIENT_ID = data.clientId || '';
+                    showConnectClientId();
                     if (CLIENT_ID) {
                         log('✓ APS Client ID loaded');
                     } else {
@@ -1292,71 +929,111 @@
             }
         }
 
-        // Display license info in UI
+        // Display license info in the header, the account menu and the Connect page
         function displayLicenseInfo(expiryDate, email, isAdmin = false, isTrial = false, trialEndDate = null) {
-            // Create or update license info banner
-            let banner = document.getElementById('license-info-banner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'license-info-banner';
-                banner.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    background: linear-gradient(135deg, #0696D7 0%, #0057A0 100%);
-                    color: white;
-                    padding: 10px 20px;
-                    text-align: center;
-                    font-size: 14px;
-                    z-index: 10000;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                `;
-                document.body.insertBefore(banner, document.body.firstChild);
-                document.body.style.paddingTop = '50px';
-            }
-            
-            // Trial/expiry details live at the bottom of the login card now
-            // (not the top banner) — the card already has its own Logout
-            // button, so the banner no longer needs one either.
+            const headerNote = document.getElementById('licenseHeaderNote');
             const licenseNote = document.getElementById('loginCardLicenseNote');
+            document.getElementById('accountEmail').textContent = email || '';
+            document.getElementById('accountAvatar').textContent = initialsFromEmail(email);
+            document.getElementById('accountAdminLink').hidden = !isAdmin;
+            headerNote.replaceChildren();
+            licenseNote.replaceChildren();
 
             if (isAdmin) {
-                banner.style.display = 'block';
-                banner.style.background = '#0696D7';
-                banner.innerHTML = `<strong>Admin Account:</strong> ${email}`;
-                if (licenseNote) licenseNote.innerHTML = '';
+                const chip = document.createElement('span');
+                chip.className = 'fm-chip';
+                chip.textContent = 'Admin';
+                headerNote.appendChild(chip);
             } else if (isTrial && trialEndDate) {
-                const now = new Date();
-                const daysLeft = Math.ceil((trialEndDate - now) / (1000 * 60 * 60 * 24));
-                const hoursLeft = Math.ceil((trialEndDate - now) / (1000 * 60 * 60));
-
-                let timeMessage;
-                if (daysLeft > 1) {
-                    timeMessage = `${daysLeft} days`;
-                } else if (hoursLeft > 1) {
-                    timeMessage = `${hoursLeft} hours`;
-                } else {
-                    timeMessage = 'less than 1 hour';
-                }
-
-                banner.style.display = 'none';
-                document.body.style.paddingTop = '0';
-                if (licenseNote) {
-                    licenseNote.innerHTML = `<strong>Free trial:</strong> ${timeMessage} remaining — <a href="purchase.html">Get a license</a>`;
-                }
+                const msLeft = trialEndDate - new Date();
+                const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+                const hoursLeft = Math.ceil(msLeft / (1000 * 60 * 60));
+                const timeMessage = daysLeft > 1 ? `${daysLeft} days` : hoursLeft > 1 ? `${hoursLeft} hours` : 'less than 1 hour';
+                [headerNote, licenseNote].forEach(el => {
+                    el.append(`Free trial: ${timeMessage} left. `);
+                    const buy = document.createElement('a');
+                    buy.href = 'purchase.html';
+                    buy.textContent = 'Buy a license';
+                    el.appendChild(buy);
+                });
             } else if (expiryDate) {
                 const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
-                banner.style.display = 'none';
-                document.body.style.paddingTop = '0';
-                if (licenseNote) {
-                    licenseNote.innerHTML = `<strong>Forma User Management License:</strong> ${email}<br>valid until ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days remaining)`;
-                }
+                licenseNote.textContent = `License valid until ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days left).`;
+                if (daysUntilExpiry <= 30) headerNote.textContent = `License ends in ${daysUntilExpiry} days`;
             }
 
             log('✓ License info displayed');
         }
-        
+
+        function initialsFromEmail(email) {
+            const parts = String(email || '').split('@')[0].split(/[._-]+/).filter(Boolean);
+            if (parts.length === 0) return '?';
+            const second = parts[1] ? parts[1][0] : (parts[0][1] || '');
+            return (parts[0][0] + second).toUpperCase();
+        }
+
+        // Step 1 of the Connect page: the client ID to paste into Forma, with a Copy button.
+        function showConnectClientId() {
+            const value = document.getElementById('connectClientId');
+            const copyBtn = document.getElementById('copyClientIdBtn');
+            if (!value || !copyBtn) return;
+            value.textContent = CLIENT_ID || 'Not available right now';
+            copyBtn.disabled = !CLIENT_ID;
+        }
+
+        // Header menus, tabs and the Account users shortcut
+        document.addEventListener('DOMContentLoaded', () => {
+            const setupPopover = (btnId, popId, onOpen) => {
+                const btn = document.getElementById(btnId);
+                const pop = document.getElementById(popId);
+                const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+                btn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const open = pop.hidden;
+                    document.querySelectorAll('.fm-popover').forEach(p => { p.hidden = true; });
+                    document.querySelectorAll('[aria-controls]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+                    pop.hidden = !open;
+                    btn.setAttribute('aria-expanded', String(open));
+                    if (open && onOpen) onOpen();
+                });
+                pop.addEventListener('click', (event) => event.stopPropagation());
+                document.addEventListener('click', close);
+                document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !pop.hidden) { close(); btn.focus(); } });
+            };
+            setupPopover('hubPickerBtn', 'hubPopover', () => document.getElementById('hubFilter').focus());
+            setupPopover('accountMenuBtn', 'accountMenu');
+
+            document.getElementById('copyClientIdBtn').addEventListener('click', async (event) => {
+                const label = event.currentTarget.querySelector('span');
+                try {
+                    await navigator.clipboard.writeText(CLIENT_ID);
+                    label.textContent = 'Copied';
+                } catch (error) {
+                    label.textContent = 'Select and copy it';
+                }
+                setTimeout(() => { label.textContent = 'Copy'; }, 2000);
+            });
+
+            document.getElementById('navAccountUsers').addEventListener('click', () => {
+                const hidden = document.getElementById('viewAccountUsersBtn');
+                if (typeof hidden.onclick === 'function') hidden.onclick();
+            });
+            document.getElementById('navProjects').addEventListener('click', () => {
+                document.querySelector('.fm-main').scrollTo({ top: 0 });
+            });
+
+            const setTab = (showSelected) => {
+                document.getElementById('tabAllProjects').classList.toggle('is-active', !showSelected);
+                document.getElementById('tabAllProjects').setAttribute('aria-selected', String(!showSelected));
+                document.getElementById('tabSelectedProjects').classList.toggle('is-active', showSelected);
+                document.getElementById('tabSelectedProjects').setAttribute('aria-selected', String(showSelected));
+                document.getElementById('showOnlySelectedCb').checked = showSelected;
+                filterProjects();
+            };
+            document.getElementById('tabAllProjects').addEventListener('click', () => setTab(false));
+            document.getElementById('tabSelectedProjects').addEventListener('click', () => setTab(true));
+        });
+
         // Add logout button
         function addLogoutButton() {
             // Logout button display disabled - keeping function for backward compatibility
@@ -1397,7 +1074,7 @@
             return new Promise((resolve) => {
                 const modalHTML = `
                     <div id="termsGateModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;">
-                        <div style="background-color: #fefefe; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 95%; max-width: 480px; padding: 24px; font-family: 'Artifact Elements', Arial, sans-serif;">
+                        <div style="background-color: #fefefe; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 95%; max-width: 480px; padding: 24px; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">
                             <h3 style="margin: 0 0 12px 0; color: #333;">Terms &amp; Privacy</h3>
                             <p style="font-size: 14px; color: #495057; margin: 0 0 16px 0;">
                                 Before continuing, please review our
@@ -1452,16 +1129,16 @@
                         </div>
                         <div class="credentials-modal-body">
                             <div style="max-width: 450px; margin: 0 auto;">
-                                <p style="font-size: 12px; color: #6c757d; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0 0 4px 0; text-align: center;">
+                                <p style="font-size: 12px; color: #6c757d; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; margin: 0 0 4px 0; text-align: center;">
                                     App Name: Forma User Management
                                 </p>
-                                <p style="font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0 0 8px 0; text-align: center;">
+                                <p style="font-size: 14px; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; margin: 0 0 8px 0; text-align: center;">
                                     Paste this Client ID in your "Custom Integration":
                                 </p>
-                                <p style="font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif; margin: 0 0 15px 0; text-align: center; word-break: break-all;">
+                                <p style="font-size: 14px; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; margin: 0 0 15px 0; text-align: center; word-break: break-all;">
                                     <strong id="apsClientIdValue"></strong>
                                 </p>
-                                <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifact Elements', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                <div onclick="openCustomIntegrationVideo()" class="step-button-clickable" style="display: block; padding: 12px; background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; font-weight: bold; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; box-sizing: border-box; width: 450px; text-align: center; cursor: pointer; transition: all 0.2s;">
                                     How to add "Custom Integration"
                                 </div>
                             </div>
@@ -1492,7 +1169,7 @@
                         max-height: 95vh;
                         border-radius: 8px;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                         overflow-y: auto;
                     }
 
@@ -1509,7 +1186,7 @@
                     .credentials-modal-header h3 {
                         margin: 0;
                         color: #333;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     }
 
                     .credentials-modal-close {
@@ -1518,7 +1195,7 @@
                         font-weight: bold;
                         cursor: pointer;
                         line-height: 1;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     }
 
                     .credentials-modal-close:hover,
@@ -1528,7 +1205,7 @@
 
                     .credentials-modal-body {
                         padding: 20px;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     }
 
                     .step-button-clickable:hover {
@@ -1578,8 +1255,8 @@
                     <div id="customIntegrationVideoModal" style="display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);">
                         <div style="position: relative; background-color: #fefefe; margin: 2% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 1200px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
                             <div style="padding: 15px 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                <h3 style="margin: 0; color: #333; font-family: 'Artifact Elements', Arial, sans-serif;">How to add "Custom Integration"</h3>
-                                <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                                <h3 style="margin: 0; color: #333; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">How to add "Custom Integration"</h3>
+                                <span onclick="closeCustomIntegrationVideoModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">&times;</span>
                             </div>
                             <div style="padding: 20px;">
                                 <video id="customIntegrationVideo" controls style="width: 100%; max-height: 70vh; border-radius: 4px;">
@@ -1813,6 +1490,7 @@
             let isAdmin = false;
             try {
                 const projectUsers = await runProjectAdminCheckLimited(() => fetchAllProjectUsers(projectId, accessToken));
+                projectMemberCount.set(projectId, projectUsers.length);
                 const me = projectUsers.find(u =>
                     (u.email || '').toLowerCase() === currentAutodeskUserEmail.toLowerCase());
                 isAdmin = !!(me && me.accessLevels &&
@@ -1834,8 +1512,17 @@
             const viewAccountUsersBtn = document.getElementById('viewAccountUsersBtn');
             
             // Update header
-            selectedHubTitle.textContent = `Projects in ${hubName}`;
-            projectsHeader.style.display = 'block';
+            selectedHubTitle.textContent = 'Projects';
+            projectsHeader.style.display = 'flex';
+            document.getElementById('hubPickerLabel').textContent = hubName;
+            document.getElementById('hubPopover').hidden = true;
+            document.getElementById('hubPickerBtn').setAttribute('aria-expanded', 'false');
+            document.querySelectorAll('.hub-item').forEach(el => el.classList.toggle('selected', el.dataset.hubId === hubId));
+            window.selectedHubId = hubId;
+            const navAccountUsers = document.getElementById('navAccountUsers');
+            navAccountUsers.disabled = false;
+            navAccountUsers.title = '';
+            document.getElementById('projectTray').hidden = false;
             
             // Set up the View Account Users button
             viewAccountUsersBtn.onclick = () => showAccountUsers(hubId, hubName, currentAccessToken);
@@ -1851,7 +1538,7 @@
             if (addNewUsersBtnWarning) addNewUsersBtnWarning.style.visibility = 'visible';
             
             // Show loading message
-            projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading projects...</div>';
+            projectsList.innerHTML = '<div class="fm-empty"><span>Loading projects…</span></div>';
             
             try {
                 // Get 2-legged token for Construction Admin API
@@ -1867,7 +1554,7 @@
                 
             } catch (error) {
                 console.error('Error loading projects:', error);
-                projectsList.innerHTML = `<div style="color: red; text-align: center; padding: 40px;">Error loading projects: ${escapeHtml(error.message)}</div>`;
+                projectsList.innerHTML = `<div class="fm-empty"><h2>Projects could not be loaded</h2><span>${escapeHtml(error.message)}</span><span>Choose the hub again to retry.</span></div>`;
             }
         }
 
@@ -1920,7 +1607,7 @@
                     // Update loading message with progress
                     const projectsList = document.getElementById('projectsList');
                     const totalExpected = projectsData.pagination ? projectsData.pagination.totalResults : 'unknown';
-                    projectsList.innerHTML = `<div style="text-align: center; padding: 40px; color: #666;">Loading projects... Found ${allProjects.length}${totalExpected !== 'unknown' ? ` of ${totalExpected}` : ''} projects so far.</div>`;
+                    projectsList.innerHTML = `<div class="fm-empty"><span>Loading projects… ${allProjects.length}${totalExpected !== 'unknown' ? ` of ${totalExpected}` : ''} so far</span></div>`;
 
                     // Check pagination
                     if (projectsData.pagination && projectsData.pagination.totalResults) {
@@ -1974,7 +1661,7 @@
                 renderProjectsList(projects);
                 updateProjectCount(projects.length, projects.length);
             } else {
-                projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No Autodesk Forma projects found in this hub.</div>';
+                projectsList.innerHTML = '<div class="fm-empty"><h2>No projects in this hub</h2><span>This hub has no Autodesk Forma projects you can see. Choose another hub from the menu at the top.</span></div>';
                 updateProjectCount(0, 0);
             }
         }
@@ -1982,13 +1669,7 @@
         // Function to render the projects list
         function renderProjectsList(projects) {
             const projectsList = document.getElementById('projectsList');
-            // Restore button state based on persistent checkedProjectIds
             const checkedIds = window.checkedProjectIds || new Set();
-            const anyChecked = projects && projects.some(p => checkedIds.has(p.id));
-            const addBtn = document.getElementById('addNewUsersBtn');
-            if (addBtn) addBtn.disabled = !anyChecked;
-            const addWarning = document.getElementById('addNewUsersBtnWarning');
-            if (addWarning) addWarning.style.visibility = anyChecked ? 'hidden' : 'visible';
 
             // Built via DOM APIs (not innerHTML + template strings) so that project
             // names — set by any project admin in the Autodesk Forma hub, not something this app
@@ -1999,38 +1680,95 @@
             projectsList.innerHTML = '';
 
             if (!projects || projects.length === 0) {
-                projectsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No projects match your filter.</div>';
+                const showOnlySelected = document.getElementById('showOnlySelectedCb')?.checked;
+                projectsList.innerHTML = showOnlySelected
+                    ? '<div class="fm-empty"><h2>No projects selected</h2><span>Go to All projects and tick the projects that should get the same people.</span></div>'
+                    : '<div class="fm-empty"><h2>No projects match your search</h2><span>Check the spelling, or clear the search box.</span></div>';
+                updateProjectTray();
                 return;
             }
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const buildingIcon = () => {
+                const svg = document.createElementNS(svgNS, 'svg');
+                svg.setAttribute('width', '18'); svg.setAttribute('height', '18'); svg.setAttribute('viewBox', '0 0 24 24');
+                svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', '#666'); svg.setAttribute('stroke-width', '1.6');
+                svg.setAttribute('aria-hidden', 'true'); svg.style.flex = 'none';
+                const path = document.createElementNS(svgNS, 'path');
+                path.setAttribute('d', 'M5 20V5.5L13 4v16M13 9h6v11M3.5 20h17M8 8h2M8 11.5h2M8 15h2M15.5 12.5h1.5M15.5 16h1.5');
+                path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round');
+                svg.appendChild(path);
+                return svg;
+            };
+
+            // Header row, with a checkbox that selects every project you administer.
+            const head = document.createElement('div');
+            head.className = 'fm-trow fm-trow-head';
+            const headCbCell = document.createElement('div');
+            headCbCell.className = 'fm-cell-cb';
+            const headCb = document.createElement('input');
+            headCb.type = 'checkbox';
+            headCb.className = 'fm-cb';
+            headCb.id = 'selectAllProjectsCb';
+            headCb.setAttribute('aria-label', 'Select every project you administer');
+            headCb.addEventListener('change', () => headCb.checked ? checkAllProjects() : uncheckAllProjects());
+            headCbCell.appendChild(headCb);
+            head.appendChild(headCbCell);
+            ['Name', 'Members', 'Your access', 'Open'].forEach((label, i) => {
+                const cell = document.createElement('div');
+                cell.textContent = label;
+                if (i === 1) cell.className = 'fm-cell-num';
+                if (i === 2) cell.className = 'fm-cell-access';
+                head.appendChild(cell);
+            });
+            projectsList.appendChild(head);
 
             // Three groups: projects the user administers (top), ones whose
             // permission check is still running, and — below a divider — ones
             // they can't manage. Items move between groups as each async admin
             // check resolves, keeping the original (API) order within a group.
-            const makeGroup = (headingText, modifier) => {
+            const makeGroup = (headingText, modifier, collapsible) => {
                 const heading = document.createElement('div');
                 heading.className = 'project-group-heading' + (modifier ? ` project-group-heading--${modifier}` : '');
+                const count = document.createElement('span');
+                count.className = 'count num';
                 const label = document.createElement('span');
                 label.textContent = headingText;
-                const count = document.createElement('span');
-                count.className = 'count';
-                heading.append(label, count);
+                heading.append(count, label);
                 const container = document.createElement('div');
                 container.className = 'project-group';
+                const group = { heading, container, count, collapsed: false };
+                if (collapsible) {
+                    group.collapsed = !window.lockedProjectsExpanded;
+                    const note = document.createElement('span');
+                    note.className = 'fm-muted';
+                    note.textContent = "You can't select these. Ask a project admin to add you first.";
+                    const toggle = document.createElement('button');
+                    toggle.type = 'button';
+                    toggle.className = 'fm-btn fm-btn-text';
+                    toggle.textContent = group.collapsed ? 'Show them' : 'Hide them';
+                    toggle.addEventListener('click', () => {
+                        window.lockedProjectsExpanded = group.collapsed;
+                        group.collapsed = !group.collapsed;
+                        toggle.textContent = group.collapsed ? 'Show them' : 'Hide them';
+                        refreshGroupHeadings();
+                    });
+                    heading.append(note, toggle);
+                }
                 projectsList.append(heading, container);
-                return { heading, container, count };
+                return group;
             };
             const groups = {
-                admin: makeGroup('Projects you administer'),
-                pending: makeGroup('Checking your permissions…', 'pending'),
-                locked: makeGroup("You're not a project admin on these", 'locked')
+                admin: makeGroup('projects you administer'),
+                pending: makeGroup('projects: checking your permissions…', 'pending'),
+                locked: makeGroup("projects where you're not a project admin", 'locked', true)
             };
             const refreshGroupHeadings = () => {
                 Object.values(groups).forEach(g => {
                     const n = g.container.childElementCount;
                     g.count.textContent = n;
                     g.heading.hidden = n === 0;
-                    g.container.hidden = n === 0;
+                    g.container.hidden = n === 0 || g.collapsed;
                 });
             };
             const placeInGroup = (item, groupKey) => {
@@ -2039,66 +1777,68 @@
                 const order = Number(item.dataset.order);
                 const next = Array.from(container.children).find(el => Number(el.dataset.order) > order);
                 container.insertBefore(item, next || null);
-                item.classList.toggle('project-item--locked', groupKey === 'locked');
+                item.classList.toggle('is-locked', groupKey === 'locked');
                 refreshGroupHeadings();
             };
 
             projects.forEach((project, index) => {
                 const item = document.createElement('div');
-                item.className = 'project-item';
+                item.className = 'fm-trow project-item';
                 item.dataset.order = index;
-                item.style.cssText = 'margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fafafa; cursor: pointer;';
+                item.dataset.projectId = project.id;
                 item.addEventListener('click', (event) => toggleProjectCheckbox(event, project.id));
 
-                const row = document.createElement('div');
-                row.style.cssText = 'display: flex; align-items: flex-start; gap: 12px;';
-
+                const cbCell = document.createElement('div');
+                cbCell.className = 'fm-cell-cb';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.className = 'project-select-cb';
+                checkbox.className = 'fm-cb project-select-cb';
                 checkbox.dataset.projectId = project.id;
                 checkbox.dataset.projectName = project.name;
                 checkbox.checked = checkedIds.has(project.id);
-                checkbox.style.cssText = 'margin-top: 3px; cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;';
+                checkbox.setAttribute('aria-label', `Select ${project.name}`);
                 checkbox.addEventListener('change', onProjectCheckboxChange);
-                row.appendChild(checkbox);
+                cbCell.appendChild(checkbox);
+                item.appendChild(cbCell);
+                item.classList.toggle('is-selected', checkbox.checked);
 
-                const contentCol = document.createElement('div');
-                contentCol.style.flex = '1';
+                const nameCell = document.createElement('div');
+                nameCell.className = 'fm-cell-name';
+                const nameText = document.createElement('span');
+                nameText.className = 'fm-ell';
+                nameText.textContent = project.name;
+                nameCell.append(buildingIcon(), nameText);
+                item.appendChild(nameCell);
 
-                const nameRow = document.createElement('div');
-                nameRow.style.marginBottom = '15px';
-                const strong = document.createElement('strong');
-                strong.style.cssText = 'font-size: 16px; color: #333;';
-                strong.textContent = project.name;
-                nameRow.appendChild(strong);
-                contentCol.appendChild(nameRow);
+                const membersCell = document.createElement('div');
+                membersCell.className = 'fm-cell-num num';
+                item.appendChild(membersCell);
 
-                const btnCol = document.createElement('div');
-                btnCol.style.cssText = 'display: flex; gap: 10px; flex-direction: column;';
+                const accessCell = document.createElement('div');
+                accessCell.className = 'fm-cell-access';
+                accessCell.textContent = 'Checking…';
+                item.appendChild(accessCell);
 
-                const btnRow = document.createElement('div');
-                btnRow.style.cssText = 'display:flex; gap:10px;';
-
+                const actions = document.createElement('div');
+                actions.className = 'fm-cell-actions';
                 const existingUsersBtn = document.createElement('button');
-                existingUsersBtn.className = 'project-btn project-btn-update';
-                existingUsersBtn.textContent = 'Existing Users';
+                existingUsersBtn.type = 'button';
+                existingUsersBtn.className = 'fm-btn fm-btn-text';
+                existingUsersBtn.textContent = 'Members';
                 existingUsersBtn.addEventListener('click', (event) => {
                     event.stopPropagation();
                     openManageExistingUsersModal(project.id, project.name);
                 });
-                btnRow.appendChild(existingUsersBtn);
-
                 const foldersBtn = document.createElement('button');
-                foldersBtn.className = 'project-btn project-btn-update';
-                foldersBtn.textContent = 'Manage Access to Folders';
+                foldersBtn.type = 'button';
+                foldersBtn.className = 'fm-btn fm-btn-text';
+                foldersBtn.textContent = 'Folder access';
                 foldersBtn.addEventListener('click', (event) => {
                     event.stopPropagation();
                     showFoldersModal(project.id, project.name, window.currentHubId, currentAccessToken);
                 });
-                btnRow.appendChild(foldersBtn);
-
-                btnCol.appendChild(btnRow);
+                actions.append(existingUsersBtn, foldersBtn);
+                item.appendChild(actions);
 
                 // Gate project-admin-only actions behind an accurate per-project
                 // permission check (see checkIsProjectAdmin) so non-admins don't
@@ -2115,11 +1855,16 @@
                     if (!isAdmin && checkbox.checked) {
                         checkbox.checked = false;
                         window.checkedProjectIds?.delete(project.id);
+                        item.classList.remove('is-selected');
+                        updateProjectTray();
                     }
                     const title = isAdmin ? '' : 'You must be a project administrator on this project to do this.';
                     existingUsersBtn.title = title;
                     foldersBtn.title = title;
                     checkbox.title = title;
+                    accessCell.textContent = isAdmin ? 'Project admin' : 'Not a project admin';
+                    membersCell.textContent = projectMemberCount.has(project.id) ? projectMemberCount.get(project.id) : '';
+                    item.classList.toggle('is-clickable', isAdmin);
                     placeInGroup(item, isAdmin ? 'admin' : 'locked');
                 };
 
@@ -2135,32 +1880,59 @@
                     checkIsProjectAdmin(project.id, currentAccessToken).then(applyAdminGate);
                 }
 
-                // Per-project progress indicator
+                // Per-project progress indicator (filled in during a sync)
                 const progressDiv = document.createElement('div');
                 progressDiv.className = 'project-progress';
                 progressDiv.id = `projectProgress-${project.id}`;
-                progressDiv.style.cssText = 'display:none; margin-top:8px;';
+                progressDiv.style.display = 'none';
 
                 const barTrack = document.createElement('div');
-                barTrack.style.cssText = 'width:100%; background:#eee; border-radius:6px; height:10px; overflow:hidden;';
+                barTrack.style.cssText = 'width:100%; background:#EEEEEE; border-radius:16px; height:8px; overflow:hidden;';
                 const bar = document.createElement('div');
                 bar.id = `projectProgressBar-${project.id}`;
-                bar.style.cssText = 'width:0%;height:10px;background:#0696D7;border-radius:6px;';
+                bar.style.cssText = 'width:0%;height:8px;background:#0696D7;border-radius:16px;';
                 barTrack.appendChild(bar);
                 progressDiv.appendChild(barTrack);
 
                 const progressText = document.createElement('div');
                 progressText.id = `projectProgressText-${project.id}`;
-                progressText.style.cssText = 'font-size:12px;color:#666;margin-top:6px;';
+                progressText.style.cssText = 'font-size:13px;color:#666;margin-top:6px;';
                 progressDiv.appendChild(progressText);
 
-                btnCol.appendChild(progressDiv);
-                contentCol.appendChild(btnCol);
-                row.appendChild(contentCol);
-                item.appendChild(row);
+                item.appendChild(progressDiv);
                 if (!item.parentElement) placeInGroup(item, 'pending');
             });
             refreshGroupHeadings();
+            updateProjectTray();
+        }
+
+        // Bottom tray and tab counts: what is selected, and what happens next.
+        function updateProjectTray() {
+            const checkedIds = window.checkedProjectIds || new Set();
+            const n = checkedIds.size;
+            const names = (window.originalProjectsData || []).filter(p => checkedIds.has(p.id)).map(p => p.name);
+            document.getElementById('traySelCount').textContent = n;
+            document.getElementById('traySelNoun').textContent = n === 1 ? 'project' : 'projects';
+            document.getElementById('traySelNames').textContent = names.join(', ');
+            document.getElementById('traySelNames').hidden = n === 0;
+            document.getElementById('addNewUsersBtnWarning').hidden = n > 0;
+            document.getElementById('trayClearBtn').hidden = n === 0;
+            const addBtn = document.getElementById('addNewUsersBtn');
+            addBtn.disabled = n === 0;
+            addBtn.textContent = n === 0 ? 'Add people to selected projects' : `Add people to ${n} ${n === 1 ? 'project' : 'projects'}`;
+            document.getElementById('tabSelectedCount').textContent = n;
+            // The Selected tab follows the filter (it switches off when the selection is cleared)
+            const showingSelected = document.getElementById('showOnlySelectedCb').checked;
+            document.getElementById('tabAllProjects').classList.toggle('is-active', !showingSelected);
+            document.getElementById('tabAllProjects').setAttribute('aria-selected', String(!showingSelected));
+            document.getElementById('tabSelectedProjects').classList.toggle('is-active', showingSelected);
+            document.getElementById('tabSelectedProjects').setAttribute('aria-selected', String(showingSelected));
+            document.getElementById('tabAllCount').textContent = (window.originalProjectsData || []).length || '';
+            const headCb = document.getElementById('selectAllProjectsCb');
+            if (headCb) {
+                const selectable = [...document.querySelectorAll('.project-select-cb')].filter(cb => !cb.disabled);
+                headCb.checked = selectable.length > 0 && selectable.every(cb => cb.checked);
+            }
         }
 
         function onProjectCheckboxChange() {
@@ -2209,17 +1981,10 @@
         // Function to update project count display
         function updateProjectCount(showing, total) {
             const projectCount = document.getElementById('projectCount');
-            const selectedCount = (window.checkedProjectIds || new Set()).size;
-            let text = showing === total
-                ? `Showing ${total} project${total !== 1 ? 's' : ''}`
-                : `Showing ${showing} of ${total} project${total !== 1 ? 's' : ''}`;
-            if (selectedCount > 0) {
-                text += `, ${selectedCount} selected`;
-            }
-            projectCount.textContent = text;
-            // Show/hide the 'show only selected' checkbox
-            const label = document.getElementById('showOnlySelectedLabel');
-            if (label) label.style.display = selectedCount > 0 ? 'inline-flex' : 'none';
+            projectCount.textContent = showing === total
+                ? `${total} project${total !== 1 ? 's' : ''}`
+                : `Showing ${showing} of ${total} projects`;
+            updateProjectTray();
         }
 
         // Function to filter projects
@@ -2331,7 +2096,12 @@
 
                 const item = document.createElement('div');
                 item.className = 'hub-item';
+                item.dataset.hubId = hubId;
+                item.setAttribute('role', 'option');
+                item.tabIndex = 0;
+                item.classList.toggle('selected', hubId === window.selectedHubId);
                 item.addEventListener('click', () => selectHub(hubId, hubName, region));
+                item.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectHub(hubId, hubName, region); } });
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'hub-name';
@@ -2379,6 +2149,14 @@
                 const hubsData = await response.json();
                 originalHubsData = hubsData; // Store the original data
                 displayHubs(hubsData);
+                document.getElementById('hubPicker').hidden = false;
+                document.getElementById('accountAutodesk').textContent = currentAutodeskUserEmail ? `Autodesk: ${currentAutodeskUserEmail}` : 'Autodesk: connected';
+                const accountHubs = (hubsData.data || []).filter(hub => hub.attributes?.extension?.type === 'hubs:autodesk.bim360:Account');
+                if (accountHubs.length === 1) {
+                    selectHub(accountHubs[0].id, accountHubs[0].attributes.name, accountHubs[0].attributes.region);
+                } else if (accountHubs.length > 1 && !window.selectedHubId) {
+                    document.getElementById('hubPickerBtn').click();
+                }
             } catch (error) {
                 console.error('Error getting hubs:', error);
                 showError(`Error loading hubs: ${error.message}`);

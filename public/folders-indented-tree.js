@@ -244,7 +244,7 @@
                 .attr('x', 11).attr('y', 2.5)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px').attr('font-weight', 'bold')
-                .attr('font-family', "'Artifact Elements', Arial, sans-serif")
+                .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
                 .attr('fill', colors.color)
                 .text(initials);
             return offsetX + 24;
@@ -1550,7 +1550,7 @@
                 .attr('x', 0).attr('y', 3.5)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', loading ? '8px' : '11px').attr('font-weight', 'bold')
-                .attr('font-family', "'Artifact Elements', Arial, sans-serif")
+                .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
                 .attr('fill', '#ffffff')
                 .style('pointer-events', 'none')
                 .text(loading ? '…' : (expanded ? '−' : '+'));
@@ -1570,7 +1570,7 @@
         const label = sel.append('text')
             .attr('x', nameX).attr('y', 4)
             .attr('font-size', '12.5px')
-            .attr('font-family', "'Artifact Elements', Arial, sans-serif")
+            .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
             .attr('font-weight', (d.type === 'folder' || d.type === 'group') ? '600' : (d.__matched ? 'bold' : 'normal'))
             .attr('font-style', d.isInherited ? 'italic' : 'normal')
             .attr('fill', d.__matched ? '#ff6b00' : (d.type === 'folder' || d.type === 'group' ? '#5f6368' : (d.isInherited ? '#999' : '#222')))
@@ -1636,7 +1636,7 @@
                 .style('box-sizing', 'border-box')
                 .style('text-align', 'center')
                 .style('font-size', '10px').style('font-weight', 'bold')
-                .style('font-family', "'Artifact Elements', Arial, sans-serif")
+                .style('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
                 .style('border', 'none').style('border-radius', '3px').style('padding', '0')
                 .style('background', colors.background).style('color', colors.color)
                 .style('outline', 'none')
@@ -2260,7 +2260,7 @@
             .it-drag-ghost {
                 position: fixed; z-index: 10300; top: 0; left: 0;
                 background: #333; color: #fff; padding: 4px 10px; border-radius: 4px;
-                font-size: 12px; font-family: 'Artifact Elements', Arial, sans-serif;
+                font-size: 12px; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 pointer-events: none; white-space: nowrap;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
@@ -2268,7 +2268,7 @@
                 background: #fff; width: 100vw; height: 100vh;
                 display: flex; flex-direction: column;
                 overflow: hidden;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             }
             .it-modal-header {
                 display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -2414,7 +2414,7 @@
             .it-ctx-menu {
                 position: fixed; width: 190px; background: #fff; border: 1px solid #ddd; border-radius: 8px;
                 box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 5px; z-index: 10160;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             }
             .it-ctx-item {
                 padding: 7px 10px; font-size: 12px; border-radius: 5px; display: flex; align-items: center; gap: 8px;

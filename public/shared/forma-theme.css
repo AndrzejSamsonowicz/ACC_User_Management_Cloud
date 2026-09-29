@@ -41,7 +41,7 @@
 .fm a:hover { text-decoration: underline; }
 .fm :focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 2px; }
 .fm .num { font-variant-numeric: tabular-nums; }
-.fm .hidden { display: none !important; }
+.fm .hidden, .fm [hidden] { display: none !important; }
 
 /* Buttons */
 .fm-btn {

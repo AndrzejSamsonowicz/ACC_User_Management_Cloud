@@ -2562,7 +2562,7 @@
                     height: 100vh;
                     border-radius: 0;
                     box-shadow: none;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     display: flex;
                     flex-direction: column;
                 }
@@ -2582,7 +2582,7 @@
                 .folders-modal-header h3 {
                     margin: 0;
                     color: #333;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     flex: 1;
                 }
 
@@ -2590,7 +2590,7 @@
                     padding: 8px 12px;
                     border: 2px solid #ccc;
                     border-radius: 4px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     min-width: 200px;
                     transition: border-color 0.2s;
@@ -2613,7 +2613,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     font-weight: bold;
                     transition: background-color 0.2s;
@@ -2634,7 +2634,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     transition: background-color 0.2s;
                 }
@@ -2654,7 +2654,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     transition: background-color 0.2s;
                 }
@@ -2674,7 +2674,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     font-weight: bold;
                     transition: background-color 0.2s;
@@ -2695,7 +2695,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 15px;
                     font-weight: bold;
                     transition: background-color 0.2s;
@@ -2716,7 +2716,7 @@
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 14px;
                     transition: background-color 0.2s;
                 }
@@ -2754,7 +2754,7 @@
                 .treemap-modal-header h3 {
                     margin: 0;
                     font-size: 18px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
                 .treemap-toggle-group {
                     display: flex;
@@ -2765,7 +2765,7 @@
                     display: flex;
                     align-items: center;
                     gap: 6px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 13px;
                     color: #333;
                     cursor: pointer;
@@ -2802,7 +2802,7 @@
                     align-items: center;
                     margin-left: 16px;
                     font-size: 13px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
                 .treemap-filter-label {
                     font-weight: bold;
@@ -2835,7 +2835,7 @@
                     border: 1px solid #ccc;
                     border-radius: 4px;
                     width: 180px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     outline: none;
                     transition: border-color 0.2s;
                 }
@@ -2850,7 +2850,7 @@
                     font-size: 12px;
                     padding: 6px 14px;
                     border-bottom: 1px solid #ffe082;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     display: flex;
                     align-items: center;
                     gap: 8px;
@@ -2889,7 +2889,7 @@
 
                 .folders-modal-body {
                     padding: 0;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     flex: 1;
                     overflow: hidden;
                     display: flex;
@@ -2944,7 +2944,7 @@
                     border: 1px solid #ccc;
                     border-radius: 4px;
                     background-color: white;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-size: 13px;
                     cursor: pointer;
                     width: 100%;
@@ -3054,7 +3054,7 @@
                     border-radius: 3px;
                     text-align: center;
                     font-size: 12px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     font-weight: bold;
                     color: #007bff;
                     background-color: #e3f2fd;
@@ -3097,7 +3097,7 @@
                     padding: 8px 12px;
                     border-radius: 4px;
                     font-size: 12px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     white-space: pre-line;
                     z-index: 10000;
                     pointer-events: none;
@@ -3134,7 +3134,7 @@
                     font-size: 12px;
                     padding: 6px 14px;
                     border-bottom: 1px solid #ffe082;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
 
                 .folder-col-label {
@@ -3144,7 +3144,7 @@
                     letter-spacing: 0.05em;
                     text-transform: uppercase;
                     margin-bottom: 4px;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     text-align: center;
                     width: 100%;
                 }
@@ -3184,7 +3184,7 @@
                     width: auto;
                     border-collapse: separate;
                     border-spacing: 0;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
 
                 .folders-table th,
@@ -3195,7 +3195,7 @@
                     border-left: none;
                     padding: 10px;
                     text-align: left;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     white-space: nowrap;
                     user-select: none;
                     -webkit-user-select: none;
@@ -3523,7 +3523,7 @@
                     font-size: 15px;
                     color: #555;
                     line-height: 1.6;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
 
                 .confirm-modal-footer {
@@ -3543,7 +3543,7 @@
                     font-weight: 500;
                     cursor: pointer;
                     transition: all 0.2s;
-                    font-family: 'Artifact Elements', Arial, sans-serif;
+                    font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                 }
 
                 .confirm-cancel {

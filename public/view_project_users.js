@@ -856,7 +856,7 @@ class ProjectUsersViewer {
             min-width: 400px;
             max-width: 600px;
             width: 90%;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             color: #856404;
             display: flex;
             flex-direction: column;
@@ -866,7 +866,7 @@ class ProjectUsersViewer {
         warningDiv.innerHTML = `
             <div style="padding: 20px; overflow-y: auto; flex: 1;">${htmlContent}</div>
             <div style="padding: 15px 20px; text-align: center; border-top: 1px solid #ffc107; background: #fff3cd; border-radius: 0 0 6px 6px;">
-                <button id="closeInvalidRolesWarning" style="padding: 10px 30px; background: #ffc107; border: none; border-radius: 4px; color: #856404; font-weight: bold; cursor: pointer; font-size: 14px; font-family: 'Artifact Elements', Arial, sans-serif;">OK</button>
+                <button id="closeInvalidRolesWarning" style="padding: 10px 30px; background: #ffc107; border: none; border-radius: 4px; color: #856404; font-weight: bold; cursor: pointer; font-size: 14px; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">OK</button>
             </div>
         `;
 
@@ -910,7 +910,7 @@ class ProjectUsersViewer {
             max-width: 500px;
             max-height: 80vh;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             display: flex;
             flex-direction: column;
         `;
@@ -928,7 +928,7 @@ class ProjectUsersViewer {
                         border-radius: 4px;
                         cursor: pointer;
                         font-size: 14px;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     ">Cancel</button>
                     <button id="confirmModalOK" style="
                         padding: 10px 20px;
@@ -939,7 +939,7 @@ class ProjectUsersViewer {
                         cursor: pointer;
                         font-weight: bold;
                         font-size: 14px;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                     ">OK</button>
                 </div>
             </div>
@@ -1003,7 +1003,7 @@ class ProjectUsersViewer {
             border-radius: 8px;
             min-width: 400px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         `;
 
         content.innerHTML = `

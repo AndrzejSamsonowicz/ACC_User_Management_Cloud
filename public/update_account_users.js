@@ -1068,7 +1068,7 @@ function createProgressModal() {
                 border-radius: 8px;
                 min-width: 500px;
                 max-width: 700px;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             ">
                 <h3 style="margin-top: 0; color: #0696D7;">Update Account Users</h3>
                 
@@ -1111,7 +1111,7 @@ function createProgressModal() {
                         padding: 8px 16px;
                         border-radius: 4px;
                         cursor: pointer;
-                        font-family: 'Artifact Elements', Arial, sans-serif;
+                        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
                         display: none;
                     ">Close</button>
                 </div>
@@ -1172,7 +1172,7 @@ function showPreviewInModal(preview) {
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             margin-right: 10px;
         ">Proceed</button>
         <button onclick="confirmOperation(false)" style="
@@ -1182,7 +1182,7 @@ function showPreviewInModal(preview) {
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         ">Cancel</button>
     `;
 }
@@ -1275,7 +1275,7 @@ function showResultsInModal(results) {
                 padding: 8px 16px;
                 border-radius: 4px;
                 cursor: pointer;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             ">Close</button>
         `;
     }
@@ -1298,7 +1298,7 @@ function showErrorInModal(errorMessage) {
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         ">Close</button>
     `;
 }

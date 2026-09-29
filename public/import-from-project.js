@@ -124,7 +124,7 @@ function createImportProjectModal() {
                 width: 100%;
                 height: 100%;
                 background-color: rgba(0,0,0,0.5);
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             }
 
             .import-project-modal-content {

@@ -293,8 +293,8 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     // Show progress overlay (same style as multi-project)
     document.body.insertAdjacentHTML('beforeend', `
         <div id="singleSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${escapeHtml(projectName)}</h3>
+            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <h3 style="margin:0 0 16px 0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Syncing ${escapeHtml(projectName)}</h3>
                 <div id="singleSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Processing...</div>
                 <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
                     <div id="singleSyncBar" style="background:#0696D7;height:100%;width:30%;transition:width 0.3s;"></div>
@@ -412,7 +412,7 @@ function showInvalidRolesModal(htmlContent) {
         min-width: 400px;
         max-width: 600px;
         width: 90%;
-        font-family: 'Artifact Elements', Arial, sans-serif;
+        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
         color: #856404;
         display: flex;
         flex-direction: column;
@@ -442,7 +442,7 @@ function showInvalidRolesModal(htmlContent) {
                 font-weight: bold;
                 cursor: pointer;
                 font-size: 14px;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             ">OK</button>
         </div>
     `;
@@ -1256,8 +1256,8 @@ async function saveAndSyncMultiProject(projects) {
     // Show progress overlay
     document.body.insertAdjacentHTML('beforeend', `
         <div id="multiSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <h3 style="margin:0 0 16px 0;font-family:'Artifact Elements',Arial,sans-serif;">Syncing ${projects.length} Projects</h3>
+            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <h3 style="margin:0 0 16px 0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Syncing ${projects.length} Projects</h3>
                 <div id="multiSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Preparing...</div>
                 <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
                     <div id="multiSyncBar" style="background:#0696D7;height:100%;width:0%;transition:width 0.3s;"></div>
@@ -1371,34 +1371,34 @@ function _showMultiSyncResults(allResults) {
         // project.name and error text originate from ACC / API responses - escape
         const safeName = escapeHtml(project.name);
         if (error) {
-            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifact Elements',Arial,sans-serif;">Error: ${escapeHtml(error)}</td></tr>`;
+            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Error: ${escapeHtml(error)}</td></tr>`;
         }
         const r = result || {};
         const deletedPart = r.deleted > 0 ? ` &bull; <span style="color:#dc3545;">Deleted: ${r.deleted}</span>` : '';
         const errNote = r.errors?.length ? ` &bull; <span style="color:#dc3545;">${r.errors.length} error(s)</span>` : '';
-        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifact Elements',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifact Elements',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
+        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
     }).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
         <div id="multiSyncResultsModal" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:0;width:90%;max-width:620px;max-height:80vh;display:flex;flex-direction:column;font-family:'Artifact Elements',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+            <div style="background:#fff;border-radius:8px;padding:0;width:90%;max-width:620px;max-height:80vh;display:flex;flex-direction:column;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
                 <div style="padding:20px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
-                    <h3 style="margin:0;font-family:'Artifact Elements',Arial,sans-serif;">${title}</h3>
+                    <h3 style="margin:0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${title}</h3>
                     <span id="multiSyncResultsClose" style="color:#aaa;font-size:26px;line-height:1;cursor:pointer;">&times;</span>
                 </div>
                 <div style="overflow-y:auto;flex:1;padding:20px;">
                     <table style="width:100%;border-collapse:collapse;font-size:13px;">
                         <thead>
                             <tr style="background:#f5f5f5;">
-                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifact Elements',Arial,sans-serif;">Project</th>
-                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifact Elements',Arial,sans-serif;">Result</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Project</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Result</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>
                 <div style="padding:15px 20px;border-top:1px solid #ddd;text-align:right;">
-                    <button id="multiSyncResultsOk" style="padding:8px 24px;background:#0696D7;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:'Artifact Elements',Arial,sans-serif;">OK</button>
+                    <button id="multiSyncResultsOk" style="padding:8px 24px;background:#0696D7;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">OK</button>
                 </div>
             </div>
         </div>

@@ -22,21 +22,21 @@
             <div id="folderSyncModal" style="position: fixed; z-index: 10200; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
                 <div style="background-color: white; padding: 0; border-radius: 8px; width: 90%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
-                        <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">Folder Permissions Sync</h2>
-                        <span class="folder-sync-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; font-family: 'Artifact Elements', Arial, sans-serif;">&times;</span>
+                        <h2 style="margin: 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Folder Permissions Sync</h2>
+                        <span class="folder-sync-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">&times;</span>
                     </div>
                     <div style="padding: 20px; overflow-y: auto; flex: 1;">
                         <div id="folderSyncProgress" style="margin-bottom: 20px;">
-                            <h4 style="margin: 0 0 15px 0; font-family: 'Artifact Elements', Arial, sans-serif; color: #333;">Progress</h4>
-                            <div id="folderSyncStatus" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; color: #666; margin-bottom: 10px;">Preparing sync...</div>
+                            <h4 style="margin: 0 0 15px 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #333;">Progress</h4>
+                            <div id="folderSyncStatus" style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px; color: #666; margin-bottom: 10px;">Preparing sync...</div>
                             <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
                                 <div id="folderSyncBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s;"></div>
                             </div>
                         </div>
                         
                         <div id="folderSyncResults" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;">
-                            <h4 style="margin: 0 0 10px 0; font-family: 'Artifact Elements', Arial, sans-serif;">Sync Complete!</h4>
-                            <div id="folderSyncResultsContent" style="font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px; line-height: 1.8;"></div>
+                            <h4 style="margin: 0 0 10px 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Sync Complete!</h4>
+                            <div id="folderSyncResultsContent" style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px; line-height: 1.8;"></div>
                         </div>
                     </div>
                 </div>

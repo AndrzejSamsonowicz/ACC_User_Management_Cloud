@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
       "port": 3000
+    },
+    {
+      "name": "ui-harness",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/samsona/AppData/Local/Temp/claude/C--MCPServer-ACC-User-Management/595af873-d83e-4c06-81b9-46a29445c287/scratchpad/harness-server.js", "C:/Users/samsona/AppData/Local/Temp/claude/C--MCPServer-ACC-User-Management/595af873-d83e-4c06-81b9-46a29445c287/scratchpad/harness", "3100"],
+      "port": 3100
     }
   ]
 }

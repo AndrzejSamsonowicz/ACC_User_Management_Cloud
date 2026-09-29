@@ -283,6 +283,8 @@ class UserTableManager extends TableCellInteraction {
             const warning = document.getElementById('addNewUsersBtnWarning');
             if (btn) btn.disabled = true;
             if (warning) warning.style.visibility = 'visible';
+            // Keep the project list, tray and tab counts in step with the cleared selection
+            if (typeof filterProjects === 'function') filterProjects();
         }
     }
 
@@ -1515,7 +1517,7 @@ class UserTableManager extends TableCellInteraction {
                 box-shadow: 0 4px 12px rgba(0,0,0,0.3);
                 z-index: 10000;
                 min-width: 400px;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             `;
             
             progressDiv.innerHTML = `
@@ -1577,7 +1579,7 @@ class UserTableManager extends TableCellInteraction {
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             z-index: 10000;
             min-width: 400px;
-            font-family: 'Artifact Elements', Arial, sans-serif;
+            font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             border: 2px solid #d32f2f;
         `;
         
@@ -1595,7 +1597,7 @@ class UserTableManager extends TableCellInteraction {
                 padding: 10px 20px;
                 border-radius: 4px;
                 cursor: pointer;
-                font-family: 'Artifact Elements', Arial, sans-serif;
+                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
             ">Close</button>
         `;
         
@@ -1786,12 +1788,12 @@ class UserTableManager extends TableCellInteraction {
             <div id="csvImportModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
                 <div style="background-color: white; padding: 30px; border-radius: 8px; width: 560px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; font-family: 'Artifact Elements', Arial, sans-serif;">Import Users From File</h2>
+                        <h2 style="margin: 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Import Users From File</h2>
                         <span class="csv-import-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;">&times;</span>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
-                        <div style="font-family: 'Artifact Elements', Arial, sans-serif; color: #666; font-size: 14px; line-height: 1.8;">
+                        <div style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #666; font-size: 14px; line-height: 1.8;">
                             <div style="margin-bottom: 10px;">Select a <strong>CSV</strong> file with one of the following formats:</div>
                             <div style="background: #f5f5f5; padding: 8px 12px; border-radius: 4px; font-family: monospace; margin-bottom: 12px;">
                                 Email<br>
@@ -1805,7 +1807,7 @@ class UserTableManager extends TableCellInteraction {
                             </div>
                         </div>
                         
-                        <div id="fileDropZone" style="width: 100%; margin-top: 16px; padding: 20px 10px; border: 2px dashed #0696D7; border-radius: 4px; box-sizing: border-box; text-align: center; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; color: #555; transition: background 0.2s;">
+                        <div id="fileDropZone" style="width: 100%; margin-top: 16px; padding: 20px 10px; border: 2px dashed #0696D7; border-radius: 4px; box-sizing: border-box; text-align: center; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #555; transition: background 0.2s;">
                             <div id="fileDropLabel" style="pointer-events: none;">
                                 📂 <strong>Drop file here</strong> or <span style="color:#0696D7; text-decoration:underline;">click to browse</span><br>
                                 <small style="color:#888;">Tip: drag &amp; drop works even if the file is open in Excel</small>
@@ -1816,10 +1818,10 @@ class UserTableManager extends TableCellInteraction {
                     </div>
                     
                     <div style="display: flex; gap: 10px; justify-content: space-between;">
-                        <button id="downloadSampleBtn" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px;">
+                        <button id="downloadSampleBtn" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px;">
                             Download CSV Sample
                         </button>
-                        <button id="importCsvBtn" style="padding: 10px 20px; background-color: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifact Elements', Arial, sans-serif; font-size: 14px;">
+                        <button id="importCsvBtn" style="padding: 10px 20px; background-color: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px;">
                             Import
                         </button>
                     </div>
