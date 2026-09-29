@@ -1,0 +1,146 @@
+/*
+ * Forma look for the existing dialogs (People to add / Members, Import from a
+ * file, Copy from another project). Loaded after the dialogs' own styles;
+ * rules are prefixed with body.fm so they also win over the <style> blocks
+ * the dialog scripts inject at runtime.
+ */
+
+/* ---------- Product checkboxes (the old toggle switches) ---------- */
+body.fm .toggle-switch { width: 16px !important; height: 16px !important; transform: none !important; vertical-align: middle; display: inline-block; }
+body.fm .toggle-slider { border: 1px solid var(--fm-border); background: #fff; border-radius: 2px; transition: none; }
+body.fm .toggle-slider:before { display: none; }
+body.fm .toggle-switch input:checked + .toggle-slider {
+    background: var(--fm-blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5'%3E%3Cpath d='M5 12l5 5 9-10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+    border-color: var(--fm-blue);
+}
+body.fm .toggle-switch input:disabled + .toggle-slider { opacity: 0.5; cursor: not-allowed; }
+body.fm .toggle-switch input:focus-visible + .toggle-slider { outline: 2px solid var(--fm-blue); outline-offset: 2px; }
+
+/* ---------- People to add / Members (full-screen) ---------- */
+body.fm #userManagementModal { background: rgba(60, 60, 60, 0.5); }
+body.fm #userManagementModal .user-modal-content { border: 0; background: #fff; }
+body.fm #userManagementModal .user-modal-header {
+    padding: 16px 32px; background: #fff; border-bottom: 1px solid var(--fm-divider); border-radius: 0;
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+}
+body.fm #userManagementModal .fm-dlg-titles { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+body.fm #userManagementModal .user-modal-header h3 { margin: 0; font-size: 30px; font-weight: 400; line-height: 42px; color: var(--fm-text); }
+body.fm #userManagementModal .fm-stepper { margin: 0; }
+body.fm #userManagementModal.modal-manage-mode .fm-stepper { display: none; }
+body.fm .fm-dlg-close {
+    width: 36px; height: 36px; border: 0; background: transparent; border-radius: 2px;
+    font-size: 28px; line-height: 1; color: var(--fm-text); cursor: pointer; font-weight: 400;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+body.fm .fm-dlg-close:hover { background: var(--fm-panel); color: var(--fm-text); }
+
+body.fm #userManagementModal #modalHubInfo {
+    padding: 0 !important; background: transparent !important; border: 0 !important;
+    font-size: 14px !important; color: var(--fm-text-2) !important;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+}
+body.fm #userManagementModal #modalHubInfo strong { font-weight: 400; color: var(--fm-text-2); }
+body.fm .fm-chipset { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+body.fm .fm-project-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px;
+    background: #EEEEEE; color: var(--fm-text); font-size: 13px; max-width: 280px;
+}
+body.fm .fm-project-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+body.fm #userManagementModal .user-modal-body { padding: 16px 32px 24px; display: flex; flex-direction: column; gap: 12px; }
+body.fm #userManagementModal .modal-table-actions { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+body.fm #userManagementModal .modal-table-actions > div { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+body.fm #userManagementModal .modal-tip-banner {
+    margin: 0; padding: 0; background: transparent; border: 0; font-size: 13px; line-height: 20px; color: var(--fm-text-2);
+    display: flex; flex-wrap: wrap; gap: 4px 24px;
+}
+body.fm #userManagementModal .modal-table-summary {
+    margin: 0; padding: 0; background: transparent; border: 0; font-size: 14px; color: var(--fm-text-2);
+}
+body.fm #duplicateEmailAlert {
+    margin: 0 !important; padding: 12px 12px 12px 15px !important; border: 0 !important; border-radius: 2px !important;
+    background: var(--fm-error-bg) !important; box-shadow: inset 3px 0 0 var(--fm-error); color: var(--fm-text) !important;
+}
+
+/* Table: Forma rows, bold header, no grid lines */
+body.fm #userManagementModal .modal-table th,
+body.fm #userManagementModal .modal-table td { border: 0; border-bottom: 1px solid var(--fm-row-line); padding: 0 8px; height: 48px; }
+body.fm #userManagementModal .modal-table th {
+    background: #fff; font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--fm-text);
+    border-bottom: 1px solid var(--fm-divider); line-height: 16px; height: 52px;
+    overflow-wrap: normal; word-break: normal; hyphens: auto; -webkit-hyphens: auto; z-index: 3;
+}
+body.fm #userManagementModal .modal-table tr:nth-child(even) { background: transparent; }
+body.fm #userManagementModal .modal-table tbody tr:hover td { background: #FAFAFA; }
+body.fm #userManagementModal td.modal-editable:hover { background: #fff; box-shadow: inset 0 0 0 1px var(--fm-border); }
+body.fm #userManagementModal .modal-access-cell { text-align: center; padding: 0; background: transparent; }
+body.fm #userManagementModal .modal-access-cell.administrator { background: transparent; }
+body.fm #userManagementModal .modal-access-cell.selected,
+body.fm #userManagementModal td.selected { background: var(--fm-selected) !important; box-shadow: inset 0 0 0 1px var(--fm-blue); border-color: var(--fm-row-line); }
+body.fm #userManagementModal .modal-access-cell.selecting { background: var(--fm-selected); }
+body.fm #userManagementModal .modal-access-cell.error,
+body.fm .modal-error-cell { background: var(--fm-warning-bg) !important; box-shadow: inset 0 0 0 1px #E8A317; color: var(--fm-warning); }
+body.fm #userManagementModal .modal-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--fm-blue); }
+body.fm .modal-col-resizer:hover, body.fm .modal-col-resizer.resizing,
+body.fm .import-col-resizer:hover, body.fm .import-col-resizer.resizing { background: rgba(6, 150, 215, 0.35); }
+body.fm .modal-tooltip { border: 0; border-radius: 4px; box-shadow: var(--fm-shadow); color: var(--fm-text); padding: 8px 12px; }
+
+/* ---------- Import people from a file ---------- */
+body.fm #csvImportModal { background: rgba(60, 60, 60, 0.5) !important; }
+body.fm .fm-drop {
+    width: 100%; padding: 20px 12px; border: 1px dashed var(--fm-blue); border-radius: 2px; background: #fff;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; cursor: pointer; color: var(--fm-text);
+}
+body.fm .fm-drop:hover, body.fm .fm-drop.is-over { background: var(--fm-selected); }
+body.fm .fm-drop.has-file { border-style: solid; background: var(--fm-selected); }
+body.fm .fm-format { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--fm-divider); border-radius: 2px; font-size: 13px; }
+body.fm .fm-format > div { padding: 8px 12px; }
+body.fm .fm-format > div:not(:nth-child(3n+1)) { box-shadow: inset 1px 0 0 var(--fm-divider); }
+body.fm .fm-format .fm-format-head { background: var(--fm-panel); font-weight: 700; }
+body.fm .fm-format .fm-format-row { border-top: 1px solid var(--fm-divider); }
+
+/* ---------- Copy people from another project (full-screen) ---------- */
+body.fm .import-project-modal { background: rgba(60, 60, 60, 0.5); }
+body.fm .import-project-modal-content { background: #fff; }
+body.fm .import-project-modal-header { padding: 16px 32px; background: #fff; border-bottom: 1px solid var(--fm-divider); gap: 24px; }
+body.fm .import-project-modal-header h3 { font-size: 30px; font-weight: 400; line-height: 42px; color: var(--fm-text); }
+body.fm .import-project-modal-close { font-size: 28px; font-weight: 400; color: var(--fm-text); }
+body.fm .import-project-modal-body { padding: 0; }
+body.fm .import-project-split { gap: 0; }
+body.fm .import-project-left { width: 320px; flex: none; background: var(--fm-panel); border-right: 1px solid var(--fm-divider); padding: 16px; gap: 16px; }
+body.fm .import-hubs-section h4,
+body.fm .import-projects-section h4,
+body.fm .import-users-header h4 {
+    font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--fm-text); font-weight: 700; margin: 0 0 6px;
+}
+body.fm .import-filter-input { height: 36px; padding: 0 12px; border: 1px solid var(--fm-border); border-radius: 2px; font-size: 14px; margin-bottom: 8px; background: #fff; }
+body.fm .import-filter-input:focus { border-color: var(--fm-blue); box-shadow: 0 0 0 1px var(--fm-blue); }
+body.fm .import-list { border: 0; border-radius: 0; background: transparent; }
+body.fm .import-list-item { min-height: 36px; padding: 8px 10px; border: 0; font-size: 14px; }
+body.fm .import-list-item:hover { background: #fff; }
+body.fm .import-list-item.selected { background: #fff; color: var(--fm-text); font-weight: 700; box-shadow: inset 2px 0 0 var(--fm-blue); }
+body.fm .import-project-right { flex: 1; width: auto; padding: 16px 32px; min-width: 0; }
+body.fm .import-users-header { margin-bottom: 8px; gap: 12px; flex-wrap: wrap; }
+body.fm .import-users-actions span { font-style: normal !important; font-size: 13px !important; color: var(--fm-text-2) !important; }
+body.fm .import-btn-small,
+body.fm .import-btn-primary {
+    height: 36px !important; padding: 0 16px !important; font-size: 14px !important; font-weight: 600 !important;
+    border-radius: 2px !important; background-color: #fff !important; color: var(--fm-text) !important; border: 1px solid var(--fm-border) !important;
+}
+body.fm .import-btn-small:hover { border-color: #808080 !important; background-color: #fff !important; }
+body.fm .import-btn-primary { background-color: var(--fm-blue) !important; border-color: var(--fm-blue) !important; color: #fff !important; }
+body.fm .import-btn-primary:hover { background-color: var(--fm-blue-hover) !important; border-color: var(--fm-blue-hover) !important; }
+body.fm .import-users-table-container { border: 0; border-radius: 0; }
+body.fm .import-users-table { font-size: 14px; }
+body.fm .import-users-table th {
+    background: #fff; height: 48px; padding: 0 8px; font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0;
+    color: var(--fm-text); border-bottom: 1px solid var(--fm-divider);
+}
+body.fm .import-users-table td { height: 44px; padding: 0 8px; border-bottom: 1px solid var(--fm-row-line); }
+body.fm .import-users-table tr:hover td { background: #FAFAFA; }
+body.fm .import-user-checkbox { accent-color: var(--fm-blue); }
+
+/* Shared bits used by the dialogs above */
+body.fm .fm-btn-danger { color: var(--fm-error); }
+body.fm .fm-stepper li.is-done { color: var(--fm-text); }
+body.fm .fm-stepper li.is-done .fm-step-dot { background: var(--fm-blue); border-color: var(--fm-blue); }

@@ -391,141 +391,6 @@
             border: 1px solid #d32f2f;
         }
 
-        /* ================================================================
-           User Management modal — visual alignment with the folder modal's
-           design language (folders-indented-tree.js's it- classes).
-           Visual only: no ids/onclick/behavior below were touched, and the
-           toggle-switch / modal-access-cell rules above are untouched —
-           the Project Admin .. Site & Building Design columns keep their
-           exact current look and drag/lock behavior.
-           ================================================================ */
-
-        #userManagementModal .user-modal-header {
-            gap: 4px;
-            flex-wrap: wrap;
-        }
-
-        #userManagementModal .user-modal-header h3 {
-            font-size: 17px;
-        }
-
-        /* Hub/Project context line — same content and ids, just a quieter
-           inline subtitle instead of a full-width blue banner. */
-        #userManagementModal #modalHubInfo {
-            background: transparent !important;
-            border-bottom: none !important;
-            padding: 8px 20px 12px !important;
-            font-size: 12.5px !important;
-            color: #888 !important;
-            font-weight: 500;
-        }
-        #userManagementModal #modalHubInfo strong {
-            color: #666;
-            font-weight: 700;
-        }
-
-        #userManagementModal .modal-table-actions {
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        #userManagementModal .modal-table-actions > div {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* Compact outlined buttons — overrides the site-wide button/.btn rule
-           the same way folders-indented-tree.js's .it-small-btn already does,
-           scoped to this modal's own action bar only. */
-        #userManagementModal .modal-table-actions button {
-            background-color: #0696D7 !important;
-            color: #fff !important;
-            padding: 7px 14px !important;
-            border: 1px solid #0696D7 !important;
-            border-radius: 4px !important;
-            font-size: 12.5px !important;
-            font-weight: 700 !important;
-            min-width: 0 !important;
-            height: auto !important;
-            margin: 0 !important;
-        }
-        #userManagementModal .modal-table-actions button:hover {
-            background-color: #0057A0 !important;
-            border-color: #0057A0 !important;
-        }
-        #userManagementModal .modal-table-actions button:disabled {
-            background-color: #e0e0e0 !important;
-            color: #999 !important;
-            border-color: #d0d0d0 !important;
-            cursor: not-allowed !important;
-            opacity: .7;
-        }
-        /* Destructive actions stay red/distinct, not blue like the rest. */
-        #userManagementModal #modalDeleteRowBtn,
-        #userManagementModal #modalClearTableBtn {
-            background-color: #dc3545 !important;
-            color: #fff !important;
-            border-color: #dc3545 !important;
-        }
-        #userManagementModal #modalDeleteRowBtn:hover,
-        #userManagementModal #modalClearTableBtn:hover {
-            background-color: #c82333 !important;
-            border-color: #c82333 !important;
-        }
-
-        #userManagementModal .modal-tip-banner {
-            margin-top: 10px;
-            padding: 8px 12px;
-            background: #e7f3ff;
-            border-left: 3px solid #0696D7;
-            border-radius: 0 4px 4px 0;
-            font-size: 12.5px;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        /* Table header — sticky uppercase label style, matches the folder
-           modal's .it-col-header. Column widths/order/content unchanged. */
-        #userManagementModal .modal-table th {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: .02em;
-            color: #666;
-            border-bottom: 2px solid #ccc;
-            /* Long single words ("Preconstruction", "Collaboration") have no
-               space to wrap at, so in a narrow resized column they'd
-               otherwise overflow the cell horizontally and visually spill
-               into the next column's header instead of wrapping onto a
-               second line within their own column. */
-            overflow-wrap: break-word;
-            word-break: break-word;
-        }
-
-        /* Flat rows with a quiet hover tint instead of grey zebra stripes —
-           .modal-access-cell already forces background:white on the toggle
-           columns, so this only visibly affects the Email/Company/Role cells. */
-        #userManagementModal .modal-table tr:nth-child(even) {
-            background-color: transparent;
-        }
-        #userManagementModal .modal-table tbody tr:hover td {
-            background-color: #f5fbff;
-        }
-
-        /* Editable-cell hover affordance — .modal-editable cells had no hover
-           state before; scoped to <td> only so the (non-interactive) header
-           cells that share the class aren't affected. */
-        #userManagementModal td.modal-editable:hover {
-            background-color: #f5f9fc;
-            box-shadow: inset 0 0 0 1px #cfe8f7;
-        }
-
-        #userManagementModal .modal-table-summary {
-            background-color: #f8f9fa;
-            border: 1px solid #eee;
-            font-size: 12.5px;
-            color: #555;
-        }
-
         /* Elements kept only because existing scripts toggle them; the Forma
            shell replaces what they used to show. */
         #viewAccountUsersBtn, #buttonExplanations { display: none !important; }
@@ -534,6 +399,7 @@
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css">
     <link rel="stylesheet" href="shared/forma-app.css">
+    <link rel="stylesheet" href="shared/forma-dialogs.css">
 </head>
 <body class="fm fm-app">
     <!-- Auth loading overlay -->
@@ -3115,34 +2981,42 @@
     <div id="userManagementModal" class="user-modal">
         <div class="user-modal-content">
             <div class="user-modal-header">
-                <h3 id="modalTitle">User Management</h3>
-                <span class="user-modal-close">&times;</span>
-            </div>
-            <div id="modalHubInfo" style="padding: 10px 20px; background: #f0f7ff; border-bottom: 1px solid #d0e4f7; font-size: 20px; color: #333;">
-                <strong>Current Hub:</strong> <span id="modalHubName">Not selected</span>
-                <span id="modalHubId" style="display: none;"></span>
-                <br>
-                <strong id="modalProjectLabel">Project:</strong> <span id="modalProjectName">Not selected</span>
-                <span id="modalProjectId" style="display: none;"></span>
+                <div class="fm-dlg-titles">
+                    <h3 id="modalTitle">People to add</h3>
+                    <div id="modalHubInfo">
+                        <strong>Hub:</strong> <span id="modalHubName">Not selected</span>
+                        <span id="modalHubId" hidden></span>
+                        <strong id="modalProjectLabel">Project:</strong> <span id="modalProjectName" class="fm-chipset">Not selected</span>
+                        <span id="modalProjectId" hidden></span>
+                    </div>
+                </div>
+                <ol class="fm-stepper" aria-label="Adding people to projects">
+                    <li class="is-done"><span class="fm-step-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5 9-10" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Choose projects</li>
+                    <li class="fm-step-line" aria-hidden="true"></li>
+                    <li class="is-current"><span class="fm-step-dot">2</span>People</li>
+                    <li class="fm-step-line" aria-hidden="true"></li>
+                    <li><span class="fm-step-dot">3</span>Sync</li>
+                </ol>
+                <button type="button" class="user-modal-close fm-dlg-close" aria-label="Close">&times;</button>
             </div>
             <div class="user-modal-body">
                 <div class="modal-table-actions">
                     <div>
-                        <button id="modalAddRowBtn" onclick="addModalRow()">Add Row</button>
-                        <button id="modalDeleteRowBtn" onclick="deleteSelectedModalRows()">Delete Row</button>
-                        <button id="modalClearTableBtn" onclick="clearModalTable()">Clear Table</button>
+                        <button type="button" class="fm-btn" id="modalImportCSVBtn" onclick="importCSV()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 3H6.5A1.5 1.5 0 005 4.5v15A1.5 1.5 0 006.5 21h11a1.5 1.5 0 001.5-1.5V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5L12 17l2.5-2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Import from a file</button>
+                        <button type="button" class="fm-btn" id="modalImportFromProjectBtn" onclick="openImportFromProjectModal()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"/></svg>Copy from another project</button>
+                        <button type="button" class="fm-btn" id="modalAddRowBtn" onclick="addModalRow()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>Add row</button>
                     </div>
                     <div>
-                        <button id="modalImportCSVBtn" onclick="importCSV()">Import From File</button>
-                        <button id="modalImportFromProjectBtn" onclick="openImportFromProjectModal()">Import From Other Project</button>
-                        <button id="modalSaveSyncBtn" onclick="syncModalUsers()">Sync</button>
+                        <button type="button" class="fm-btn fm-btn-text fm-btn-danger" id="modalDeleteRowBtn" onclick="deleteSelectedModalRows()">Remove selected rows</button>
+                        <button type="button" class="fm-btn fm-btn-text fm-btn-danger" id="modalClearTableBtn" onclick="clearModalTable()">Clear table</button>
+                        <button type="button" class="fm-btn fm-btn-primary" id="modalSaveSyncBtn" onclick="syncModalUsers()">Sync to Forma</button>
                     </div>
                 </div>
                 <div class="modal-tip-banner">
-                    <div>💡 Press <strong>Shift</strong> to select multiple cells vertically and horizontally</div>
-                    <div>💡 User <strong>Roles</strong> must match these defined in the <strong>Account</strong></div>
-                    <div>💡 If an administrator's email is included, ensure they are marked as a <strong>Project Admin</strong></div>
-                    <div>💡 Access to <strong>Data Management</strong> and <strong>Insight</strong> is granted automatically</div>
+                    <span>Shift-click to select a range of cells.</span>
+                    <span>Roles must already exist in the account.</span>
+                    <span>Tick Project admin for anyone who administers the project.</span>
+                    <span>Docs and Insight access is added automatically.</span>
                 </div>
                 
                 <!-- Progress indicator for modal operations -->
@@ -3158,9 +3032,9 @@
                 
                 <!-- Duplicate email alert (hidden by default) -->
                 <div id="duplicateEmailAlert" style="display: none; margin: 15px 0; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
-                    <strong>❌ Cannot save: Duplicate emails found!</strong>
+                    <strong>The same email appears more than once.</strong>
                     <div id="duplicateEmailList" style="margin-top: 10px; font-size: 13px;"></div>
-                    <div style="margin-top: 10px; font-style: italic; font-size: 13px;">Please remove email duplicates before saving.</div>
+                    <div style="margin-top: 10px; font-style: italic; font-size: 13px;">Remove the repeated rows, then sync again.</div>
                 </div>
                 
                 <div class="modal-table-summary" id="modalTableSummary">
@@ -3180,11 +3054,11 @@
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Project Admin<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <!-- <th>Insight</th> Hidden: Insight always defaults to 'member' and doesn't support 'administrator' -->
                                 <!-- <th>Docs</th> Removed: Data Management is auto-granted by Autodesk Forma -->
-                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Design Collaboration<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
-                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Model Coordination<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
-                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Preconstruction<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Design Collabo&shy;ration<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Model Coordi&shy;nation<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Precon&shy;struction<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Build<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
-                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Cost Management<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                                <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Cost Manage&shy;ment<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.72%; white-space: normal;">Site &amp; Building<br>Design<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                             </tr>
                         </thead>

@@ -62,7 +62,7 @@ function createImportProjectModal() {
         <div id="importProjectModal" class="import-project-modal" style="display: none;">
             <div class="import-project-modal-content">
                 <div class="import-project-modal-header">
-                    <h3>Import Users From Other Project</h3>
+                    <h3>Copy people from another project</h3>
                     <span class="import-project-modal-close" onclick="closeImportProjectModal()">&times;</span>
                 </div>
                 <div class="import-project-modal-body">
@@ -71,8 +71,8 @@ function createImportProjectModal() {
                         <div class="import-project-left">
                             <!-- Hubs Section (1/3 height) -->
                             <div class="import-hubs-section">
-                                <h4>Select Hub</h4>
-                                <input type="text" id="importHubsFilter" placeholder="Filter hubs..." class="import-filter-input" oninput="filterImportHubs()" />
+                                <h4>Hub</h4>
+                                <input type="text" id="importHubsFilter" placeholder="Search hubs" class="import-filter-input" oninput="filterImportHubs()" />
                                 <div id="importHubsList" class="import-list">
                                     <div style="text-align: center; padding: 20px; color: #666;">Loading hubs...</div>
                                 </div>
@@ -80,8 +80,8 @@ function createImportProjectModal() {
 
                             <!-- Projects Section (2/3 height) -->
                             <div class="import-projects-section">
-                                <h4>Select Project</h4>
-                                <input type="text" id="importProjectsFilter" placeholder="Filter projects..." class="import-filter-input" oninput="filterImportProjects()" />
+                                <h4>Source project</h4>
+                                <input type="text" id="importProjectsFilter" placeholder="Search projects" class="import-filter-input" oninput="filterImportProjects()" />
                                 <div id="importProjectsList" class="import-list">
                                     <div style="text-align: center; padding: 20px; color: #999;">Select a hub first</div>
                                 </div>
@@ -91,12 +91,12 @@ function createImportProjectModal() {
                         <!-- Right Column: Project Users -->
                         <div class="import-project-right">
                             <div class="import-users-header">
-                                <h4>Project Users</h4>
+                                <h4>Members</h4>
                                 <div class="import-users-actions">
-                                    <span style="font-size: 12px; color: #666; margin-right: 10px; font-style: italic;">💡 Press Shift to select multiple users</span>
-                                    <button onclick="checkAllImportUsers()" class="import-btn-small">Check All</button>
-                                    <button onclick="uncheckAllImportUsers()" class="import-btn-small">Uncheck All</button>
-                                    <button onclick="importSelectedUsers()" class="import-btn-primary">Import Selected</button>
+                                    <span style="font-size: 12px; color: #666; margin-right: 10px; font-style: italic;">Shift-click to select a range</span>
+                                    <button onclick="checkAllImportUsers()" class="import-btn-small">Select all</button>
+                                    <button onclick="uncheckAllImportUsers()" class="import-btn-small">Clear</button>
+                                    <button onclick="importSelectedUsers()" class="import-btn-primary">Add selected to the table</button>
                                 </div>
                             </div>
                             <div id="importUsersList" class="import-users-table-container">

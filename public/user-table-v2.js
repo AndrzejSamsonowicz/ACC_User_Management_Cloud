@@ -198,21 +198,19 @@ class UserTableManager extends TableCellInteraction {
         if (mode === 'manage') {
             this.modalMode = 'manage';
             modal.classList.add('modal-manage-mode');
-            if (titleEl) titleEl.textContent = 'Manage Existing Users - ' + projectName;
-            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync'; saveSyncBtn.onclick = () => syncOnly(); }
+            if (titleEl) titleEl.textContent = 'Members of ' + projectName;
+            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync to Forma'; saveSyncBtn.onclick = () => syncOnly(); }
         } else if (mode === 'multi-new') {
             this.modalMode = 'multi-new';
             modal.classList.remove('modal-manage-mode');
             const count = this.modalProjectIds ? this.modalProjectIds.length : 1;
-            if (titleEl) titleEl.textContent = count > 1
-                ? `Add New Users — ${count} projects selected`
-                : `Add New Users — ${projectName}`;
-            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync'; saveSyncBtn.onclick = () => syncModalUsers(); }
+            if (titleEl) titleEl.textContent = 'People to add';
+            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync to Forma'; saveSyncBtn.onclick = () => syncModalUsers(); }
         } else {
             this.modalMode = 'new';
             modal.classList.remove('modal-manage-mode');
-            if (titleEl) titleEl.textContent = 'User Management';
-            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync'; saveSyncBtn.onclick = () => syncModalUsers(); }
+            if (titleEl) titleEl.textContent = 'People to add';
+            if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync to Forma'; saveSyncBtn.onclick = () => syncModalUsers(); }
         }
         
         // Update hub info display (after mode is set so multi-new check works)
@@ -248,23 +246,44 @@ class UserTableManager extends TableCellInteraction {
             if (hubIdEl) hubIdEl.textContent = '';
         }
         
-        // Update project info
+        // Update project info: the selected projects as chips (DOM APIs: names come from Forma)
         const projectLabelEl = document.getElementById('modalProjectLabel');
+        const showChips = (names) => {
+            if (!projectNameEl) return;
+            projectNameEl.replaceChildren();
+            const LIMIT = 6;
+            const addChip = (name) => {
+                const chip = document.createElement('span');
+                chip.className = 'fm-project-chip';
+                chip.title = name;
+                const text = document.createElement('span');
+                text.textContent = name;
+                chip.appendChild(text);
+                projectNameEl.appendChild(chip);
+            };
+            names.slice(0, LIMIT).forEach(addChip);
+            if (names.length > LIMIT) {
+                const more = document.createElement('button');
+                more.type = 'button';
+                more.className = 'fm-btn fm-btn-text';
+                more.style.height = '28px';
+                more.textContent = `and ${names.length - LIMIT} more`;
+                more.addEventListener('click', () => { more.remove(); names.slice(LIMIT).forEach(addChip); });
+                projectNameEl.appendChild(more);
+            }
+        };
         if (this.modalMode === 'multi-new' && this.modalProjectIds && this.modalProjectIds.length > 1) {
-            const names = this.modalProjectIds.map(p => p.name).join(', ');
-            if (projectLabelEl) projectLabelEl.textContent = 'Projects Selected:';
-            if (projectNameEl) projectNameEl.textContent = names;
+            if (projectLabelEl) projectLabelEl.textContent = `Goes into these ${this.modalProjectIds.length} projects:`;
+            showChips(this.modalProjectIds.map(p => p.name));
             if (projectIdEl) projectIdEl.textContent = '';
         } else if (this.modalProjectId) {
             if (projectLabelEl) projectLabelEl.textContent = 'Project:';
-            if (projectNameEl) projectNameEl.textContent = this.modalProjectName;
+            showChips([this.modalProjectName]);
             if (projectIdEl) projectIdEl.textContent = '';
-            if (modalTitleEl) modalTitleEl.textContent = 'Project users list';
         } else {
             if (projectLabelEl) projectLabelEl.textContent = 'Project:';
             if (projectNameEl) projectNameEl.textContent = 'Not selected';
             if (projectIdEl) projectIdEl.textContent = '';
-            if (modalTitleEl) modalTitleEl.textContent = 'User Management';
         }
     }
 
@@ -1785,45 +1804,38 @@ class UserTableManager extends TableCellInteraction {
         }
 
         const modalHTML = `
-            <div id="csvImportModal" style="position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
-                <div style="background-color: white; padding: 30px; border-radius: 8px; width: 560px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Import Users From File</h2>
-                        <span class="csv-import-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;">&times;</span>
+            <div id="csvImportModal" class="fm-overlay is-open" style="z-index: 10000;">
+                <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="csvImportTitle" style="max-width: 640px;">
+                    <div class="fm-dialog-head">
+                        <h2 class="fm-dialog-title" id="csvImportTitle">Import people from a file</h2>
+                        <button type="button" class="fm-dialog-close csv-import-modal-close" aria-label="Close">&times;</button>
                     </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <div style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #666; font-size: 14px; line-height: 1.8;">
-                            <div style="margin-bottom: 10px;">Select a <strong>CSV</strong> file with one of the following formats:</div>
-                            <div style="background: #f5f5f5; padding: 8px 12px; border-radius: 4px; font-family: monospace; margin-bottom: 12px;">
-                                Email<br>
-                                Email;Company &nbsp;<em style="font-family: sans-serif;">or</em>&nbsp; Email;;Role<br>
-                                Email;Company;Role
-                            </div>
-                            <div style="text-align: center; color: #999; margin-bottom: 12px; font-weight: bold;">OR</div>
-                            <div style="margin-bottom: 10px;">Select an <strong>Excel (.xlsx)</strong> file with 3 columns (no headers):</div>
-                            <div style="background: #f5f5f5; padding: 8px 12px; border-radius: 4px; font-family: monospace;">
-                                email &nbsp;|&nbsp; company &nbsp;|&nbsp; role
-                            </div>
+                    <div class="fm-dialog-body">
+                        <p style="margin: 0;">Excel (.xlsx) or CSV, one person per row, no header row. Only the email is required.</p>
+                        <div class="fm-format" role="table" aria-label="Expected columns">
+                            <div class="fm-format-head">Column A: email</div>
+                            <div class="fm-format-head">Column B: company</div>
+                            <div class="fm-format-head">Column C: role</div>
+                            <div class="fm-format-row">m.rossi@studio-arc.it</div>
+                            <div class="fm-format-row">Studio ARC</div>
+                            <div class="fm-format-row">Architect</div>
                         </div>
-                        
-                        <div id="fileDropZone" style="width: 100%; margin-top: 16px; padding: 20px 10px; border: 2px dashed #0696D7; border-radius: 4px; box-sizing: border-box; text-align: center; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #555; transition: background 0.2s;">
+                        <p class="fm-muted" style="margin: 0;">In a CSV file, separate the columns with a semicolon: email;company;role. To skip the company, leave it empty: email;;role.</p>
+                        <div id="fileDropZone" class="fm-drop" style="position: relative;">
                             <div id="fileDropLabel" style="pointer-events: none;">
-                                📂 <strong>Drop file here</strong> or <span style="color:#0696D7; text-decoration:underline;">click to browse</span><br>
-                                <small style="color:#888;">Tip: drag &amp; drop works even if the file is open in Excel</small>
+                                <strong>Drop the file here</strong> or <span style="color: var(--fm-link);">choose a file</span><br>
+                                <span class="fm-muted" style="font-size: 13px;">Dropping works even while the file is open in Excel.</span>
                             </div>
-                            <div id="fileDropSelected" style="margin-top: 6px; font-size: 13px; color: #0696D7; display: none;"></div>
+                            <div id="fileDropSelected" style="display: none; font-weight: 700;"></div>
                             <input type="file" id="csvFileInputModal" accept=".csv,.xlsx" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" />
                         </div>
                     </div>
-                    
-                    <div style="display: flex; gap: 10px; justify-content: space-between;">
-                        <button id="downloadSampleBtn" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px;">
-                            Download CSV Sample
-                        </button>
-                        <button id="importCsvBtn" style="padding: 10px 20px; background-color: #0696D7; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px;">
-                            Import
-                        </button>
+                    <div class="fm-dialog-foot" style="justify-content: space-between;">
+                        <button type="button" class="fm-btn fm-btn-text" id="downloadSampleBtn" style="padding: 0;">Download a sample file</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="fm-btn csv-import-cancel">Cancel</button>
+                            <button type="button" class="fm-btn fm-btn-primary" id="importCsvBtn">Add to the table</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1834,6 +1846,7 @@ class UserTableManager extends TableCellInteraction {
         // Setup event listeners
         const modal = document.getElementById('csvImportModal');
         const closeBtn = modal.querySelector('.csv-import-modal-close');
+        modal.querySelector('.csv-import-cancel').addEventListener('click', () => closeBtn.click());
         const downloadBtn = document.getElementById('downloadSampleBtn');
         const importBtn = document.getElementById('importCsvBtn');
         const fileInput = document.getElementById('csvFileInputModal');
@@ -1845,7 +1858,7 @@ class UserTableManager extends TableCellInteraction {
 
         const markFileSelected = (file) => {
             selectedFile = file;
-            dropSelected.textContent = '✔ ' + file.name;
+            dropSelected.textContent = file.name;
             dropSelected.style.display = 'block';
             dropZone.style.background = '#eaf6ff';
         };
