@@ -523,18 +523,18 @@ async function loadHubsForImport() {
             return;
         }
 
-        let hubsHTML = '';
-        bim360Hubs.forEach(hub => {
+        // Built with DOM APIs: hub names come from Autodesk, and an inline
+        // onclick="fn('${name}')" let a name containing a quote or backslash
+        // break out of the JS string and run its own code.
+        hubsList.replaceChildren(...bim360Hubs.map(hub => {
             const hubId   = hub.id.replace('b.', '');
-            const hubName = escapeHtml(hub.attributes.name);
-            hubsHTML += `
-                <div class="import-list-item" onclick="selectHubForImport('${hubId}', '${hubName.replace(/'/g, "\\'")}', this)">
-                    ${hubName}
-                </div>
-            `;
-        });
-
-        hubsList.innerHTML = hubsHTML;
+            const hubName = hub.attributes.name;
+            const item = document.createElement('div');
+            item.className = 'import-list-item';
+            item.textContent = hubName;
+            item.addEventListener('click', () => selectHubForImport(hubId, hubName, item));
+            return item;
+        }));
         log(`✅ Loaded ${bim360Hubs.length} hubs`);
 
     } catch (error) {
@@ -645,18 +645,16 @@ async function loadProjectsForImport(hubId) {
 
         allProjects.sort((a, b) => a.attributes.name.localeCompare(b.attributes.name));
 
-        let projectsHTML = '';
-        allProjects.forEach(project => {
+        // DOM APIs, not an inline onclick - see the hub list above
+        projectsList.replaceChildren(...allProjects.map(project => {
             const projectId   = project.id.replace('b.', '');
-            const projectName = escapeHtml(project.attributes.name);
-            projectsHTML += `
-                <div class="import-list-item" onclick="selectProjectForImport('${projectId}', '${projectName.replace(/'/g, "\\'")}', this)">
-                    ${projectName}
-                </div>
-            `;
-        });
-
-        projectsList.innerHTML = projectsHTML;
+            const projectName = project.attributes.name;
+            const item = document.createElement('div');
+            item.className = 'import-list-item';
+            item.textContent = projectName;
+            item.addEventListener('click', () => selectProjectForImport(projectId, projectName, item));
+            return item;
+        }));
         log(`✅ Loaded ${allProjects.length} projects`);
 
     } catch (error) {

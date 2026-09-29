@@ -219,7 +219,7 @@
                 errorHtml = `
                     <div style="font-size: 48px; margin-bottom: 20px;">âŒ</div>
                     <h3 style="margin: 0 0 15px 0; color: #856404;">Error Loading Folders</h3>
-                    <p style="margin: 10px 0;">${error.message}</p>
+                    <p style="margin: 10px 0;">${escapeHtml(error.message)}</p>
                     <p style="margin: 10px 0; color: #666; font-size: 13px;">You can close this window using the <strong>Ã—</strong> button in the top-right corner or by pressing <strong>ESC</strong>.</p>
                 `;
             }
@@ -593,12 +593,15 @@
 
         let tbodyHTML = '';
         for (const { folder, depth, row: hRow, hasLoadedChildren, mightHaveChildren } of folderRows) {
-            const level1Id   = hRow.level1?.id   || '';
-            const level1Name = (hRow.level1?.name || '').replace(/'/g, "\\'");
+            // Folder names come from Autodesk (anyone allowed to create folders sets
+            // them) and land in both element content and quoted attributes - escape
+            // quotes too, or a name containing `"` breaks out of the attribute.
+            const level1Id   = escapeHtml(hRow.level1?.id || '');
+            const level1Name = escapeHtml(hRow.level1?.name || '');
             const parentKey  = depth > 0 ? levelKeyForDepth(depth - 1) : null;
-            const parentId   = parentKey ? (hRow[parentKey]?.id   || '') : '';
-            const parentName = parentKey ? (hRow[parentKey]?.name || '').replace(/'/g, "\\'") : '';
-            const folderName = folder.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const parentId   = escapeHtml(parentKey ? (hRow[parentKey]?.id || '') : '');
+            const parentName = escapeHtml(parentKey ? (hRow[parentKey]?.name || '') : '');
+            const folderName = escapeHtml(folder.name);
 
             let attrs = `data-folder-id="${folder.id}" data-folder-depth="${depth}" data-level1-id="${level1Id}" data-level1-name="${level1Name}"`;
             if (depth > 0) {
@@ -632,20 +635,24 @@
                         ? getSubjectColor(u.subjectType, u.level)
                         : getPermissionLevelColor(u.level);
 
-                    const safeDisplay = (u.displayName || u.user).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    const safeUser = (u.user || '').replace(/"/g, '&quot;');
+                    // Both go into quoted attributes as well as content - escapeHtml covers quotes
+                    const safeDisplay = escapeHtml(u.displayName || u.user || '');
+                    const safeUser = escapeHtml(u.user || '');
+                    const safeSubjectType = escapeHtml(u.subjectType || '');
+                    const safeSubjectId = escapeHtml(u.subjectId || '');
+                    const safeLevel = escapeHtml(String(u.level ?? ''));
                     const readonlyAttr = u.isInherited ? ' readonly title="Inherited from parent folder (read-only)"' : '';
                     const inheritedLabel = u.isInherited ? '<span class="inherited-label">inherited</span>' : '';
                     const inheritedClass = u.isInherited ? ' inherited-permission' : '';
                     const inheritedData = u.isInherited ? ' data-is-inherited="true"' : '';
 
-                    tbodyHTML += `<tr class="user-sub-row${inheritedClass}" data-folder-parent-id="${folder.id}" data-user="${safeUser}" data-display-name="${safeDisplay}" data-permission-level="${u.level}" data-subject-type="${u.subjectType || ''}" data-subject-id="${u.subjectId || ''}"${inheritedData}>`;
+                    tbodyHTML += `<tr class="user-sub-row${inheritedClass}" data-folder-parent-id="${folder.id}" data-user="${safeUser}" data-display-name="${safeDisplay}" data-permission-level="${safeLevel}" data-subject-type="${safeSubjectType}" data-subject-id="${safeSubjectId}"${inheritedData}>`;
                     tbodyHTML += `<td class="user-entry-cell">`;
                     tbodyHTML += `<div class="user-entry-content" style="margin-left: ${userIndent}px; background-color: ${colors.background}; color: ${colors.color};">`;
                     tbodyHTML += `<span class="user-entry-icon">${u.subjectType === 'COMPANY' ? '&#127970;' : u.subjectType === 'ROLE' ? '&#128101;' : '&#128100;'}</span> `;
                     tbodyHTML += `<span class="cell-username" title="${safeDisplay}">${safeDisplay}</span> `;
                     tbodyHTML += inheritedLabel;
-                    tbodyHTML += `<input type="text" class="cell-permission-level" value="${u.level}" maxlength="1"${readonlyAttr} /> `;
+                    tbodyHTML += `<input type="text" class="cell-permission-level" value="${safeLevel}" maxlength="1"${readonlyAttr} /> `;
                     tbodyHTML += `</div></td></tr>`;
                 }
             }

@@ -179,7 +179,10 @@ const inputValidation = {
     
     // Validate email
     validateEmail: (value, fieldName) => {
-        if (typeof value !== 'string' || !validator.isEmail(value)) {
+        // isEmail accepts RFC quoted local parts such as "<img src=x onerror=...>"@x.com;
+        // no real customer address needs <, >, " or \, and these emails are shown in
+        // the admin panel, so reject them outright (output is escaped there as well).
+        if (typeof value !== 'string' || !validator.isEmail(value, { blacklisted_chars: '<>"\\\\' })) {
             throw new Error(`${fieldName} must be a valid email address`);
         }
         return validator.normalizeEmail(value);
@@ -261,12 +264,11 @@ app.use((req, res, next) => {
     const isProduction = !isLocalhost || req.secure || req.headers['x-forwarded-proto'] === 'https';
     
     const allowedOrigins = isProduction ? [
-        // Production: HTTPS-ONLY for security (except localhost for development)
-        'http://localhost:3000',     // Localhost HTTP allowed for development
-        'http://127.0.0.1:3000',     // Localhost HTTP allowed for development
-        'https://34.45.169.78:3000', // Google Cloud VM (HTTPS) - Old
-        'https://34.65.160.116:3000', // Google Cloud VM (HTTPS) - Current
-        'https://usermgt.digibuild.ch'   // Production domain (HTTPS ONLY)
+        // Production: the real domain only, HTTPS only. The raw-IP origins of the
+        // decommissioned VMs (34.45.169.78, 34.65.160.116) and plain-HTTP localhost
+        // were removed - a released IP can be reassigned to someone else, and local
+        // development is served by the list below (isProduction is false there).
+        'https://usermgt.digibuild.ch'
     ] : [
         // Development: Local only (both HTTP and HTTPS)
         'http://localhost:3000',
@@ -277,10 +279,14 @@ app.use((req, res, next) => {
     
     const origin = req.headers.origin;
     
-    // Allow requests with no origin (e.g., mobile apps, Postman, same-origin)
-    if (!origin || allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin || '*');
+    // Requests with no Origin header (same-origin navigations, curl, server-to-server)
+    // aren't subject to CORS, so they need no CORS headers at all - previously they
+    // got a wildcard "*" (paired with Allow-Credentials). Only echo back an
+    // explicitly allowed origin.
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Vary', 'Origin');
     }
     
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

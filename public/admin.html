@@ -745,6 +745,8 @@
     
     <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
+    <!-- escapeHtml() for the license/analytics tables below -->
+    <script src="shared/dom-utils.js?v=20260930a"></script>
     
     <script>
         // Initialize Firebase
@@ -1059,14 +1061,18 @@
                     <tbody>
             `;
             
-            activeLicensesOnly.forEach(license => {
+            // License emails come from the public purchase flow (a quoted local part
+            // like "<img src=x onerror=...>"@x.com passes email validation), so every
+            // value is escaped, and the action buttons carry data-* attributes with a
+            // listener attached below instead of an inline onclick="fn('${email}')".
+            activeLicensesOnly.forEach((license, index) => {
                 const expiryDate = license.expiryDate ? new Date(license.expiryDate) : null;
                 const daysLeft = expiryDate ? Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
-                
+
                 html += `
                     <tr>
-                        <td><code>${license.licenseKey}</code></td>
-                        <td>${license.email}</td>
+                        <td><code>${escapeHtml(license.licenseKey)}</code></td>
+                        <td>${escapeHtml(license.email)}</td>
                         <td><span class="badge badge-active">Active</span></td>
                         <td>${license.purchaseDate ? formatDate(new Date(license.purchaseDate)) : 'N/A'}</td>
                         <td>
@@ -1076,15 +1082,26 @@
                         </td>
                         <td>€${LICENSE_PRICE}</td>
                         <td>
-                            <button class="btn btn-danger btn-sm" onclick="revokeLicense('${license.licenseKey}', '${license.email}')">Revoke</button>
-                            <button class="btn btn-warning btn-sm" onclick="extendLicense('${license.licenseKey}', '${expiryDate}')">Extend</button>
+                            <button class="btn btn-danger btn-sm" data-license-action="revoke" data-license-index="${index}">Revoke</button>
+                            <button class="btn btn-warning btn-sm" data-license-action="extend" data-license-index="${index}">Extend</button>
                         </td>
                     </tr>
                 `;
             });
-            
+
             html += '</tbody></table>';
             container.innerHTML = html;
+
+            container.querySelectorAll('button[data-license-action]').forEach(btn => {
+                const license = activeLicensesOnly[Number(btn.dataset.licenseIndex)];
+                btn.addEventListener('click', () => {
+                    if (btn.dataset.licenseAction === 'revoke') {
+                        revokeLicense(license.licenseKey, license.email);
+                    } else {
+                        extendLicense(license.licenseKey, license.expiryDate ? new Date(license.expiryDate) : null);
+                    }
+                });
+            });
         }
         
         // Render payments
@@ -1116,11 +1133,11 @@
                 html += `
                     <tr>
                         <td>${formatDate(new Date(license.purchaseDate))}</td>
-                        <td>${license.email}</td>
-                        <td><code>${license.licenseKey}</code></td>
-                        <td><strong>€${license.price}</strong></td>
+                        <td>${escapeHtml(license.email)}</td>
+                        <td><code>${escapeHtml(license.licenseKey)}</code></td>
+                        <td><strong>€${escapeHtml(String(license.price ?? ''))}</strong></td>
                         <td><span class="badge badge-active">Completed</span></td>
-                        <td><small>${license.paypalOrderId || 'N/A'}</small></td>
+                        <td><small>${escapeHtml(license.paypalOrderId || 'N/A')}</small></td>
                     </tr>
                 `;
             });
@@ -1148,7 +1165,7 @@
             html += '<table><thead><tr><th>Action</th><th>Count</th></tr></thead><tbody>';
             
             Object.entries(actionCounts).forEach(([action, count]) => {
-                html += `<tr><td>${action}</td><td><strong>${count}</strong></td></tr>`;
+                html += `<tr><td>${escapeHtml(action)}</td><td><strong>${count}</strong></td></tr>`;
             });
             
             html += '</tbody></table>';
@@ -1160,8 +1177,8 @@
                 html += `
                     <tr>
                         <td>${formatDate(new Date(a.timestamp))}</td>
-                        <td>${a.metadata?.email || a.userId || 'N/A'}</td>
-                        <td>${a.action}</td>
+                        <td>${escapeHtml(a.metadata?.email || a.userId || 'N/A')}</td>
+                        <td>${escapeHtml(a.action)}</td>
                     </tr>
                 `;
             });
@@ -1244,7 +1261,7 @@
                                 <span style="font-size: 24px;">📅</span>
                                 <div>
                                     <strong>${expiring.length} License${expiring.length > 1 ? 's' : ''} Expiring Soon</strong>
-                                    <p style="margin-top: 5px;">Send renewal reminders to: ${expiring.map(l => l.email).join(', ')}</p>
+                                    <p style="margin-top: 5px;">Send renewal reminders to: ${escapeHtml(expiring.map(l => l.email).join(', '))}</p>
                                 </div>
                             </div>
                         </div>

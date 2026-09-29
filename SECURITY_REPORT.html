@@ -210,8 +210,8 @@
     <p class="subtitle">Forma User Management Application</p>
     <div class="meta-row">
       <span><strong>Prepared by:</strong> Digibuild</span>
-      <span><strong>Report Date:</strong> 18 September 2026</span>
-      <span><strong>Application Version:</strong> v2.1.0</span>
+      <span><strong>Report Date:</strong> 29 September 2026</span>
+      <span><strong>Application Version:</strong> v2.2.0</span>
       <span><strong>Classification:</strong> Confidential</span>
     </div>
   </header>
@@ -254,7 +254,7 @@
       </tr>
       <tr>
         <td><strong>User/Company Lists</strong></td>
-        <td>Imported user lists, companies, roles (per tenant, per project)</td>
+        <td>Imported user lists, companies, roles (per tenant)</td>
         <td>Google Firestore (cloud)</td>
         <td><span class="tick">✔</span> AES-256-GCM at rest</td>
       </tr>
@@ -415,14 +415,16 @@
         <td><strong>A03 — Injection / XSS</strong></td>
         <td><span class="badge badge-green">Mitigated</span></td>
         <td>
-          <code>escapeHtml()</code> function applied throughout; data originating outside the
-          application (Autodesk project, hub, folder, company and role names; user-submitted
-          emails shown in the admin panel) is rendered via safe DOM APIs
-          (<code>textContent</code> / element properties) rather than HTML string concatenation;
-          strict CSP blocks unauthorized script execution. A full audit of every dynamic HTML
-          insertion point in the codebase (~100 locations) confirmed each is either non-dynamic
-          (fixed markup with no interpolated content), interpolates only trusted internal values
-          (counts, timestamps, fixed labels), or is explicitly escaped.
+          Data originating outside the application (Autodesk project, hub, folder, company and
+          role names; purchaser and user emails shown in the admin panel) is either rendered via
+          safe DOM APIs (<code>textContent</code>, <code>addEventListener</code>, element properties)
+          or passed through <code>escapeHtml()</code>, which escapes <code>&amp; &lt; &gt; " '</code> so
+          output is safe both as element content and inside quoted HTML attributes. No inline
+          event handlers are built from external data. Purchase emails containing
+          <code>&lt; &gt; " \</code> are rejected server-side. A re-audit on 29 September 2026 found and
+          fixed attribute-context and admin-panel insertion points missed by the previous pass; every
+          remaining dynamic insertion interpolates only escaped values or trusted internal values
+          (counts, timestamps, fixed labels, Autodesk-generated IDs).
         </td>
       </tr>
       <tr class="check-row">
@@ -438,16 +440,16 @@
         <td>Comprehensive security headers (7 headers active); CORS restricted to allowed origins; no default credentials; static file serving is scoped exclusively to a dedicated public assets directory — server-side configuration and credential files are never web-accessible</td>
       </tr>
       <tr class="check-row">
-        <td class="tick">✔</td>
+        <td class="tick" style="color:#e65100;">!</td>
         <td><strong>A06 — Vulnerable Components</strong></td>
-        <td><span class="badge badge-green">Mitigated</span></td>
-        <td>Dependencies tracked in <code>package.json</code>; regular audit cycle</td>
+        <td><span class="badge badge-orange">In progress</span></td>
+        <td>Dependencies tracked in <code>package.json</code> / <code>package-lock.json</code>. An <code>npm audit</code> on 29 September 2026 reported known advisories in production dependencies (mostly transitive, via <code>firebase-admin</code>, <code>express</code>, <code>axios</code> and <code>nodemailer</code>); updating them is scheduled, with each update verified against the production Node.js runtime before release</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
         <td><strong>A07 — Auth &amp; Session Failures</strong></td>
         <td><span class="badge badge-green">Mitigated</span></td>
-        <td>Firebase-managed auth; short-lived JWTs; enforced email verification before login; rate limiting (5 login attempts / 15 min); CSRF-protected OAuth flow via validated state parameter</td>
+        <td>Firebase-managed auth; short-lived JWTs; enforced email verification before login; rate limiting on server authentication endpoints (20 requests / 15 min per IP; password sign-in itself is throttled by Firebase Authentication); CSRF-protected OAuth flow via validated state parameter</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -554,17 +556,17 @@
       <h4>Rate Limiting &amp; DoS Protection</h4>
       <ul>
         <li><strong>Global API:</strong> 100 requests / 15 minutes per IP</li>
-        <li><strong>Login endpoint:</strong> 5 attempts / 15 minutes per IP</li>
-        <li><strong>Register endpoint:</strong> 5 attempts / 15 minutes per IP</li>
-        <li><strong>Algorithm:</strong> Sliding window with Redis backend</li>
+        <li><strong>Login / registration endpoints:</strong> 20 requests / 15 minutes per IP</li>
+        <li><strong>License purchase endpoints:</strong> 10 requests / 15 minutes per IP</li>
+        <li><strong>Algorithm:</strong> Redis-backed sliding window when Redis is configured; otherwise a per-instance in-memory fixed window (single instance in production)</li>
         <li><strong>Behaviour:</strong> Returns HTTP 429 on breach</li>
       </ul>
     </div>
     <div class="card">
       <h4>Network &amp; CORS Controls</h4>
       <ul>
-        <li>CORS restricted to explicitly whitelisted origins only</li>
-        <li>No wildcard (<code>*</code>) origins in production</li>
+        <li>CORS restricted to explicitly whitelisted origins only (production: the application domain only)</li>
+        <li>No wildcard (<code>*</code>) origin is ever sent; requests without an <code>Origin</code> header receive no CORS headers</li>
         <li>Credentials flag enabled only for allowed origins</li>
         <li>Preflight requests validated server-side</li>
         <li>HTTP→HTTPS redirect active in production</li>
@@ -591,10 +593,10 @@
     </thead>
     <tbody>
       <tr>
-        <td><strong>Firebase SDK requires <code>unsafe-inline</code> CSP</strong></td>
+        <td><strong>Firebase SDK requires <code>unsafe-inline</code> / <code>unsafe-eval</code> in the script CSP</strong></td>
         <td><span class="badge badge-blue">Accepted</span></td>
         <td>Low (documented Firebase limitation)</td>
-        <td>All other CSP directives are strict; Google has certified this as the only supported method</td>
+        <td>All other CSP directives are strict; external data is escaped or set via safe DOM APIs so the relaxed script directives are not relied on for XSS protection</td>
       </tr>
     </tbody>
   </table>
@@ -637,7 +639,7 @@
 
   <footer>
     <p>
-      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.1.0 | 18 September 2026<br>
+      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.2.0 | 29 September 2026<br>
       This document is confidential and intended solely for the named recipient. Reproduction or distribution without written consent is prohibited.<br>
       Infrastructure security certifications (GCP / Firebase): <em>cloud.google.com/security/compliance</em>
     </p>
