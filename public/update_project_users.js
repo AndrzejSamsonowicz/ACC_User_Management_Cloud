@@ -616,6 +616,23 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
         ]);
         const accountEmailMap = new Map(accountUsers.filter(u => u.email).map(u => [u.email.toLowerCase(), u]));
 
+        // The project role catalog endpoint isn't granted to the production APS app, so
+        // projectRoleIdByName is usually empty. Project roleIds are account role IDs, and
+        // every account member carries (default_role, default_role_id) - after STEP 1 that
+        // includes each imported user's own table role - so build a partial name -> id
+        // catalog from them. It only knows roles someone holds as their default, so a
+        // name missing from it is "unverified", never "invalid".
+        const catalogIsComplete = projectRoleIdByName.size > 0;
+        const roleIdByName = catalogIsComplete ? projectRoleIdByName : new Map();
+        if (!catalogIsComplete) {
+            accountUsers.forEach(u => {
+                if (u.default_role && u.default_role_id) {
+                    roleIdByName.set(u.default_role.trim().toLowerCase(), u.default_role_id);
+                }
+            });
+            log(`ℹ️ Project role catalog unavailable - using ${roleIdByName.size} role(s) known from account members`);
+        }
+
         // Resolve the roleIds to send for a user: a project user can have multiple roles
         // (Autodesk Forma). Prefer the ORIGINAL role IDs captured when the row was loaded
         // (importUser.metadata.roleIds — set only when the Role cell is unedited; see
@@ -639,19 +656,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             const roleNames = rolesText ? rolesText.split(',').map(s => s.trim()).filter(Boolean) : [];
 
             if (roleNames.length > 0) {
-                if (projectRoleIdByName.size === 0) {
-                    // The project's role catalog couldn't be fetched at all (e.g. Autodesk
-                    // hasn't granted this API to the app) - names can't be checked either
-                    // way. Falls through to the account default role below, but flagged as
-                    // "unverified" rather than "invalid", since the role may well be real.
-                    if (accountUser?.default_role_id) {
-                        return { roleIds: [accountUser.default_role_id], invalidNames: [], duplicateNames: [], unverifiedNames: roleNames };
-                    }
-                    return { roleIds: [], invalidNames: [], duplicateNames: [], unverifiedNames: roleNames };
-                }
-
                 const roleIds = [];
-                const invalidNames = [];
+                const unmatchedNames = [];
                 const duplicateNames = [];
                 const seenNames = new Set();
                 roleNames.forEach(name => {
@@ -661,11 +667,21 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                         return;
                     }
                     seenNames.add(nameLower);
-                    const id = projectRoleIdByName.get(nameLower);
-                    if (id) roleIds.push(id); else invalidNames.push(name);
+                    const id = roleIdByName.get(nameLower);
+                    if (id) roleIds.push(id); else unmatchedNames.push(name);
                 });
+                // With the full project catalog an unmatched name is confirmed invalid; with
+                // the partial account-derived one it just couldn't be checked.
+                const invalidNames = catalogIsComplete ? unmatchedNames : [];
+                const unverifiedNames = catalogIsComplete ? [] : unmatchedNames;
                 if (roleIds.length > 0) {
-                    return { roleIds, invalidNames, duplicateNames, unverifiedNames: [] };
+                    return { roleIds, invalidNames, duplicateNames, unverifiedNames };
+                }
+                if (!catalogIsComplete) {
+                    // Nothing could be checked - fall back to the account default role (below),
+                    // flagged as "unverified" rather than "invalid".
+                    const fallback = accountUser?.default_role_id ? [accountUser.default_role_id] : [];
+                    return { roleIds: fallback, invalidNames: [], duplicateNames, unverifiedNames };
                 }
             }
 
