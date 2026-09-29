@@ -3,299 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forma User Management - Register</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-        }
-        
-        body {
-            background: #0696D7;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .register-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 500px;
-            padding: 40px;
-        }
-        
-        .logo-section {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .logo-section h1 {
-            color: #0696D7;
-            font-size: 28px;
-            margin-bottom: 8px;
-        }
-        
-        .logo-section p {
-            color: #6c757d;
-            font-size: 14px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 6px;
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        label .required {
-            color: #dc3545;
-        }
-        
-        input[type="email"],
-        input[type="password"],
-        input[type="text"] {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #0696D7;
-            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.1);
-        }
-        
-        .password-requirements {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 5px;
-            padding-left: 5px;
-        }
-        
-        .password-requirements.valid {
-            color: #28a745;
-        }
-        
-        .password-requirements.invalid {
-            color: #dc3545;
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.1s;
-        }
-        
-        .btn:active {
-            transform: scale(0.98);
-        }
-        
-        .btn-primary {
-            background-color: #0696D7;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0057A0;
-        }
-        
-        .btn-primary:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        
-        .links-section {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #dee2e6;
-        }
-        
-        .links-section a {
-            color: #0696D7;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        
-        .links-section a:hover {
-            text-decoration: underline;
-        }
-        
-        .alert {
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }
-        
-        .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        
-        .alert-info {
-            background-color: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-        }
-        
-        .loading-spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #0696D7;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .info-box {
-            background: #f8f9fa;
-            border-left: 4px solid #0696D7;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        
-        .info-box h3 {
-            color: #333;
-            font-size: 16px;
-            margin-bottom: 8px;
-        }
-        
-        .info-box p {
-            color: #6c757d;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-        
-        .checkbox-group input[type="checkbox"] {
-            margin-right: 10px;
-            margin-top: 3px;
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-        
-        .checkbox-group label {
-            font-size: 13px;
-            color: #6c757d;
-            cursor: pointer;
-            margin-bottom: 0;
-        }
-        
-        .checkbox-group a {
-            color: #0696D7;
-            text-decoration: none;
-        }
-        
-        .checkbox-group a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <title>Create account - Forma User Manager</title>
+    <link rel="stylesheet" href="shared/forma-theme.css">
 </head>
-<body>
-    <div class="register-container">
-        <div class="logo-section">
-            <h1>Forma User Management</h1>
-            <p>Create Your Account</p>
-        </div>
-        
-        <div class="info-box">
-            <h3>📌 Registration Options:</h3>
-            <p style="line-height: 1.8; margin-bottom: 0;">
-                <strong>1.</strong> All new accounts receive a <strong>3-day free trial</strong> with full access—no license key required to start!<br>
-                <strong>2.</strong> You can optionally enter a license key during registration. If you don't have one yet, <a href="purchase.html" style="color: #0696D7;">purchase one here</a> and add it to your account later.
-            </p>
-        </div>
-        
-        <!-- Alert Messages -->
-        <div id="alertMessage" class="alert"></div>
-        
-        <!-- Registration Form -->
-        <form id="registerForm">
-            <div class="form-group">
-                <label for="email">Email Address <span class="required">*</span></label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
-            </div>
-            
-            <div class="form-group">
-                <label for="licenseKey">License Key (Optional)</label>
-                <input type="text" id="licenseKey" name="licenseKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19">
-                <div class="password-requirements">Leave empty to start with the 3-day free trial</div>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password <span class="required">*</span></label>
-                <input type="password" id="password" name="password" required autocomplete="new-password" placeholder="Create a strong password">
-                <div id="passwordRequirements" class="password-requirements">
-                    Must be at least 8 characters with uppercase, lowercase, and number
+<body class="fm">
+    <div class="fm-auth">
+        <section class="fm-auth-brand">
+            <div class="fm-lockup" role="img" aria-label="Forma User Manager by Digibuild">
+                <img class="fm-lockup-mark" src="forma-user-manager-mark.svg" alt="">
+                <div class="fm-lockup-text">
+                    <span class="fm-lockup-name">Forma <em>User</em> Manager</span>
+                    <span class="fm-lockup-by">By Digibuild</span>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <label for="confirmPassword">Confirm Password <span class="required">*</span></label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" placeholder="Re-enter your password">
+            <ul class="fm-auth-points">
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="8" r="3.2"></circle><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"></path><path d="M15.5 5.2a3 3 0 010 5.6M17.5 14.3c1.8.7 3 2.3 3.4 4.7" stroke-linecap="round"></path></svg>Add, update and remove people across many Forma projects at once.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"></path></svg>Give folder access by person, company or role.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10" stroke-linecap="round" stroke-linejoin="round"></path></svg>See every change before it is sent to Forma.</li>
+            </ul>
+            <div class="fm-auth-legal">
+                <a href="terms.html">Terms of Service</a>
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="https://www.digibuild.ch" rel="noopener">digibuild.ch</a>
             </div>
-            
-            <button type="submit" class="btn btn-primary" id="registerBtn">
-                Create Account
-            </button>
-        </form>
-        
-        <div class="links-section">
-            Already have an account? <a href="login.html">Log In</a>
-        </div>
+        </section>
 
-        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
-            <a href="terms.html" style="color: #6c757d;">Terms of Service</a>
-            &nbsp;&middot;&nbsp;
-            <a href="privacy.html" style="color: #6c757d;">Privacy Policy</a>
-        </div>
+        <main class="fm-auth-main">
+            <div class="fm-auth-form">
+                <div>
+                    <h1 class="fm-auth-title">Create your account</h1>
+                    <p class="fm-auth-lead">You get 3 days of full access for free. No license key needed to start.</p>
+                </div>
+
+                <div id="alertMessage" class="fm-alert" role="alert"></div>
+
+                <form id="registerForm" class="fm-auth-form">
+                    <label class="fm-field" for="email">
+                        <span class="fm-label">Work email</span>
+                        <input class="fm-input fm-input-lg" type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+                    </label>
+
+                    <div class="fm-field">
+                        <label class="fm-label" for="password">Password</label>
+                        <input class="fm-input fm-input-lg" type="password" id="password" name="password" required autocomplete="new-password" placeholder="Create a password" aria-describedby="passwordRequirements">
+                        <ul id="passwordRequirements" class="fm-reqs">
+                            <li id="reqLength" class="fm-req"><span class="fm-req-mark" aria-hidden="true"></span>8 or more characters</li>
+                            <li id="reqUpper" class="fm-req"><span class="fm-req-mark" aria-hidden="true"></span>An uppercase letter</li>
+                            <li id="reqLower" class="fm-req"><span class="fm-req-mark" aria-hidden="true"></span>A lowercase letter</li>
+                            <li id="reqNumber" class="fm-req"><span class="fm-req-mark" aria-hidden="true"></span>A number</li>
+                        </ul>
+                    </div>
+
+                    <label class="fm-field" for="confirmPassword">
+                        <span class="fm-label">Repeat password</span>
+                        <input class="fm-input fm-input-lg" type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" placeholder="Type the password again">
+                    </label>
+
+                    <label class="fm-field" for="licenseKey">
+                        <span class="fm-label">License key <span class="fm-label-note">(optional)</span></span>
+                        <input class="fm-input fm-input-lg" type="text" id="licenseKey" name="licenseKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" style="letter-spacing: 0.06em">
+                        <span class="fm-hint">Leave empty to start the free trial. You can add a key later, or <a href="purchase.html">buy one</a>.</span>
+                    </label>
+
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-lg fm-btn-block" id="registerBtn">Create account</button>
+                </form>
+
+                <div style="color: var(--fm-text-2)">Already have an account? <a href="login.html">Sign in</a></div>
+                <div class="fm-auth-legal-mobile">
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                </div>
+            </div>
+        </main>
     </div>
-    
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
@@ -334,26 +115,20 @@
             e.target.value = formatted;
         });
         
-        // Password validation
+        // Password validation: tick each rule as it is met
         document.getElementById('password').addEventListener('input', (e) => {
             const password = e.target.value;
-            const requirements = document.getElementById('passwordRequirements');
-            
-            const hasLength = password.length >= 8;
-            const hasUpper = /[A-Z]/.test(password);
-            const hasLower = /[a-z]/.test(password);
-            const hasNumber = /[0-9]/.test(password);
-            
-            if (hasLength && hasUpper && hasLower && hasNumber) {
-                requirements.className = 'password-requirements valid';
-                requirements.textContent = '✓ Password meets requirements';
-            } else {
-                requirements.className = 'password-requirements invalid';
-                requirements.textContent = 'Must be at least 8 characters with uppercase, lowercase, and number';
-            }
+            const rules = {
+                reqLength: password.length >= 8,
+                reqUpper: /[A-Z]/.test(password),
+                reqLower: /[a-z]/.test(password),
+                reqNumber: /[0-9]/.test(password)
+            };
+            Object.entries(rules).forEach(([id, met]) => {
+                document.getElementById(id).classList.toggle('is-met', met);
+            });
         });
-        
-        // Registration Form Handler
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -365,18 +140,18 @@
             
             // Validate password match
             if (password !== confirmPassword) {
-                showAlert('Passwords do not match!', 'error');
+                showAlert("The two passwords don't match.", 'error');
                 return;
             }
             
             // Validate password strength
             if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-                showAlert('Password does not meet requirements!', 'error');
+                showAlert('Choose a password that meets all four rules below the password field.', 'error');
                 return;
             }
             
             registerBtn.disabled = true;
-            registerBtn.innerHTML = 'Creating Account... <span class="loading-spinner"></span>';
+            registerBtn.innerHTML = '<span class="fm-spinner"></span> Creating account';
             
             try {
                 // Step 1: Validate license key with server (if provided)
@@ -488,7 +263,7 @@
                     showAlert(errorMessage, 'error');
                 }
                 registerBtn.disabled = false;
-                registerBtn.innerHTML = 'Create Account';
+                registerBtn.textContent = 'Create account';
             }
         });
         
@@ -496,8 +271,7 @@
         function showAlert(message, type) {
             const alert = document.getElementById('alertMessage');
             alert.textContent = message;
-            alert.className = `alert alert-${type}`;
-            alert.style.display = 'block';
+            alert.className = `fm-alert fm-alert-${type} is-visible`;
             
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }

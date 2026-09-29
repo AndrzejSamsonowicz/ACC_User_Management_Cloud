@@ -3,317 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forma User Management - Login</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-        }
-        
-        body {
-            background: #0696D7;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .login-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 440px;
-            padding: 40px;
-        }
-        
-        .logo-section {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .logo-section h1 {
-            color: #0696D7;
-            font-size: 28px;
-            margin-bottom: 8px;
-        }
-        
-        .logo-section p {
-            color: #6c757d;
-            font-size: 14px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 6px;
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        input[type="email"],
-        input[type="password"],
-        input[type="text"] {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #0696D7;
-            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.1);
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.1s;
-        }
-        
-        .btn:active {
-            transform: scale(0.98);
-        }
-        
-        .btn-primary {
-            background-color: #0696D7;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0057A0;
-        }
-        
-        .btn-primary:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        
-        .btn-secondary {
-            background-color: #f8f9fa;
-            color: #333;
-            border: 1px solid #dee2e6;
-            margin-top: 10px;
-        }
-        
-        .btn-secondary:hover {
-            background-color: #e9ecef;
-        }
-        
-        .links-section {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #dee2e6;
-        }
-        
-        .links-section a {
-            color: #0696D7;
-            text-decoration: none;
-            font-size: 14px;
-            display: inline-block;
-            margin: 5px 10px;
-        }
-        
-        .links-section a:hover {
-            text-decoration: underline;
-        }
-
-        .account-note {
-            margin-top: 18px;
-            text-align: center;
-            font-size: 11px;
-            line-height: 1.4;
-            color: #6c757d;
-            font-style: italic;
-            white-space: nowrap;
-        }
-        
-        .divider {
-            text-align: center;
-            margin: 20px 0;
-            color: #6c757d;
-            font-size: 14px;
-        }
-        
-        .alert {
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }
-        
-        .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        
-        .alert-info {
-            background-color: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-        }
-        
-        .loading-spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #0696D7;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 400px;
-            width: 90%;
-        }
-        
-        .modal-content h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 22px;
-        }
-        
-        .close-modal {
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            color: #aaa;
-            cursor: pointer;
-            line-height: 20px;
-        }
-        
-        .close-modal:hover {
-            color: #000;
-        }
-    </style>
+    <title>Sign in - Forma User Manager</title>
+    <link rel="stylesheet" href="shared/forma-theme.css">
 </head>
-<body>
-    <div class="login-container">
-        <div class="logo-section">
-            <h1>Forma User Management</h1>
-            <p style="display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;">
-                Compatible with
-                <span style="background: #1a1a1a; border-radius: 6px; padding: 6px 10px; display: inline-flex; align-items: center;">
-                    <img src="forma-lockup-wht.png" alt="Autodesk Forma" style="height: 20px; width: auto; display: block;">
-                </span>
-            </p>
-        </div>
-        
-        <!-- Alert Messages -->
-        <div id="alertMessage" class="alert"></div>
-        
-        <!-- Login Form -->
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+<body class="fm">
+    <div class="fm-auth">
+        <section class="fm-auth-brand">
+            <div class="fm-lockup" role="img" aria-label="Forma User Manager by Digibuild">
+                <img class="fm-lockup-mark" src="forma-user-manager-mark.svg" alt="">
+                <div class="fm-lockup-text">
+                    <span class="fm-lockup-name">Forma <em>User</em> Manager</span>
+                    <span class="fm-lockup-by">By Digibuild</span>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+            <ul class="fm-auth-points">
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="8" r="3.2"></circle><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"></path><path d="M15.5 5.2a3 3 0 010 5.6M17.5 14.3c1.8.7 3 2.3 3.4 4.7" stroke-linecap="round"></path></svg>Add, update and remove people across many Forma projects at once.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"></path></svg>Give folder access by person, company or role.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10" stroke-linecap="round" stroke-linejoin="round"></path></svg>See every change before it is sent to Forma.</li>
+            </ul>
+            <div class="fm-auth-legal">
+                <a href="terms.html">Terms of Service</a>
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="https://www.digibuild.ch" rel="noopener">digibuild.ch</a>
             </div>
-            
-            <button type="submit" class="btn btn-primary" id="loginBtn">
-                Log In
-            </button>
-        </form>
-        
-        <div class="links-section">
-            <a href="#" id="forgotPasswordLink">Forgot Password?</a>
-            <span style="color: #dee2e6;">|</span>
-            <a href="register.html">Create Account*</a>
-        </div>
+        </section>
 
-        <div class="account-note">
-            *Your Forma User Management account, not your Autodesk account.
-        </div>
-        
-        <div class="divider">OR</div>
-        
-        <button class="btn btn-secondary" onclick="window.location.href='purchase.html'">
-            Purchase License
-        </button>
+        <main class="fm-auth-main">
+            <div class="fm-auth-form">
+                <div>
+                    <h1 class="fm-auth-title">Sign in</h1>
+                    <p class="fm-auth-lead">Use your Forma User Manager account, not your Autodesk account. You connect Autodesk in the next step.</p>
+                </div>
 
-        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
-            <a href="terms.html" style="color: #6c757d;">Terms of Service</a>
-            &nbsp;&middot;&nbsp;
-            <a href="privacy.html" style="color: #6c757d;">Privacy Policy</a>
-        </div>
+                <div id="alertMessage" class="fm-alert" role="alert"></div>
+
+                <form id="loginForm" class="fm-auth-form">
+                    <label class="fm-field" for="email">
+                        <span class="fm-label">Email</span>
+                        <input class="fm-input fm-input-lg" type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+                    </label>
+                    <div class="fm-field">
+                        <span style="display: flex; justify-content: space-between">
+                            <label class="fm-label" for="password">Password</label>
+                            <a href="#" id="forgotPasswordLink">Forgot password?</a>
+                        </span>
+                        <input class="fm-input fm-input-lg" type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-lg fm-btn-block" id="loginBtn">Sign in</button>
+                </form>
+
+                <hr class="fm-divider">
+
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                    <span>New here? Every account starts with a 3-day free trial.</span>
+                    <div style="display: flex; gap: 8px">
+                        <a href="register.html" class="fm-btn" style="flex: 1">Create an account</a>
+                        <a href="purchase.html" class="fm-btn" style="flex: 1">Buy a license</a>
+                    </div>
+                </div>
+                <div class="fm-auth-legal-mobile">
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <!-- Password Reset Modal -->
-    <div id="resetPasswordModal" class="modal-overlay">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeResetModal()">&times;</span>
-            <h2>Reset Password</h2>
-            <div id="modalAlert" class="alert"></div>
+    <!-- Password reset dialog -->
+    <div id="resetPasswordModal" class="fm-overlay">
+        <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+            <div class="fm-dialog-head">
+                <h2 class="fm-dialog-title" id="resetTitle">Reset your password</h2>
+                <button type="button" class="fm-dialog-close" aria-label="Close" onclick="closeResetModal()">&times;</button>
+            </div>
             <form id="resetPasswordForm">
-                <div class="form-group">
-                    <label for="resetEmail">Email Address</label>
-                    <input type="email" id="resetEmail" required placeholder="you@example.com">
+                <div class="fm-dialog-body">
+                    <p style="margin: 0; color: var(--fm-text-2)">We will email you a link to choose a new password.</p>
+                    <div id="modalAlert" class="fm-alert" role="alert"></div>
+                    <label class="fm-field" for="resetEmail">
+                        <span class="fm-label">Email</span>
+                        <input class="fm-input" type="email" id="resetEmail" required placeholder="you@example.com">
+                    </label>
                 </div>
-                <button type="submit" class="btn btn-primary" id="resetBtn">
-                    Send Reset Link
-                </button>
+                <div class="fm-dialog-foot">
+                    <button type="button" class="fm-btn" onclick="closeResetModal()">Cancel</button>
+                    <button type="submit" class="fm-btn fm-btn-primary" id="resetBtn">Send reset link</button>
+                </div>
             </form>
         </div>
     </div>
-    
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
@@ -442,7 +221,7 @@
             const loginBtn = document.getElementById('loginBtn');
             
             loginBtn.disabled = true;
-            loginBtn.innerHTML = 'Logging in... <span class="loading-spinner"></span>';
+            loginBtn.innerHTML = '<span class="fm-spinner"></span> Signing in';
             
             try {
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
@@ -495,7 +274,7 @@
                 }
                 
                 loginBtn.disabled = false;
-                loginBtn.innerHTML = 'Log In';
+                loginBtn.textContent = 'Sign in';
             }
         });
         
@@ -517,7 +296,7 @@
             const resetBtn = document.getElementById('resetBtn');
             
             resetBtn.disabled = true;
-            resetBtn.innerHTML = 'Sending... <span class="loading-spinner"></span>';
+            resetBtn.innerHTML = '<span class="fm-spinner"></span> Sending';
             
             try {
                 await auth.sendPasswordResetEmail(email);
@@ -543,7 +322,7 @@
                 showModalAlert(errorMessage, 'error');
             } finally {
                 resetBtn.disabled = false;
-                resetBtn.innerHTML = 'Send Reset Link';
+                resetBtn.textContent = 'Send reset link';
             }
         });
         
@@ -551,12 +330,11 @@
         function showAlert(message, type) {
             const alert = document.getElementById('alertMessage');
             alert.textContent = message;
-            alert.className = `alert alert-${type}`;
-            alert.style.display = 'block';
+            alert.className = `fm-alert fm-alert-${type} is-visible`;
             
             if (type === 'success') {
                 setTimeout(() => {
-                    alert.style.display = 'none';
+                    alert.classList.remove('is-visible');
                 }, 5000);
             }
         }
@@ -564,13 +342,12 @@
         function showModalAlert(message, type) {
             const alert = document.getElementById('modalAlert');
             alert.textContent = message;
-            alert.className = `alert alert-${type}`;
-            alert.style.display = 'block';
+            alert.className = `fm-alert fm-alert-${type} is-visible`;
         }
         
         function closeResetModal() {
             document.getElementById('resetPasswordModal').style.display = 'none';
-            document.getElementById('modalAlert').style.display = 'none';
+            document.getElementById('modalAlert').classList.remove('is-visible');
             document.getElementById('resetPasswordForm').reset();
         }
         

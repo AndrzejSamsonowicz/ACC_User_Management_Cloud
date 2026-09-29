@@ -1,0 +1,167 @@
+/*
+ * Forma look for Forma User Manager.
+ * Values measured on Autodesk Forma (acc.autodesk.com), so the app feels like a
+ * tool inside Forma. Artifakt Element is used when installed; Noto Sans stands
+ * in otherwise (Autodesk's font files are not bundled here).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Playfair+Display:ital,wght@0,500;1,500&display=swap');
+
+:root {
+    --fm-font: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
+    --fm-text: #3C3C3C;
+    --fm-text-2: #666666;
+    --fm-text-3: #808080;
+    --fm-blue: #0696D7;
+    --fm-blue-hover: #0A7EB5;
+    --fm-link: #006EAF;
+    --fm-border: #BBBBBB;
+    --fm-divider: #DCDCDC;
+    --fm-row-line: #EEEEEE;
+    --fm-panel: #F5F5F5;
+    --fm-selected: #EDF8FC;
+    --fm-success: #2A8D3D;
+    --fm-warning: #B37600;
+    --fm-warning-bg: #FFF6E0;
+    --fm-error: #DD2222;
+    --fm-error-bg: #FCECEA;
+    --fm-shadow: rgba(12, 44, 84, 0.15) 0 4px 14px, rgba(12, 44, 84, 0.25) 0 0 1px;
+}
+
+.fm, .fm * { box-sizing: border-box; }
+.fm {
+    margin: 0;
+    font-family: var(--fm-font);
+    font-size: 14px;
+    line-height: 21px;
+    color: var(--fm-text);
+    background: #fff;
+}
+.fm button, .fm input, .fm select, .fm textarea { font-family: inherit; }
+.fm a { color: var(--fm-link); text-decoration: none; }
+.fm a:hover { text-decoration: underline; }
+.fm :focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 2px; }
+.fm .num { font-variant-numeric: tabular-nums; }
+.fm .hidden { display: none !important; }
+
+/* Buttons */
+.fm-btn {
+    height: 36px; padding: 0 16px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1px solid var(--fm-border); border-radius: 2px;
+    background: #fff; color: var(--fm-text);
+    font-size: 14px; font-weight: 600; white-space: nowrap;
+    cursor: pointer; text-decoration: none;
+}
+.fm-btn:hover { border-color: #808080; text-decoration: none; }
+.fm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.fm-btn-primary { background: var(--fm-blue); border-color: var(--fm-blue); color: #fff; }
+.fm-btn-primary:hover { background: var(--fm-blue-hover); border-color: var(--fm-blue-hover); }
+.fm-btn-primary:disabled { background: var(--fm-blue); border-color: var(--fm-blue); }
+.fm-btn-text { border-color: transparent; background: transparent; color: var(--fm-link); padding: 0 8px; }
+.fm-btn-text:hover { border-color: transparent; text-decoration: underline; }
+.fm-btn-lg { height: 40px; }
+.fm-btn-block { width: 100%; }
+
+/* Form fields */
+.fm-field { display: flex; flex-direction: column; gap: 6px; }
+.fm-label { font-weight: 700; }
+.fm-label-note { font-weight: 400; color: var(--fm-text-2); }
+.fm-hint { font-size: 13px; color: var(--fm-text-2); line-height: 18px; }
+.fm-input {
+    height: 36px; width: 100%; padding: 0 12px;
+    border: 1px solid var(--fm-border); border-radius: 2px;
+    background: #fff; color: var(--fm-text); font-size: 14px;
+}
+.fm-input-lg { height: 40px; }
+.fm-input::placeholder { color: var(--fm-text-3); }
+.fm-input:focus { outline: none; border-color: var(--fm-blue); box-shadow: 0 0 0 1px var(--fm-blue); }
+.fm-input.is-invalid { border-color: var(--fm-error); }
+
+/* Password rules checklist */
+.fm-reqs { list-style: none; margin: 2px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 13px; color: var(--fm-text-2); }
+.fm-req { display: flex; align-items: center; gap: 6px; }
+.fm-req-mark { width: 12px; height: 12px; border: 1px solid var(--fm-border); border-radius: 50%; flex: none; }
+.fm-req.is-met { color: var(--fm-success); }
+.fm-req.is-met .fm-req-mark {
+    border: 0;
+    background: var(--fm-success) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4'%3E%3Cpath d='M5 12l5 5 9-10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 9px no-repeat;
+}
+
+/* Alerts: Forma style, coloured left edge */
+.fm-alert {
+    display: none;
+    padding: 12px 12px 12px 15px; border-radius: 2px; line-height: 20px;
+}
+.fm-alert.is-visible { display: block; }
+.fm-alert-error { background: var(--fm-error-bg); box-shadow: inset 3px 0 0 var(--fm-error); }
+.fm-alert-success { background: #E3F3E6; box-shadow: inset 3px 0 0 var(--fm-success); }
+.fm-alert-info { background: var(--fm-selected); box-shadow: inset 3px 0 0 var(--fm-blue); }
+.fm-alert-warning { background: var(--fm-warning-bg); box-shadow: inset 3px 0 0 #E8A317; }
+
+.fm-spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.45); border-top-color: #fff; border-radius: 50%;
+    animation: fm-spin 0.9s linear infinite;
+}
+@keyframes fm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fm-spinner { animation-duration: 3s; } }
+
+.fm-divider { height: 1px; background: var(--fm-divider); border: 0; margin: 0; }
+
+/* Dialog */
+.fm-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(60, 60, 60, 0.5); padding: 16px;
+}
+.fm-overlay.is-open { display: flex; }
+.fm-dialog {
+    width: 100%; max-width: 440px; background: #fff; border-radius: 4px;
+    box-shadow: var(--fm-shadow); display: flex; flex-direction: column;
+}
+.fm-dialog-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 24px 16px; box-shadow: inset 0 -1px 0 var(--fm-divider); }
+.fm-dialog-title { margin: 0; font-size: 20px; font-weight: 400; line-height: 26px; }
+.fm-dialog-close {
+    margin-left: auto; width: 32px; height: 32px; border: 0; background: transparent;
+    font-size: 26px; line-height: 1; color: var(--fm-text); cursor: pointer;
+}
+.fm-dialog-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.fm-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; box-shadow: inset 0 1px 0 var(--fm-divider); }
+
+/* Logo lockup (Digibuild brand, as on digibuild.ch) */
+.fm-lockup { display: flex; align-items: center; gap: 22px; }
+.fm-lockup-mark { width: 92px; height: 92px; flex: none; }
+.fm-lockup-text { display: flex; flex-direction: column; gap: 10px; }
+.fm-lockup-name {
+    font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 500;
+    line-height: 1.05; letter-spacing: -0.02em; color: #1F1E1D; white-space: nowrap;
+}
+.fm-lockup-name em { color: #C4623A; }
+.fm-lockup-by { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--fm-text-2); }
+
+/* Sign-in / registration pages */
+.fm-auth { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, 600px) minmax(0, 1fr); }
+.fm-auth-brand {
+    background: var(--fm-panel); border-right: 1px solid var(--fm-divider);
+    padding: 64px 72px 40px; display: flex; flex-direction: column; gap: 36px;
+}
+.fm-auth-brand .fm-lockup { margin-top: 12vh; }
+.fm-auth-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 24px; max-width: 420px; }
+.fm-auth-points li { display: flex; gap: 12px; }
+.fm-auth-points svg { flex: none; margin-top: 2px; }
+.fm-auth-legal { margin-top: auto; display: flex; gap: 20px; font-size: 13px; }
+.fm-auth-legal-mobile { display: none; gap: 20px; font-size: 13px; padding-top: 8px; }
+.fm-auth-main { display: flex; align-items: center; justify-content: center; padding: 48px 24px; }
+.fm-auth-form { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; }
+.fm-auth-title { margin: 0; font-size: 30px; font-weight: 400; line-height: 42px; }
+.fm-auth-lead { margin: 0; color: var(--fm-text-2); }
+
+@media (max-width: 900px) {
+    .fm-auth { grid-template-columns: 1fr; align-content: start; }
+    .fm-auth-brand { padding: 32px 24px; gap: 20px; border-right: 0; border-bottom: 1px solid var(--fm-divider); }
+    .fm-auth-brand .fm-lockup { margin-top: 0; }
+    .fm-auth-points, .fm-auth-legal { display: none; }
+    .fm-auth-legal-mobile { display: flex; }
+    .fm-lockup-mark { width: 64px; height: 64px; }
+    .fm-lockup-name { font-size: 28px; white-space: normal; }
+}
