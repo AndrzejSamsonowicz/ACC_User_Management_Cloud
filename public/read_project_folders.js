@@ -101,6 +101,7 @@
         expandedFolderIds = new Set();
         folderUserAssignments = new Map();
         permissionsLoadedFolderIds = new Set();
+        window.FolderPermissions?.resetPermissionsCache?.();
 
         // Open the indented tree — the primary (and only) UI for managing
         // folder access. It creates its own modal, including the left
@@ -2216,6 +2217,8 @@
         // Pass the required context data
         if (typeof window.syncPermissionsToACC === 'function') {
             await window.syncPermissionsToACC(currentProjectData, currentProjectUsersRaw);
+            // Forma changed: folders opened from now on must read fresh permissions
+            window.FolderPermissions?.resetPermissionsCache?.();
         } else {
             // console.error('âŒ Sync module not loaded!');
             alert('Sync module not loaded. Please refresh the page.');

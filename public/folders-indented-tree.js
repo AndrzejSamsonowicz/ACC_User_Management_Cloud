@@ -63,6 +63,8 @@
     let itFocusedKey = null; // keyboard-navigation focus (Up/Down/Left/Right), independent of itSelectedKeys
     let itDeleteConfirmEl = null; // the pending "delete N entries?" toast, if one is showing
     let itContextMenuEl = null; // the open right-click menu, if any
+    let itAllLevelsLoaded = false; // whole folder tree + permissions loaded (for search)
+    let itAllLevelsLoading = null; // the running load-everything promise, if any
     let itCopyTargetArmed = null; // Set of {folderId, entryUser} awaiting a folder click, from "Copy access to…"
 
     // User-resizable column widths (px). "Name" holds the indented tree itself
@@ -752,6 +754,55 @@
      * a large/complex project could take a very long time or hammer the API.
      * Returns false if there was nothing left to expand (already full depth).
      */
+    /**
+     * Load every remaining folder level (subfolders + permissions) without changing
+     * which folders are open, so search can find people in folders not opened yet.
+     */
+    function itLoadAllLevels(container) {
+        if (itAllLevelsLoaded || itCleaned) return Promise.resolve();
+        if (itAllLevelsLoading) return itAllLevelsLoading;
+        itAllLevelsLoading = (async () => {
+            itTreeBusy = true;
+            itTreeBusyLabel = 'Searching all folders…';
+            if (container) itRenderTree(container);
+            try {
+                // Walk every known folder whose subfolders + their permissions haven't
+                // been loaded yet (itFetchAndPeek marks it in expandedFolderIds), parents
+                // before children, round after round as new subfolders appear. This is
+                // independent of which folders are open on screen.
+                const tried = new Set();
+                for (let round = 0; round < 30; round++) {
+                    const pending = new Map(); // folderId -> depth
+                    (currentHierarchy || []).forEach(row => {
+                        Object.keys(row).filter(k => /^level\d+$/.test(k)).forEach(k => {
+                            const f = row[k];
+                            if (f?.id && !expandedFolderIds.has(f.id) && !tried.has(f.id)) {
+                                pending.set(f.id, parseInt(k.slice(5), 10));
+                            }
+                        });
+                    });
+                    if (pending.size === 0) break;
+                    const ids = [...pending.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id);
+                    const CONCURRENCY = 4;
+                    for (let i = 0; i < ids.length; i += CONCURRENCY) {
+                        const batch = ids.slice(i, i + CONCURRENCY);
+                        batch.forEach(id => tried.add(id));
+                        await Promise.all(batch.map(id => itFetchAndPeek(id).catch(err => {
+                            console.error('[IndentedTree] search load failed for', id, err);
+                        })));
+                    }
+                }
+                itAllLevelsLoaded = true;
+            } catch (err) {
+                console.error('[IndentedTree] loading all folders for search failed:', err);
+            } finally {
+                itTreeBusy = false;
+                itAllLevelsLoading = null;
+            }
+        })();
+        return itAllLevelsLoading;
+    }
+
     async function itExpandNextLevel() {
         if (!currentProjectData || !currentHierarchy) return false;
 
@@ -2540,6 +2591,8 @@
 
         itInjectStyles();
         itMode = 'folders';
+        itAllLevelsLoaded = false;
+        itAllLevelsLoading = null;
         itSearchQuery = '';
         itExpandedKeys = new Set();
         itSelectedKeys = new Set();
@@ -2685,15 +2738,21 @@
         searchInput.addEventListener('input', () => {
             searchWrap.classList.toggle('has-value', searchInput.value.length > 0);
             clearTimeout(itSearchTimeout);
-            itSearchTimeout = setTimeout(() => {
+            itSearchTimeout = setTimeout(async () => {
                 itSearchQuery = searchInput.value.trim();
                 const container = document.getElementById('itContainer');
                 if (container) itRenderTree(container);
-                if (itSearchQuery) {
-                    const firstMatch = itLastVisible.find(v => v.data.__matched);
-                    if (firstMatch) itScrollRowIntoView(firstMatch.data.__key);
+                if (!itSearchQuery) return;
+                // Folders not opened yet haven't been loaded: load the rest of the
+                // tree once, then search again so matches deep down are found too.
+                if (!itAllLevelsLoaded) {
+                    await itLoadAllLevels(container);
+                    if (!itSearchQuery) return;
+                    if (container) itRenderTree(container);
                 }
-            }, 200);
+                const firstMatch = itLastVisible.find(v => v.data.__matched);
+                if (firstMatch) itScrollRowIntoView(firstMatch.data.__key);
+            }, 250);
         });
         searchClearBtn.addEventListener('click', () => {
             searchInput.value = '';

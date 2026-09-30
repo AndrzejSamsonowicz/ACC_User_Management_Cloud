@@ -41,7 +41,10 @@
         log('🔐 Fetching permissions for folder:', folderId);
 
         try {
-            const response = await fetchWithRetry(url, {
+            // apsFetch (index.html) waits and retries when Autodesk rate-limits (429);
+            // plain fetchWithRetry only retries network errors.
+            const doFetch = (typeof apsFetch === 'function') ? apsFetch : fetchWithRetry;
+            const response = await doFetch(url, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json'
@@ -75,6 +78,12 @@
      * @param {string} accessToken - OAuth access token
      * @returns {Promise<Object>} Map of folderId to permissions array
      */
+    // Permissions already read in this Folder access session: every load used to
+    // re-fetch every known folder, which made opening folders slow and ran into
+    // Autodesk's rate limit. Cleared when the dialog opens and after a sync.
+    const permissionsCache = new Map();
+    function resetPermissionsCache() { permissionsCache.clear(); }
+
     async function fetchAllFolderPermissions(projectId, hierarchy, accessToken) {
         log('🔐 Fetching permissions for all folders in hierarchy...');
         
@@ -96,9 +105,16 @@
 
         log(`📂 Found ${uniqueFolderIds.size} unique folders to fetch permissions for`);
 
+        // Reuse what this session already read; fetch only the rest
+        const folderIds = [];
+        uniqueFolderIds.forEach(folderId => {
+            if (permissionsCache.has(folderId)) permissionsMap[folderId] = permissionsCache.get(folderId);
+            else folderIds.push(folderId);
+        });
+        log(`📦 ${uniqueFolderIds.size - folderIds.length} from this session's cache, ${folderIds.length} to fetch`);
+
         // Fetch permissions for each folder
         // Process in batches to avoid overwhelming the API
-        const folderIds = Array.from(uniqueFolderIds);
         const batchSize = 5;
         
         for (let i = 0; i < folderIds.length; i += batchSize) {
@@ -111,7 +127,7 @@
             const batchResults = await Promise.all(batchPromises);
             batchResults.forEach(({ folderId, permissions }) => {
                 if (permissions === null) failedFolderIds.add(folderId);
-                else permissionsMap[folderId] = permissions;
+                else { permissionsMap[folderId] = permissions; permissionsCache.set(folderId, permissions); }
             });
             
             log(`📊 Progress: ${Math.min(i + batchSize, folderIds.length)}/${folderIds.length} folders`);
@@ -294,6 +310,7 @@
     window.FolderPermissions = {
         fetchFolderPermissions,
         fetchAllFolderPermissions,
+        resetPermissionsCache,
         permissionLevelToActions,
         actionsToPermissionLevel,
         findUserByEmail,
