@@ -37,7 +37,15 @@ function getAccountUsersForSync(accountId, importUsers) {
     return byAccount.get(accountId);
 }
 
+// Set once Autodesk answers 401/403 for the roles endpoint (e.g. "Route not enabled
+// for clientId" - the production APS app isn't granted it). That won't change during
+// the session, so stop asking: it saved nothing, cost a request per project in
+// multi-project sync, and left a 403 in the console every time. Role names are then
+// resolved from account members instead (see executeSyncOperations).
+let projectRolesRouteUnavailable = false;
+
 async function fetchProjectRoles(projectId, accessToken) {
+    if (projectRolesRouteUnavailable) return [];
     let allRoles = [];
     let offset = 0;
     const limit = 200;
@@ -47,7 +55,12 @@ async function fetchProjectRoles(projectId, accessToken) {
         const res = await apsFetch(url,{ headers: { Authorization: `Bearer ${accessToken}` } });
         if (!res.ok) {
             const errorText = await res.text().catch(() => '');
-            console.warn(`⚠️ Failed to fetch project roles: ${res.status} - ${errorText}`);
+            if (res.status === 401 || res.status === 403) {
+                projectRolesRouteUnavailable = true;
+                log(`ℹ️ Project roles endpoint not available to this app (${res.status}) - using roles from account members for this session`);
+            } else {
+                console.warn(`⚠️ Failed to fetch project roles: ${res.status} - ${errorText}`);
+            }
             return allRoles;
         }
         const data = await res.json();

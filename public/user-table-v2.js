@@ -2017,6 +2017,13 @@ sam.electric@ge.com;General Electric Inc;Electrical Engineer`;
                 return;
             }
 
+            // A header row ("Email | Company | Role") is common - skip it quietly
+            // instead of reporting it as an invalid email.
+            if (index === 0 && !this.emailRegex.test(email) && /e-?mail/i.test(email)) {
+                log(`ℹ️ Excel row 1 looks like a header ("${email}"), skipping`);
+                return;
+            }
+
             if (!this.emailRegex.test(email)) {
                 console.warn(`⚠️ Excel row ${index + 1}: invalid email "${email}"`);
                 errorCount++;
