@@ -144,3 +144,55 @@ body.fm .import-user-checkbox { accent-color: var(--fm-blue); }
 body.fm .fm-btn-danger { color: var(--fm-error); }
 body.fm .fm-stepper li.is-done { color: var(--fm-text); }
 body.fm .fm-stepper li.is-done .fm-step-dot { background: var(--fm-blue); border-color: var(--fm-blue); }
+
+/* ---------- Review before sync, sync progress, results, role warnings ---------- */
+body.fm .fm-review { max-width: 880px; max-height: 86vh; }
+body.fm .fm-review-body { overflow-y: auto; }
+body.fm .fm-review-summary { display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 12px 0; border-top: 1px solid var(--fm-divider); border-bottom: 1px solid var(--fm-divider); }
+body.fm .fm-review-stat { display: flex; align-items: center; gap: 8px; }
+body.fm .fm-review-stat-value { font-size: 20px; font-weight: 600; }
+body.fm .fm-mark {
+    width: 20px; height: 20px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; line-height: 1;
+}
+body.fm .fm-mark-added { background: #E3F3E6; color: var(--fm-success); }
+body.fm .fm-mark-same { background: #EEEEEE; color: var(--fm-text-2); }
+body.fm .fm-mark-removed { background: var(--fm-error-bg); color: var(--fm-error); }
+body.fm .fm-mark-changed { border-radius: 0; width: 20px; height: 18px; background: none; position: relative; }
+body.fm .fm-mark-changed::before {
+    content: ''; position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 26'%3E%3Cpath d='M14 2l12 22H2z' fill='%23FFF6E0' stroke='%23E8A317' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+body.fm .fm-review-projects { display: flex; flex-direction: column; }
+body.fm .fm-review-project-head {
+    width: 100%; min-height: 44px; padding: 0 8px; border: 0; background: var(--fm-panel); cursor: pointer; color: var(--fm-text);
+    display: flex; align-items: center; gap: 10px; text-align: left; font-size: 14px; box-shadow: inset 0 -1px 0 var(--fm-divider);
+}
+body.fm .fm-review-project-name { font-weight: 700; flex: 1; min-width: 0; }
+body.fm .fm-chev { width: 8px; height: 8px; border-right: 2px solid var(--fm-text); border-bottom: 2px solid var(--fm-text); transform: rotate(-45deg); margin: 0 4px; flex: none; }
+body.fm .fm-review-project-head[aria-expanded="true"] .fm-chev { transform: rotate(45deg); margin-top: -4px; }
+body.fm .fm-review-row {
+    display: grid; grid-template-columns: 36px minmax(0, 280px) minmax(0, 1fr); align-items: center; gap: 8px;
+    min-height: 44px; padding: 4px 8px 4px 0; box-shadow: inset 0 -1px 0 var(--fm-row-line);
+}
+body.fm .fm-review-row .fm-mark { justify-self: center; }
+body.fm .fm-review-row.is-changed { background: #FFFBF0; }
+body.fm .fm-review-row.is-removed { background: #FDF5F4; }
+body.fm .fm-review-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+body.fm .fm-review-note { color: var(--fm-text-2); }
+body.fm .fm-review-foot-note { margin: 0; font-size: 13px; }
+
+body.fm .fm-progress { height: 8px; border-radius: 16px; background: #EEEEEE; overflow: hidden; }
+body.fm .fm-progress-bar { height: 100%; background: var(--fm-blue); border-radius: 16px; transition: width 0.3s; }
+@media (prefers-reduced-motion: reduce) { body.fm .fm-progress-bar { transition: none; } }
+
+body.fm .fm-result-table { display: flex; flex-direction: column; }
+body.fm .fm-result-row { display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px 80px 130px; align-items: center; min-height: 44px; box-shadow: inset 0 -1px 0 var(--fm-row-line); }
+body.fm .fm-result-head { font-weight: 700; box-shadow: inset 0 -1px 0 var(--fm-divider); }
+body.fm .fm-result-ok { color: var(--fm-success); }
+body.fm .fm-result-bad { color: var(--fm-error); font-weight: 600; }
+body.fm .fm-result-errors { margin: 0; padding: 8px 12px 8px 32px; background: var(--fm-error-bg); font-size: 13px; line-height: 20px; }
+
+body.fm #invalidRolesBackdrop .fm-warn-title { font-weight: 700; margin-bottom: 8px; }
+body.fm #invalidRolesBackdrop .fm-warn-item { margin: 8px 0; padding: 10px 12px 10px 15px; background: var(--fm-warning-bg); box-shadow: inset 3px 0 0 #E8A317; border-radius: 2px; }
+body.fm #invalidRolesBackdrop .fm-warn-list { margin: 6px 0 0; padding-left: 20px; }

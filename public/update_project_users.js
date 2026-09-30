@@ -292,12 +292,12 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     
     // Show progress overlay (same style as multi-project)
     document.body.insertAdjacentHTML('beforeend', `
-        <div id="singleSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <h3 style="margin:0 0 16px 0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Syncing ${escapeHtml(projectName)}</h3>
-                <div id="singleSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Processing...</div>
-                <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
-                    <div id="singleSyncBar" style="background:#0696D7;height:100%;width:30%;transition:width 0.3s;"></div>
+        <div id="singleSyncOverlay" class="fm-overlay is-open" style="z-index: 20000;">
+            <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="singleSyncTitle">
+                <div class="fm-dialog-head"><h2 class="fm-dialog-title" id="singleSyncTitle">Syncing ${escapeHtml(projectName)}</h2></div>
+                <div class="fm-dialog-body">
+                    <div id="singleSyncStatus" class="fm-muted">Sending the changes to Forma. Keep this tab open.</div>
+                    <div class="fm-progress"><div id="singleSyncBar" class="fm-progress-bar" style="width: 30%;"></div></div>
                 </div>
             </div>
         </div>
@@ -331,11 +331,11 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     // role/email are operator-typed or ACC-sourced values, not sanitized upstream —
     // escape before building HTML from them (stored/self XSS via this warning modal).
     if (result?.invalidRoles?.size > 0) {
-        let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed:</div>';
+        let errorHTML = '<div class="fm-warn-title">Invalid roles were found and automatically removed:</div>';
         for (const [role, emails] of result.invalidRoles) {
-            errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
-            errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            errorHTML += `<div class="fm-warn-item">`;
+            errorHTML += `<strong>Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
+            errorHTML += '<ul class="fm-warn-list">';
             emails.forEach(email => { errorHTML += `<li>${escapeHtml(email)} - processed without this role</li>`; });
             errorHTML += '</ul></div>';
         }
@@ -344,11 +344,11 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
 
     // Handle duplicate roles warning (e.g. "Architect, Investor, Architect" in one cell)
     if (result?.duplicateRoles?.size > 0) {
-        let dupHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Duplicate roles were found and automatically removed:</div>';
+        let dupHTML = '<div class="fm-warn-title">Duplicate roles were found and automatically removed:</div>';
         for (const [role, emails] of result.duplicateRoles) {
-            dupHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            dupHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" was listed more than once</strong>`;
-            dupHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            dupHTML += `<div class="fm-warn-item">`;
+            dupHTML += `<strong>Role "${escapeHtml(role)}" was listed more than once</strong>`;
+            dupHTML += '<ul class="fm-warn-list">';
             emails.forEach(email => { dupHTML += `<li>${escapeHtml(email)} - duplicate entry removed, role applied once</li>`; });
             dupHTML += '</ul></div>';
         }
@@ -359,16 +359,16 @@ async function showUserListsDialog(listToPatch, listToPost, listToDelete, projec
     // (currently an Autodesk API permission gap, not a bad role name), so these users
     // got the account's default role instead of the one specified in the import.
     if (result?.unverifiedRoles?.size > 0) {
-        let unverifiedHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Roles could not be verified - the account default role was used instead:</div>';
+        let unverifiedHTML = '<div class="fm-warn-title">Roles could not be verified - the account default role was used instead:</div>';
         for (const [role, emails] of result.unverifiedRoles) {
-            unverifiedHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            unverifiedHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
-            unverifiedHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            unverifiedHTML += `<div class="fm-warn-item">`;
+            unverifiedHTML += `<strong>Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
+            unverifiedHTML += '<ul class="fm-warn-list">';
             emails.forEach(email => { unverifiedHTML += `<li>${escapeHtml(email)} - given the account default role instead</li>`; });
             unverifiedHTML += '</ul></div>';
         }
-        unverifiedHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-        unverifiedHTML += '<strong>Action Required:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
+        unverifiedHTML += '<div class="fm-alert fm-alert-info is-visible" style="margin-top: 12px;">';
+        unverifiedHTML += '<strong>What to do:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
         unverifiedHTML += '</div>';
         showInvalidRolesModal(unverifiedHTML);
     }
@@ -392,7 +392,7 @@ function showInvalidRolesModal(htmlContent) {
         position: fixed;
         top: 0; left: 0;
         width: 100vw; height: 100vh;
-        background: rgba(0,0,0,0.55);
+        background: rgba(60,60,60,0.5);
         z-index: 99999;
         display: flex;
         align-items: flex-start;
@@ -404,47 +404,16 @@ function showInvalidRolesModal(htmlContent) {
     // Warning card
     const warningDiv = document.createElement('div');
     warningDiv.id = 'invalidRolesWarning';
-    warningDiv.style.cssText = `
-        background: #fff3cd;
-        border: 2px solid #ffc107;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        min-width: 400px;
-        max-width: 600px;
-        width: 90%;
-        font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
-        color: #856404;
-        display: flex;
-        flex-direction: column;
-        max-height: 60vh;
-    `;
+    warningDiv.className = 'fm-dialog';
+    warningDiv.setAttribute('role', 'alertdialog');
+    warningDiv.setAttribute('aria-modal', 'true');
+    warningDiv.style.cssText = 'max-width: 600px; max-height: 70vh;';
 
-    // Add scrollable content and fixed OK button
+    // htmlContent is built by this file's callers with every role/email escaped.
     warningDiv.innerHTML = `
-        <div style="
-            padding: 20px;
-            overflow-y: auto;
-            flex: 1;
-        ">${htmlContent}</div>
-        <div style="
-            padding: 15px 20px;
-            text-align: center;
-            border-top: 1px solid #ffc107;
-            background: #fff3cd;
-            border-radius: 0 0 6px 6px;
-        ">
-            <button id="closeInvalidRolesWarning" style="
-                padding: 10px 30px;
-                background: #ffc107;
-                border: none;
-                border-radius: 4px;
-                color: #856404;
-                font-weight: bold;
-                cursor: pointer;
-                font-size: 14px;
-                font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;
-            ">OK</button>
-        </div>
+        <div class="fm-dialog-head"><h2 class="fm-dialog-title">Check these roles</h2></div>
+        <div class="fm-dialog-body" style="overflow-y: auto;">${htmlContent}</div>
+        <div class="fm-dialog-foot"><button type="button" id="closeInvalidRolesWarning" class="fm-btn fm-btn-primary">OK</button></div>
     `;
 
     backdrop.appendChild(warningDiv);
@@ -573,18 +542,18 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
 
                 if (!isDirectMode) {
                     // Build error message HTML for modal
-                    let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
+                    let errorHTML = '<div class="fm-warn-title">Invalid roles were found and automatically removed - users were processed without these roles:</div>';
                     for (const [role, emails] of accountUpdateResult.invalidRoles) {
-                        errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-                        errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
-                        errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+                        errorHTML += `<div class="fm-warn-item">`;
+                        errorHTML += `<strong>Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
+                        errorHTML += '<ul class="fm-warn-list">';
                         emails.forEach(email => {
                             errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`;
                         });
                         errorHTML += '</ul></div>';
                     }
-                    errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-                    errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
+                    errorHTML += '<div class="fm-alert fm-alert-info is-visible" style="margin-top: 12px;">';
+                    errorHTML += '<strong>What to do:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
                     errorHTML += '</div>';
                     showInvalidRolesModal(errorHTML);
                 }
@@ -1255,12 +1224,12 @@ async function saveAndSyncMultiProject(projects) {
 
     // Show progress overlay
     document.body.insertAdjacentHTML('beforeend', `
-        <div id="multiSyncOverlay" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:30px;width:90%;max-width:500px;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <h3 style="margin:0 0 16px 0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Syncing ${projects.length} Projects</h3>
-                <div id="multiSyncStatus" style="font-size:14px;color:#555;margin-bottom:12px;min-height:20px;">Preparing...</div>
-                <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
-                    <div id="multiSyncBar" style="background:#0696D7;height:100%;width:0%;transition:width 0.3s;"></div>
+        <div id="multiSyncOverlay" class="fm-overlay is-open" style="z-index: 20000;">
+            <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="multiSyncTitle">
+                <div class="fm-dialog-head"><h2 class="fm-dialog-title" id="multiSyncTitle">Syncing ${projects.length} projects</h2></div>
+                <div class="fm-dialog-body">
+                    <div id="multiSyncStatus" class="fm-muted">Sending the changes to Forma. Keep this tab open.</div>
+                    <div class="fm-progress"><div id="multiSyncBar" class="fm-progress-bar" style="width: 0%;"></div></div>
                 </div>
             </div>
         </div>
@@ -1288,7 +1257,7 @@ async function saveAndSyncMultiProject(projects) {
             entry = { project, result: null, error: err.message };
         }
         finished++;
-        if (statusEl) statusEl.textContent = `(${finished}/${projects.length}) done - last: ${project.name}`;
+        if (statusEl) statusEl.textContent = `${finished} of ${projects.length} projects done. Last: ${project.name}`;
         if (barEl) barEl.style.width = `${Math.round((finished / projects.length) * 100)}%`;
         return entry;
     });
@@ -1313,17 +1282,17 @@ async function saveAndSyncMultiProject(projects) {
         }
     });
     if (allInvalidRoles.size > 0) {
-        let errorHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Invalid roles were found and automatically removed - users were processed without these roles:</div>';
+        let errorHTML = '<div class="fm-warn-title">Invalid roles were found and automatically removed - users were processed without these roles:</div>';
         for (const [role, { emails, projects: pNames }] of allInvalidRoles) {
-            errorHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            errorHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
-            if (pNames.length > 1) errorHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
-            errorHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            errorHTML += `<div class="fm-warn-item">`;
+            errorHTML += `<strong>Role "${escapeHtml(role)}" doesn't exist in this account</strong>`;
+            if (pNames.length > 1) errorHTML += `<div class="fm-muted" style="font-size: 13px;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
+            errorHTML += '<ul class="fm-warn-list">';
             emails.forEach(email => { errorHTML += `<li>${escapeHtml(email)} - added/updated without this role (operation succeeded)</li>`; });
             errorHTML += '</ul></div>';
         }
-        errorHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-        errorHTML += '<strong>Action Required:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
+        errorHTML += '<div class="fm-alert fm-alert-info is-visible" style="margin-top: 12px;">';
+        errorHTML += '<strong>What to do:</strong> Check your account settings to see which roles are configured, then update the "Project user list" with valid roles.';
         errorHTML += '</div>';
         showInvalidRolesModal(errorHTML);
     }
@@ -1343,17 +1312,17 @@ async function saveAndSyncMultiProject(projects) {
         }
     });
     if (allUnverifiedRoles.size > 0) {
-        let unverifiedHTML = '<div style="margin-bottom: 10px; font-weight: bold; color: #ff9800;">⚠️ Roles could not be verified - the account default role was used instead:</div>';
+        let unverifiedHTML = '<div class="fm-warn-title">Roles could not be verified - the account default role was used instead:</div>';
         for (const [role, { emails, projects: pNames }] of allUnverifiedRoles) {
-            unverifiedHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107;">`;
-            unverifiedHTML += `<strong style="color: #856404;">Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
-            if (pNames.length > 1) unverifiedHTML += `<div style="font-size: 12px; color: #856404; margin: 4px 0;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
-            unverifiedHTML += '<ul style="margin: 5px 0; padding-left: 20px; color: #856404;">';
+            unverifiedHTML += `<div class="fm-warn-item">`;
+            unverifiedHTML += `<strong>Role "${escapeHtml(role)}" - project role list unavailable, not necessarily invalid</strong>`;
+            if (pNames.length > 1) unverifiedHTML += `<div class="fm-muted" style="font-size: 13px;">Projects: ${escapeHtml(pNames.join(', '))}</div>`;
+            unverifiedHTML += '<ul class="fm-warn-list">';
             emails.forEach(email => { unverifiedHTML += `<li>${escapeHtml(email)} - given the account default role instead</li>`; });
             unverifiedHTML += '</ul></div>';
         }
-        unverifiedHTML += '<div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; font-size: 13px;">';
-        unverifiedHTML += '<strong>Action Required:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
+        unverifiedHTML += '<div class="fm-alert fm-alert-info is-visible" style="margin-top: 12px;">';
+        unverifiedHTML += '<strong>What to do:</strong> Check these users\' roles in ACC/Forma directly and correct them manually if needed.';
         unverifiedHTML += '</div>';
         showInvalidRolesModal(unverifiedHTML);
     }
@@ -1363,50 +1332,108 @@ async function saveAndSyncMultiProject(projects) {
 }
 
 /**
- * Show a summary dialog after multi-project sync completes.
+ * Show a summary dialog after a sync completes (one or more projects), with a
+ * downloadable CSV report. Built with DOM APIs: project names and error texts
+ * come from Autodesk.
  */
 function _showMultiSyncResults(allResults) {
-    const title = allResults.length === 1 ? 'Sync Complete' : 'Multi-Project Sync Complete';
-    const rows = allResults.map(({ project, result, error }) => {
-        // project.name and error text originate from ACC / API responses - escape
-        const safeName = escapeHtml(project.name);
-        if (error) {
-            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#dc3545;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Error: ${escapeHtml(error)}</td></tr>`;
-        }
+    document.getElementById('multiSyncResultsModal')?.remove();
+    const el = (tag, className, text) => {
+        const n = document.createElement(tag);
+        if (className) n.className = className;
+        if (text !== undefined) n.textContent = text;
+        return n;
+    };
+    const failures = allResults.filter(({ result, error }) => error || (result?.errors?.length));
+    const totals = allResults.reduce((t, { result }) => {
+        t.added += result?.added || 0; t.updated += result?.updated || 0; t.deleted += result?.deleted || 0;
+        return t;
+    }, { added: 0, updated: 0, deleted: 0 });
+
+    const overlay = el('div', 'fm-overlay is-open');
+    overlay.id = 'multiSyncResultsModal';
+    overlay.style.zIndex = '20000';
+    const dialog = el('div', 'fm-dialog fm-review');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', 'syncResultsTitle');
+    const head = el('div', 'fm-dialog-head');
+    const title = el('h2', 'fm-dialog-title', failures.length ? 'Sync finished with problems' : 'Sync finished');
+    title.id = 'syncResultsTitle';
+    const closeX = el('button', 'fm-dialog-close', '×');
+    closeX.type = 'button';
+    closeX.id = 'multiSyncResultsClose';
+    closeX.setAttribute('aria-label', 'Close');
+    head.append(title, closeX);
+
+    const body = el('div', 'fm-dialog-body fm-review-body');
+    const lead = el('p', null, `Added ${totals.added}, updated ${totals.updated}${totals.deleted ? ', removed ' + totals.deleted : ''} across ${allResults.length} ${allResults.length === 1 ? 'project' : 'projects'}.`);
+    lead.style.margin = '0';
+    body.appendChild(lead);
+
+    const table = el('div', 'fm-result-table');
+    const headRow = el('div', 'fm-result-row fm-result-head');
+    ['Project', 'Added', 'Updated', 'Removed', 'Result'].forEach(h => headRow.appendChild(el('div', null, h)));
+    table.appendChild(headRow);
+    allResults.forEach(({ project, result, error }) => {
         const r = result || {};
-        const deletedPart = r.deleted > 0 ? ` &bull; <span style="color:#dc3545;">Deleted: ${r.deleted}</span>` : '';
-        const errNote = r.errors?.length ? ` &bull; <span style="color:#dc3545;">${r.errors.length} error(s)</span>` : '';
-        return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${safeName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;color:#28a745;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Updated: ${r.updated || 0} &bull; Added: ${r.added || 0}${deletedPart}${errNote}</td></tr>`;
-    }).join('');
+        const row = el('div', 'fm-result-row');
+        row.appendChild(el('div', 'fm-ell', project.name));
+        row.appendChild(el('div', 'num', error ? '' : String(r.added || 0)));
+        row.appendChild(el('div', 'num', error ? '' : String(r.updated || 0)));
+        row.appendChild(el('div', 'num', error ? '' : String(r.deleted || 0)));
+        const errs = error ? [error] : (r.errors || []);
+        const status = el('div', errs.length ? 'fm-result-bad' : 'fm-result-ok', errs.length ? `${errs.length} ${errs.length === 1 ? 'problem' : 'problems'}` : 'Done');
+        row.appendChild(status);
+        table.appendChild(row);
+        if (errs.length) {
+            const detail = el('ul', 'fm-result-errors');
+            errs.slice(0, 10).forEach(e => detail.appendChild(el('li', null, e)));
+            if (errs.length > 10) detail.appendChild(el('li', 'fm-muted', `and ${errs.length - 10} more (all in the report)`));
+            table.appendChild(detail);
+        }
+    });
+    body.appendChild(table);
 
-    document.body.insertAdjacentHTML('beforeend', `
-        <div id="multiSyncResultsModal" style="position:fixed;z-index:20000;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;padding:0;width:90%;max-width:620px;max-height:80vh;display:flex;flex-direction:column;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
-                <div style="padding:20px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
-                    <h3 style="margin:0;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">${title}</h3>
-                    <span id="multiSyncResultsClose" style="color:#aaa;font-size:26px;line-height:1;cursor:pointer;">&times;</span>
-                </div>
-                <div style="overflow-y:auto;flex:1;padding:20px;">
-                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                        <thead>
-                            <tr style="background:#f5f5f5;">
-                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Project</th>
-                                <th style="padding:8px;text-align:left;border-bottom:1px solid #ddd;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">Result</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>
-                <div style="padding:15px 20px;border-top:1px solid #ddd;text-align:right;">
-                    <button id="multiSyncResultsOk" style="padding:8px 24px;background:#0696D7;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:'Artifakt Element', 'Noto Sans',Arial,sans-serif;">OK</button>
-                </div>
-            </div>
-        </div>
-    `);
+    const foot = el('div', 'fm-dialog-foot');
+    foot.style.justifyContent = 'space-between';
+    const report = el('button', 'fm-btn', 'Download report (.csv)');
+    report.type = 'button';
+    report.addEventListener('click', () => {
+        // Cells starting with = + - @ are prefixed so spreadsheet apps don't run them as formulas.
+        const cell = (v) => {
+            let s = String(v ?? '');
+            if (/^[=+\-@]/.test(s)) s = "'" + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        };
+        const lines = [['Project', 'Added', 'Updated', 'Removed', 'Problems', 'Details'].map(cell).join(',')];
+        allResults.forEach(({ project, result, error }) => {
+            const r = result || {};
+            const errs = error ? [error] : (r.errors || []);
+            lines.push([project.name, error ? '' : r.added || 0, error ? '' : r.updated || 0, error ? '' : r.deleted || 0, errs.length, errs.join(' | ')].map(cell).join(','));
+        });
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+        const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `forma-sync-report-${stamp}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    });
+    const ok = el('button', 'fm-btn fm-btn-primary', 'Done');
+    ok.type = 'button';
+    ok.id = 'multiSyncResultsOk';
+    foot.append(report, ok);
 
-    const close = () => document.getElementById('multiSyncResultsModal')?.remove();
-    document.getElementById('multiSyncResultsClose').onclick = close;
-    document.getElementById('multiSyncResultsOk').onclick = close;
+    dialog.append(head, body, foot);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    closeX.onclick = close;
+    ok.onclick = close;
+    ok.focus();
     document.addEventListener('keydown', function esc(e) {
         if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
     });
