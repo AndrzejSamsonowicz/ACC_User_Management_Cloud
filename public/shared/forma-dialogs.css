@@ -253,7 +253,6 @@ body.fm .it-level-chev { width: 7px; height: 7px; border-right: 1.6px solid var(
 
 body.fm .it-level.is-editable:hover { background: var(--fm-panel); border-radius: 2px; }
 
-body.fm .it-level.is-editable:focus-within { outline: 2px solid var(--fm-blue); outline-offset: 1px; border-radius: 2px; }
 /* Status bar, context menu, delete toast */
 body.fm #itStatusBar { padding: 8px 32px; font-size: 13px; color: var(--fm-text-2); background: #fff; border-top: 1px solid var(--fm-divider); }
 body.fm .it-status-sel { color: var(--fm-link); }
@@ -295,8 +294,11 @@ body.fm .pu-item-email { font-size: 12px; color: var(--fm-text-2); }
 
 /* Folder access: level bars are a focusable slider (arrow keys) */
 body.fm .it-level.is-editable { cursor: pointer; }
-body.fm .it-level.is-editable:focus { outline: 2px solid var(--fm-blue); outline-offset: 1px; }
-body.fm .it-level.is-editable:focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 1px; }
+/* Focus ring for keyboard use only (a mouse click shows none); drawn inside
+   the control because the table cell clips anything outside it. */
+body.fm .it-level.is-editable:focus { outline: none; }
+body.fm .it-level.is-editable:focus-visible,
+body.fm .it-level.is-editable:has(:focus-visible) { outline: 2px solid var(--fm-blue); outline-offset: -2px; }
 
 /* Folder access: search in the Project Users panel */
 body.fm .pu-search { position: relative; }
