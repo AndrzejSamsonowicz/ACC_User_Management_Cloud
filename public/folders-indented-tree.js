@@ -2180,13 +2180,17 @@
         itDrawTree(container, itLastVisible);
     }
 
-    /** Sync the header cell widths (and total header width) to itColWidths. */
+    /**
+     * Sync the header cell widths to itColWidths. The tree SVG is scaled by
+     * itZoomLevel (Ctrl+scroll), so the header columns take the zoomed widths
+     * to stay lined up with it; the header text itself keeps its normal size.
+     */
     function itApplyColumnWidths(overlay) {
         const header = overlay.querySelector('#itColHeader');
         if (!header) return;
         header.querySelectorAll('.it-col-cell').forEach(cell => {
             const col = cell.dataset.col;
-            cell.style.width = itColWidths[col] + 'px';
+            cell.style.width = (itColWidths[col] * itZoomLevel) + 'px';
         });
     }
 
@@ -2260,7 +2264,8 @@
         document.addEventListener('mousemove', (e) => {
             if (!dragCol) return;
             const delta = e.clientX - dragStartX;
-            itColWidths[dragCol] = Math.max(IT_COL_MIN[dragCol], dragStartWidth + delta);
+            // delta is in screen pixels; column widths are in unzoomed tree units.
+            itColWidths[dragCol] = Math.max(IT_COL_MIN[dragCol], dragStartWidth + delta / itZoomLevel);
             if (!rafPending) {
                 rafPending = true;
                 requestAnimationFrame(() => {
@@ -2352,6 +2357,8 @@
                 ? Math.min(itZoomLevel + IT_ZOOM_STEP, IT_ZOOM_MAX)
                 : Math.max(itZoomLevel - IT_ZOOM_STEP, IT_ZOOM_MIN);
             itApplyZoom(container);
+            const overlay = container.closest('#itOverlay');
+            if (overlay) itApplyColumnWidths(overlay);
         }, { passive: false });
     }
 
