@@ -1,0 +1,101 @@
+/*
+ * Forma look for the Admin page (admin.html). Builds on forma-theme.css and
+ * forma-app.css; replaces the page's old inline stylesheet. Class names are
+ * the ones admin.html's scripts already generate.
+ */
+.fm-admin { padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Overview numbers: one Forma strip instead of coloured cards */
+.fm-admin .stats-grid { display: flex; flex-wrap: wrap; border: 1px solid var(--fm-divider); border-radius: 4px; }
+.fm-admin .stat-card { flex: 1 1 140px; padding: 14px 20px; display: flex; flex-direction: column; gap: 2px; box-shadow: inset -1px 0 0 var(--fm-row-line); }
+.fm-admin .stat-card h3 { margin: 0; font-size: 14px; font-weight: 400; color: var(--fm-text-2); }
+.fm-admin .stat-card .value { font-size: 24px; font-weight: 600; line-height: 32px; font-variant-numeric: tabular-nums; }
+.fm-admin .stat-card .subtext { font-size: 12px; color: var(--fm-text-3); }
+.fm-admin .stat-card.warning h3 { color: var(--fm-warning); }
+.fm-admin .stat-card.danger h3 { color: var(--fm-error); }
+
+/* Sections */
+.fm-admin .section { display: flex; flex-direction: column; }
+.fm-admin .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; }
+.fm-admin .section-header h2 { margin: 0; font-size: 30px; font-weight: 400; line-height: 42px; }
+.fm-admin .section-header > div, .fm-admin .section-header .filters { display: flex; gap: 8px; align-items: center; }
+.fm-admin .section-body { display: flex; flex-direction: column; gap: 12px; }
+.fm-admin #alertsSection { display: flex; flex-direction: column; gap: 8px; }
+.fm-admin #alertsSection:empty { display: none; }
+.fm-admin #alertsSection .section-body { gap: 0; }
+
+.fm-admin .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.fm-admin .filters input, .fm-admin .filters select, .fm-admin .form-group select, .fm-admin .form-group input {
+    height: 36px; padding: 0 12px; border: 1px solid var(--fm-border); border-radius: 2px;
+    font-size: 14px; color: var(--fm-text); background: #fff; font-family: inherit;
+}
+.fm-admin .filters input { width: 300px; }
+.fm-admin .filters input:focus, .fm-admin .filters select:focus, .fm-admin .form-group select:focus { outline: none; border-color: var(--fm-blue); box-shadow: 0 0 0 1px var(--fm-blue); }
+
+/* Tables (built by the page's scripts) */
+.fm-admin table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.fm-admin th { text-align: left; font-weight: 700; height: 48px; padding: 0 8px; border-bottom: 1px solid var(--fm-divider); white-space: nowrap; position: sticky; top: 0; background: #fff; z-index: 1; }
+.fm-admin td { height: 48px; padding: 4px 8px; border-bottom: 1px solid var(--fm-row-line); vertical-align: middle; }
+.fm-admin tbody tr:hover td { background: #FAFAFA; }
+.fm-admin td input[type="checkbox"], .fm-admin th input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--fm-blue); }
+.fm-admin h3 { font-size: 16px; font-weight: 700; margin: 8px 0 12px; }
+
+/* Status badges: Forma-style dot + text */
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; color: var(--fm-text); white-space: nowrap; }
+.badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--fm-text-3); }
+.badge-active::before { background: var(--fm-success); }
+.badge-pending::before { background: #E8A317; }
+.badge-expired::before, .badge-revoked::before { background: var(--fm-error); }
+
+/* Buttons: Forma sizes; colour carries meaning only for danger */
+.fm .btn {
+    height: 36px; padding: 0 16px; border: 1px solid var(--fm-border); border-radius: 2px;
+    background: #fff; color: var(--fm-text); font-size: 14px; font-weight: 600; font-family: inherit;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
+}
+.fm .btn:hover { border-color: #808080; }
+.fm .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.fm .btn-success, .fm .modal-footer .btn:last-child:not(.btn-danger):not(.btn-warning) { background: var(--fm-blue); border-color: var(--fm-blue); color: #fff; }
+.fm .btn-success:hover { background: var(--fm-blue-hover); border-color: var(--fm-blue-hover); }
+.fm .btn-danger { color: var(--fm-error); }
+.fm .btn-danger:hover { border-color: var(--fm-error); }
+.fm .modal-footer .btn-danger { background: var(--fm-error); border-color: var(--fm-error); color: #fff; }
+.fm .btn-warning { color: var(--fm-warning); }
+.fm .modal-footer .btn-warning { background: #E8A317; border-color: #E8A317; color: #3C2A00; }
+.fm .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
+.fm td .btn + .btn { margin-left: 4px; }
+
+/* Alerts */
+.fm-admin .alert { display: flex; gap: 12px; align-items: flex-start; padding: 12px 12px 12px 15px; border-radius: 2px; line-height: 20px; }
+.fm-admin .alert > span:first-child { display: none; }
+.fm-admin .alert p { margin: 2px 0 0 !important; }
+.fm-admin .alert-warning { background: var(--fm-warning-bg); box-shadow: inset 3px 0 0 #E8A317; }
+.fm-admin .alert-info { background: var(--fm-selected); box-shadow: inset 3px 0 0 var(--fm-blue); }
+
+/* Empty and loading states */
+.fm-admin .empty-state { padding: 48px 0; color: var(--fm-text-2); }
+.fm-admin .empty-state-icon { display: none; }
+.fm-admin .loading { padding: 48px 0; display: flex; align-items: center; gap: 12px; color: var(--fm-text-2); }
+.fm .spinner { width: 24px; height: 24px; border: 3px solid #EEEEEE; border-top-color: var(--fm-blue); border-radius: 50%; animation: fm-spin 0.9s linear infinite; }
+
+/* Dialogs (opened by adding .active) */
+.fm .modal { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(60, 60, 60, 0.5); align-items: center; justify-content: center; padding: 16px; }
+.fm .modal.active { display: flex; }
+.fm .modal-content { width: 100%; max-width: 520px; background: #fff; border-radius: 4px; box-shadow: var(--fm-shadow); display: flex; flex-direction: column; max-height: 90vh; }
+.fm .modal-header { padding: 20px 24px 16px; box-shadow: inset 0 -1px 0 var(--fm-divider); }
+.fm .modal-header h3 { margin: 0; font-size: 20px; font-weight: 400; line-height: 26px; }
+.fm .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; line-height: 21px; }
+.fm .modal-body p { margin: 0; }
+.fm .modal-body ul { margin: 4px 0 4px 20px; }
+.fm .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; box-shadow: inset 0 1px 0 var(--fm-divider); }
+.fm .form-group { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.fm .form-group label { font-weight: 700; }
+.fm .deleting-progress { display: none; align-items: center; gap: 12px; flex-direction: column; padding: 16px 0; color: var(--fm-text-2); }
+.fm .deleting-progress.active { display: flex; }
+.fm code { font-family: inherit; background: var(--fm-panel); padding: 1px 6px; border-radius: 2px; }
+
+@media (max-width: 900px) {
+    .fm-admin { padding: 16px; }
+    .fm-admin .filters input { width: 100%; }
+    .fm-admin table { display: block; overflow-x: auto; }
+}
