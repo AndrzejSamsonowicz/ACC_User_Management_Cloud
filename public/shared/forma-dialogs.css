@@ -297,3 +297,16 @@ body.fm .pu-item-email { font-size: 12px; color: var(--fm-text-2); }
 body.fm .it-level.is-editable { cursor: pointer; }
 body.fm .it-level.is-editable:focus { outline: 2px solid var(--fm-blue); outline-offset: 1px; }
 body.fm .it-level.is-editable:focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 1px; }
+
+/* Folder access: search in the Project Users panel */
+body.fm .pu-search { position: relative; }
+body.fm .pu-search svg { position: absolute; left: 10px; top: 10px; pointer-events: none; }
+body.fm .pu-search .fm-input { padding-left: 34px; padding-right: 30px; background: #fff; }
+body.fm .pu-search-clear {
+    position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border: 0; border-radius: 2px;
+    background: transparent; color: var(--fm-text-2); font-size: 18px; line-height: 1; cursor: pointer;
+}
+body.fm .pu-search-clear:hover { background: var(--fm-panel); color: var(--fm-text); }
+body.fm .pu-search-status { font-size: 13px; color: var(--fm-text-2); min-height: 0; }
+body.fm .pu-search-status:empty { display: none; }
+body.fm .user-list-item[hidden] { display: none !important; }

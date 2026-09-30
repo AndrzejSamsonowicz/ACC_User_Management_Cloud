@@ -1742,6 +1742,46 @@
     /**
      * Display the user list in the right panel
      */
+    /**
+     * Search in the Project Users panel.
+     * "andrew & bob" (also , ; | or "or") shows everyone matching ANY of the parts;
+     * words inside one part must ALL match ("carl arch"). Matches name, email,
+     * company and role. Filters in place (no re-render), so dragging keeps working.
+     */
+    function userListSearchGroups(query) {
+        return String(query || '')
+            .toLowerCase()
+            .split(/\s*(?:[&,;|]|\bor\b)\s*/)
+            .map(part => part.trim().split(/\s+/).filter(Boolean))
+            .filter(words => words.length > 0);
+    }
+
+    function setupUserListSearch(container) {
+        const input = container.querySelector('#puSearch');
+        const clear = container.querySelector('#puSearchClear');
+        const status = container.querySelector('#puSearchStatus');
+        if (!input) return;
+        const apply = () => {
+            const groups = userListSearchGroups(input.value);
+            const items = Array.from(container.querySelectorAll('.user-list-item'));
+            let shown = 0;
+            items.forEach(item => {
+                const text = (item.dataset.search || item.dataset.user || '').toLowerCase();
+                const match = groups.length === 0 || groups.some(words => words.every(w => text.includes(w)));
+                item.hidden = !match;
+                if (match) shown++;
+            });
+            clear.hidden = input.value === '';
+            status.textContent = groups.length === 0 ? ''
+                : shown === 0 ? 'No matches. Separate names with & to find several people.'
+                : `${shown} of ${items.length} shown`;
+        };
+        input.addEventListener('input', apply);
+        input.addEventListener('keydown', (event) => { if (event.key === 'Escape' && input.value) { event.stopPropagation(); input.value = ''; apply(); } });
+        clear.addEventListener('click', () => { input.value = ''; apply(); input.focus(); });
+        apply();
+    }
+
     function displayUserList(users, sortOrder = 'asc', displayMode = 'user') {
         const userListContainer = document.getElementById('foldersUserList');
 
@@ -1760,7 +1800,8 @@
                     primary: hasName ? user.name : user.email,
                     secondary: hasName ? user.email : null,
                     initials: itInitialsFor(user.name, user.email),
-                    iconType: 'user'
+                    iconType: 'user',
+                    search: [user.name, user.email, user.company_name, user.default_role].filter(Boolean).join(' ')
                 };
             });
         } else if (displayMode === 'company') {
@@ -1788,6 +1829,9 @@
         // Preserve whether the help disclosure was open across a re-render
         // (sort/mode changes replace the whole panel).
         const helpWasOpen = !!userListContainer.querySelector('.pu-help')?.open;
+        const searchWas = userListContainer.querySelector('#puSearch')?.value || '';
+        const searchPlaceholder = displayMode === 'user' ? 'Search, e.g. andrew & bob'
+            : displayMode === 'company' ? 'Search companies' : 'Search roles';
 
         let userHTML = `
             <div class="user-list-header">
@@ -1802,11 +1846,18 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h9M4 12h6M4 18h3M15 4v16m0 0l-3-3m3 3l3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
                 </div>
+                <div class="pu-search">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg>
+                    <input type="text" id="puSearch" class="fm-input" autocomplete="off" aria-label="Search project users" aria-describedby="puSearchStatus" placeholder="${searchPlaceholder}" value="${escapeHtml(searchWas)}">
+                    <button type="button" class="fm-search-clear pu-search-clear" id="puSearchClear" aria-label="Clear search" hidden>&times;</button>
+                </div>
+                <div class="pu-search-status" id="puSearchStatus" aria-live="polite"></div>
             </div>
             <details class="pu-help"${helpWasOpen ? ' open' : ''}>
                 <summary><span class="pu-chev">&#9656;</span> How dragging &amp; access levels work</summary>
                 <div class="pu-help-body">
                     Drag a user, a company, or a role to add them to a folder.<br>
+                    To find several people at once, separate their names with <kbd>&amp;</kbd> in the search box, e.g. <em>andrew &amp; bob</em>.<br>
                     To change an access level, click its bars and press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>.<br>
                     To change several at once, select them with <kbd>Ctrl</kbd>+click (or <kbd>Shift</kbd>+click for a range), then press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>. The first one you selected sets the level for all of them.<br>
                     Press <kbd>Ctrl</kbd> and <strong>scroll</strong> to zoom the tree in and out.<br>
@@ -1859,7 +1910,7 @@
             }
 
             userHTML += `
-                <div class="user-list-item" draggable="true" data-user="${safeValue}" title="${safeValue}">
+                <div class="user-list-item" draggable="true" data-user="${safeValue}" data-search="${escapeHtml(item.search || item.value || '')}" title="${safeValue}">
                     <span class="pu-handle">&#8942;&#8942;</span>
                     <span class="pu-avatar" style="background: ${colors.background}; color: ${colors.color};">${iconType === 'user' ? safeInitials : iconMarkup}</span>
                     <span class="pu-item-text">
@@ -1873,7 +1924,9 @@
         userListContainer.innerHTML = userHTML;
 
         setupUserListDrag();
+        setupUserListSearch(userListContainer);
         userListContainer.onclick = (event) => {
+            if (event.target.closest('.pu-search')) return;
             const item = event.target.closest('.user-list-item');
             if (!item) {
                 selectedUsers = [];
@@ -1888,7 +1941,7 @@
             const isToggleMode = event.ctrlKey || event.metaKey;
 
             if (inRangeMode) {
-                const items = Array.from(userListContainer.querySelectorAll('.user-list-item'));
+                const items = Array.from(userListContainer.querySelectorAll('.user-list-item:not([hidden])'));
                 const lastIndex = items.findIndex(i => i.dataset.user === lastSelectedUser);
                 const currentIndex = items.findIndex(i => i.dataset.user === userName);
                 if (lastIndex !== -1 && currentIndex !== -1) {
