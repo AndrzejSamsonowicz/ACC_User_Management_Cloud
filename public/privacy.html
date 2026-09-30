@@ -3,154 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - Forma User Management</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-        }
-
-        body {
-            background: #0696D7;
-            min-height: 100vh;
-            padding: 40px 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            max-width: 760px;
-            margin: 0 auto;
-            padding: 48px;
-        }
-
-        h1 {
-            color: #0696D7;
-            font-size: 28px;
-            margin-bottom: 4px;
-        }
-
-        .updated {
-            color: #6c757d;
-            font-size: 13px;
-            margin-bottom: 32px;
-        }
-
-        h2 {
-            color: #0696D7;
-            font-size: 18px;
-            margin: 32px 0 12px;
-        }
-
-        p, li {
-            color: #333;
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 12px;
-        }
-
-        ul {
-            padding-left: 22px;
-            margin-bottom: 12px;
-        }
-
-        a {
-            color: #0696D7;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-
-        .back-link {
-            display: inline-block;
-            margin-bottom: 24px;
-            font-size: 14px;
-        }
-    </style>
+    <title>Privacy Policy - Forma User Manager</title>
+    <link rel="stylesheet" href="shared/forma-theme.css?v=20260930p">
+    <link rel="stylesheet" href="shared/forma-app.css?v=20260930c">
+    <link rel="stylesheet" href="shared/forma-doc.css?v=20260930b">
 </head>
-<body>
-    <div class="container">
-        <a href="login.html" class="back-link">&larr; Back</a>
-        <h1>Privacy Policy</h1>
-        <p class="updated">Last updated: September 16, 2026</p>
+<body class="fm fm-app">
+    <header class="fm-header">
+        <a class="fm-brand" href="index.html" aria-label="Forma User Manager by Digibuild, open the app">
+            <span class="fm-brand-tile"><img src="forma-user-manager-mark.svg" alt=""></span>
+            <span class="fm-brand-text"><span class="fm-brand-name">Forma User Manager</span><span class="fm-brand-by">by Digibuild</span></span>
+        </a>
+        <div class="fm-header-right">
+            <a href="login.html" class="fm-btn" id="backLink">Back</a>
+        </div>
+    </header>
 
-        <p>This Privacy Policy explains how Digibuild ("we", "us") collects, uses, stores, and
-        protects information through Forma User Management (the "Service"), a tool that
-        connects to your Autodesk Forma account to help you manage users, roles, companies,
-        and folder permissions across your Autodesk Forma hubs and projects.</p>
+    <div class="fm-shell">
+        <nav class="fm-nav" aria-label="Legal">
+            <a class="fm-nav-item" href="terms.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8.5L19 8v12.5H6z" stroke-linejoin="round"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7" stroke-linecap="round"/></svg>Terms of Service</a>
+            <a class="fm-nav-item is-active" href="privacy.html" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3.5l7 2.8v5.4c0 4.3-3 7.6-7 8.8-4-1.2-7-4.5-7-8.8V6.3z" stroke-linejoin="round"/></svg>Privacy Policy</a>
+            <ul class="fm-doc-toc" id="docToc">
+                <li><a href="#collect">Information we collect</a></li>
+                <li><a href="#use">How we use this information</a></li>
+                <li><a href="#third-parties">Third parties we share data with</a></li>
+                <li><a href="#retention">Data retention</a></li>
+                <li><a href="#rights">Your rights and how to revoke access</a></li>
+                <li><a href="#security">Data security</a></li>
+                <li><a href="#changes">Changes to this policy</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+            <div class="fm-nav-bottom">Questions? <a href="mailto:digibuild@digibuild.ch">digibuild@digibuild.ch</a></div>
+        </nav>
 
-        <h2>Information We Collect</h2>
-        <ul>
-            <li><strong>Account information</strong> — the email address you register with, and
-            your subscription/trial status. Your password is managed entirely by Firebase
-            Authentication; we never see or store it in plain text.</li>
-            <li><strong>Autodesk Forma data</strong> — once you connect your
-            Autodesk account, we access and temporarily cache the data needed to power the
-            Service's features on your behalf: hub, project, user, role, and company lists,
-            and folder-permission structures. We do not access, copy, or store your actual
-            project files, drawings, or models.</li>
-            <li><strong>Authentication tokens</strong> — your Autodesk access token exists only
-            in your browser's memory for the duration of your session and is never stored on
-            our servers. Your Autodesk refresh token (which lets the Service keep your
-            connection alive without requiring you to sign in again every hour) is stored on
-            our servers encrypted with AES-256-GCM, and is never sent to or exposed in your
-            browser.</li>
-            <li><strong>Basic usage data</strong> — login timestamps and event logs, used only
-            for security monitoring and troubleshooting.</li>
-        </ul>
+        <main class="fm-main" id="docScroll">
+            <article class="fm-doc">
+                <h1>Privacy Policy</h1>
+                <p class="fm-doc-updated">Last updated: September 16, 2026</p>
 
-        <h2>How We Use This Information</h2>
-        <p>We use the information above solely to operate the Service: authenticating you,
-        displaying and managing your Autodesk Forma users/roles/companies/folder permissions as you
-        direct, and administering your subscription or trial.</p>
+                <p class="fm-doc-intro">This Privacy Policy explains how Digibuild ("we", "us") collects, uses, stores, and
+                protects information through Forma User Manager (the "Service"), a tool that
+                connects to your Autodesk Forma account to help you manage users, roles, companies,
+                and folder permissions across your Autodesk Forma hubs and projects.</p>
 
-        <h2>Third Parties We Share Data With</h2>
-        <ul>
-            <li><strong>Google Cloud Platform / Firebase</strong> — provides the hosting,
-            authentication, and database infrastructure the Service runs on (data stored in
-            Firestore, in the europe-west6 region, Zurich, Switzerland).</li>
-            <li><strong>Autodesk</strong> — the platform your account connects to. Your use of
-            Autodesk's own services remains governed by Autodesk's privacy policy.</li>
-            <li><strong>PayPal</strong> — processes subscription payments. We never see or
-            store your payment card details.</li>
-            <li><strong>Our email provider</strong> — sends transactional emails only (account
-            verification, password reset, license delivery).</li>
-        </ul>
-        <p>Each of these providers is required, contractually or technically, to protect your
-        data to a standard consistent with this policy.</p>
+                <section id="collect">
+                    <h2>Information we collect</h2>
+                    <ul>
+                        <li><strong>Account information.</strong> The email address you register with, and
+                        your subscription/trial status. Your password is managed entirely by Firebase
+                        Authentication; we never see or store it in plain text.</li>
+                        <li><strong>Autodesk Forma data.</strong> Once you connect your
+                        Autodesk account, we access and temporarily cache the data needed to power the
+                        Service's features on your behalf: hub, project, user, role, and company lists,
+                        and folder-permission structures. We do not access, copy, or store your actual
+                        project files, drawings, or models.</li>
+                        <li><strong>Authentication tokens.</strong> Your Autodesk access token exists only
+                        in your browser's memory for the duration of your session and is never stored on
+                        our servers. Your Autodesk refresh token (which lets the Service keep your
+                        connection alive without requiring you to sign in again every hour) is stored on
+                        our servers encrypted with AES-256-GCM, and is never sent to or exposed in your
+                        browser.</li>
+                        <li><strong>Basic usage data.</strong> Login timestamps and event logs, used only
+                        for security monitoring and troubleshooting.</li>
+                    </ul>
+                </section>
 
-        <h2>Data Retention</h2>
-        <p>We retain your account and synced data for as long as your account is active. If you
-        close your account or your subscription ends, we delete your data within 30 days.</p>
+                <section id="use">
+                    <h2>How we use this information</h2>
+                    <p>We use the information above solely to operate the Service: authenticating you,
+                    displaying and managing your Autodesk Forma users/roles/companies/folder permissions as you
+                    direct, and administering your subscription or trial.</p>
+                </section>
 
-        <h2>Your Rights and How to Revoke Access</h2>
-        <ul>
-            <li>You may request deletion of your account and data at any time by contacting us
-            at <a href="mailto:digibuild@digibuild.ch">digibuild@digibuild.ch</a>.</li>
-            <li>You can revoke the Service's access to your Autodesk Forma data at any time,
-            independent of contacting us, by removing it from your Autodesk Forma hub's
-            "Custom Integrations" settings — this immediately stops the Service from
-            accessing your Autodesk data.</li>
-        </ul>
+                <section id="third-parties">
+                    <h2>Third parties we share data with</h2>
+                    <ul>
+                        <li><strong>Google Cloud Platform / Firebase.</strong> Provides the hosting,
+                        authentication, and database infrastructure the Service runs on (data stored in
+                        Firestore, in the europe-west6 region, Zurich, Switzerland).</li>
+                        <li><strong>Autodesk.</strong> The platform your account connects to. Your use of
+                        Autodesk's own services remains governed by Autodesk's privacy policy.</li>
+                        <li><strong>PayPal.</strong> Processes subscription payments. We never see or
+                        store your payment card details.</li>
+                        <li><strong>Our email provider.</strong> Sends transactional emails only (account
+                        verification, password reset, license delivery).</li>
+                    </ul>
+                    <p>Each of these providers is required, contractually or technically, to protect your
+                    data to a standard consistent with this policy.</p>
+                </section>
 
-        <h2>Data Security</h2>
-        <p>Stored credentials and tokens are encrypted at rest (AES-256-GCM), and all traffic to
-        the Service is encrypted in transit (HTTPS). Further detail on our security practices
-        is available on request.</p>
+                <section id="retention">
+                    <h2>Data retention</h2>
+                    <p>We retain your account and synced data for as long as your account is active. If you
+                    close your account or your subscription ends, we delete your data within 30 days.</p>
+                </section>
 
-        <h2>Changes to This Policy</h2>
-        <p>We may update this policy from time to time. Material changes will be reflected by
-        updating the "Last updated" date above.</p>
+                <section id="rights">
+                    <h2>Your rights and how to revoke access</h2>
+                    <ul>
+                        <li>You may request deletion of your account and data at any time by contacting us
+                        at <a href="mailto:digibuild@digibuild.ch">digibuild@digibuild.ch</a>.</li>
+                        <li>You can revoke the Service's access to your Autodesk Forma data at any time,
+                        independent of contacting us, by removing it from your Autodesk Forma hub's
+                        "Custom Integrations" settings. This immediately stops the Service from
+                        accessing your Autodesk data.</li>
+                    </ul>
+                </section>
 
-        <h2>Contact</h2>
-        <p>Questions about this policy or your data can be sent to
-        <a href="mailto:digibuild@digibuild.ch">digibuild@digibuild.ch</a>.</p>
+                <section id="security">
+                    <h2>Data security</h2>
+                    <p>Stored credentials and tokens are encrypted at rest (AES-256-GCM), and all traffic to
+                    the Service is encrypted in transit (HTTPS). Further detail on our security practices
+                    is available on request.</p>
+                </section>
+
+                <section id="changes">
+                    <h2>Changes to this policy</h2>
+                    <p>We may update this policy from time to time. Material changes will be reflected by
+                    updating the "Last updated" date above.</p>
+                </section>
+
+                <section id="contact">
+                    <h2>Contact</h2>
+                    <p>Questions about this policy or your data can be sent to
+                    <a href="mailto:digibuild@digibuild.ch">digibuild@digibuild.ch</a>.</p>
+                </section>
+
+                <p class="fm-doc-other">The rules for using the Service are in the <a href="terms.html">Terms of Service</a>.</p>
+            </article>
+        </main>
     </div>
+
+    <script src="shared/forma-doc.js?v=20260930b"></script>
 </body>
 </html>
