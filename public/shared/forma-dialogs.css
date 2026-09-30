@@ -241,18 +241,18 @@ body.fm .it-help-dot { background: #BBBBBB; }
 body.fm .it-help-tooltip { background: #fff; color: var(--fm-text); box-shadow: var(--fm-shadow); border-radius: 4px; font-size: 13px; line-height: 1.6; width: 260px; }
 body.fm .it-modal-body { padding: 4px 0 24px; }
 /* Permission pills */
-body.fm .it-level { position: relative; width: 116px; height: 30px; display: flex; align-items: center; gap: 6px; font-family: var(--fm-font); }
+body.fm .it-level { position: relative; width: 100px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: var(--fm-font); border-radius: 2px; }
 body.fm .it-level-view { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 96px; }
-body.fm .it-pills { display: flex; gap: 4px; }
-body.fm .it-pill { width: 21px; height: 7px; border-radius: 16px; background: #EEEEEE; }
+body.fm .it-pills { display: flex; gap: 3px; }
+body.fm .it-pill { width: 13px; height: 7px; border-radius: 16px; background: #EEEEEE; }
 body.fm .it-pill.is-on { background: var(--fm-blue); }
 body.fm .it-level.is-inherited .it-pill.is-on { background: #9FD4EE; }
 body.fm .it-level-label { font-size: 12px; line-height: 14px; color: var(--fm-text); white-space: nowrap; }
 body.fm .it-level.is-inherited .it-level-label { color: var(--fm-text-3); }
 body.fm .it-level-chev { width: 7px; height: 7px; border-right: 1.6px solid var(--fm-text); border-bottom: 1.6px solid var(--fm-text); transform: rotate(45deg); margin-top: -4px; }
-body.fm .it-level-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 14px; }
+
 body.fm .it-level.is-editable:hover { background: var(--fm-panel); border-radius: 2px; }
-body.fm .it-level-input:focus-visible { opacity: 0; }
+
 body.fm .it-level.is-editable:focus-within { outline: 2px solid var(--fm-blue); outline-offset: 1px; border-radius: 2px; }
 /* Status bar, context menu, delete toast */
 body.fm #itStatusBar { padding: 8px 32px; font-size: 13px; color: var(--fm-text-2); background: #fff; border-top: 1px solid var(--fm-divider); }
@@ -292,3 +292,8 @@ body.fm .pu-handle { color: #BBBBBB; }
 body.fm .pu-avatar { font-size: 11px; font-weight: 600; }
 body.fm .pu-item-name { font-weight: 400; }
 body.fm .pu-item-email { font-size: 12px; color: var(--fm-text-2); }
+
+/* Folder access: level bars are a focusable slider (arrow keys) */
+body.fm .it-level.is-editable { cursor: pointer; }
+body.fm .it-level.is-editable:focus { outline: 2px solid var(--fm-blue); outline-offset: 1px; }
+body.fm .it-level.is-editable:focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 1px; }

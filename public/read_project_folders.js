@@ -1798,16 +1798,16 @@
                 <summary><span class="pu-chev">&#9656;</span> How dragging &amp; access levels work</summary>
                 <div class="pu-help-body">
                     Drag a user, a company, or a role to add them to a folder.<br>
-                    Press <kbd>Shift</kbd> to select a range of users and apply the same access level.<br>
-                    Press <kbd>Ctrl</kbd> to toggle individual user selection.<br>
+                    To change an access level, click its bars and press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>.<br>
+                    To change several at once, select them with <kbd>Ctrl</kbd>+click (or <kbd>Shift</kbd>+click for a range), then press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>. The first one you selected sets the level for all of them.<br>
                     Press <kbd>Ctrl</kbd> and <strong>scroll</strong> to zoom the tree in and out.<br>
-                    <div style="margin-top: 10px;"><strong>Access levels:</strong></div>
-                    <div>1 View Only</div>
-                    <div>2 View/Download</div>
-                    <div>3 +Markups</div>
-                    <div>4 +Upload</div>
-                    <div>5 +Edit</div>
-                    <div>6 Full control</div>
+                    <div style="margin-top: 10px;"><strong>Access levels</strong> (one bar per level):</div>
+                    <div>1 View only</div>
+                    <div>2 + Download</div>
+                    <div>3 + Publish markups</div>
+                    <div>4 + Upload</div>
+                    <div>5 + Edit</div>
+                    <div>6 Full control (Manage)</div>
                     <div class="pu-legend-row">
                         <span class="pu-chip pu-chip-user">User</span>
                         <span class="pu-chip pu-chip-company">Company</span>

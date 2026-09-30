@@ -1206,25 +1206,25 @@
     }
 
     /** Update one entry's level in the model (+ its own node object), returning its descendant folder ids. */
-    // ---------- Forma permission pills ----------
-    // Forma shows folder access as 4 pills with the level name under them:
-    // View = 1 pill (View only, +Download, +Markups, +Upload), Edit = 3, Manage = 4.
+    // ---------- Permission bars ----------
+    // One bar per level (1-6), filled up to the current level, with the level name under them.
     const IT_LEVELS = [null,
-        { pills: 1, short: 'View', name: 'View only' },
-        { pills: 1, short: 'Download', name: 'View + Download' },
-        { pills: 1, short: 'Markups', name: 'View + Download + Publish markups' },
-        { pills: 1, short: 'Upload', name: 'View + Download + Publish markups + Upload' },
-        { pills: 3, short: 'Edit', name: 'View + Download + Publish markups + Upload + Edit' },
-        { pills: 4, short: 'Manage', name: 'Full control' }];
+        { short: 'View', name: 'View only' },
+        { short: 'Download', name: 'View + Download' },
+        { short: 'Markups', name: 'View + Download + Publish markups' },
+        { short: 'Upload', name: 'View + Download + Publish markups + Upload' },
+        { short: 'Edit', name: 'View + Download + Publish markups + Upload + Edit' },
+        { short: 'Manage', name: 'Full control' }];
 
     function itFillLevelView(view, level, labelOverride) {
-        const lv = IT_LEVELS[parseInt(level, 10)] || IT_LEVELS[1];
+        const n = Math.min(6, Math.max(1, parseInt(level, 10) || 1));
+        const lv = IT_LEVELS[n];
         view.replaceChildren();
         const pills = document.createElement('span');
         pills.className = 'it-pills';
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 6; i++) {
             const pill = document.createElement('span');
-            pill.className = 'it-pill' + (i < lv.pills ? ' is-on' : '');
+            pill.className = 'it-pill' + (i < n ? ' is-on' : '');
             pills.appendChild(pill);
         }
         const label = document.createElement('span');
@@ -1232,14 +1232,31 @@
         label.textContent = labelOverride || lv.short;
         view.append(pills, label);
         view.title = labelOverride || lv.name;
+        const widget = view.closest('.it-level-input');
+        if (widget) {
+            widget.setAttribute('aria-valuenow', String(n));
+            widget.setAttribute('aria-valuetext', lv.name);
+        }
+    }
+
+    /**
+     * Step an editable entry's level by delta (arrow keys). When the row is part of a
+     * multi-selection, itCommitLevelChange applies the same new level to the others:
+     * the row that gets stepped (the first one selected, or the focused widget) leads.
+     */
+    function itStepLevel(node, delta) {
+        if (!node || node.isInherited || !node.__folderId || !node.__entryUser || itIsProjectAdmin(node.email)) return;
+        const current = parseInt(node.level, 10) || 1;
+        const next = Math.min(6, Math.max(1, current + delta));
+        if (next === current) return;
+        itCommitLevelChange(node, String(next));
+        itPatchOwnRow(node.__folderId, node.__entryUser, String(next));
     }
 
     /** Redraw a rendered row's pills after its level changed elsewhere (no full re-render). */
     function itRefreshLevelWidget(rowEl, level) {
         const view = rowEl.querySelector('.it-level-view');
         if (view) itFillLevelView(view, level);
-        const select = rowEl.querySelector('select.it-level-input');
-        if (select) select.value = String(level);
     }
 
     function itUpdateEntryLevel(node, newLevel) {
@@ -1636,32 +1653,31 @@
             const fo = sel.append('foreignObject')
                 .attr('x', colX).attr('y', -15).attr('width', 120).attr('height', 30);
             const wrap = fo.append('xhtml:div')
-                .attr('class', 'it-level' + (editable ? ' is-editable' : '') + (d.isInherited ? ' is-inherited' : ''));
+                .attr('class', 'it-level' + (editable ? ' is-editable it-level-input' : '') + (d.isInherited ? ' is-inherited' : ''));
             const view = wrap.append('xhtml:div').attr('class', 'it-level-view').node();
+
+            if (editable) {
+                // Focusable slider: click it, then ← / → lowers or raises the level.
+                // (class it-level-input keeps row-dragging from starting here.)
+                wrap.attr('tabindex', 0)
+                    .attr('role', 'slider')
+                    .attr('aria-label', `Access level for ${d.name}`)
+                    .attr('aria-valuemin', 1).attr('aria-valuemax', 6)
+                    .on('click', (event) => { event.stopPropagation(); event.currentTarget.focus(); })
+                    .on('mousedown', (event) => event.stopPropagation())
+                    .on('keydown', (event) => {
+                        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                        event.preventDefault();
+                        event.stopPropagation(); // not the tree's own arrow-key navigation
+                        itStepLevel(d, event.key === 'ArrowLeft' ? -1 : 1);
+                    });
+            }
             itFillLevelView(view, isAdminRow ? 6 : d.level, isAdminRow ? 'Project admin' : null);
+            if (editable) view.title += '. Click, then use ← and → to change';
             if (!editable) {
                 view.title = isAdminRow ? 'Project admins have full access'
                     : d.isInherited ? 'Inherited from the parent folder'
                     : (d.viaLabel ? `${d.viaLabel}: change it on the folder's own role or company row` : view.title);
-            }
-
-            if (editable) {
-                wrap.append('xhtml:span').attr('class', 'it-level-chev').attr('aria-hidden', 'true');
-                const select = wrap.append('xhtml:select')
-                    .attr('class', 'it-level-input')
-                    .attr('aria-label', `Access level for ${d.name}`)
-                    .on('click', (event) => event.stopPropagation())
-                    .on('mousedown', (event) => event.stopPropagation())
-                    .on('change', function() {
-                        itFillLevelView(view, this.value);
-                        itCommitLevelChange(d, this.value);
-                        itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
-                    });
-                IT_LEVELS.forEach((lv, i) => {
-                    if (!lv) return;
-                    select.append('xhtml:option').attr('value', String(i)).text(lv.name);
-                });
-                select.property('value', String(d.level));
             }
 
             const noteParts = [];
@@ -2756,6 +2772,18 @@
                     const container = document.getElementById('itContainer');
                     if (container) itShowDeleteConfirm(container);
                     return;
+                }
+
+                if (!inTextField && (event.key === 'ArrowLeft' || event.key === 'ArrowRight') && itSelectedKeys.size > 0) {
+                    // Selected entries: change their access level together. The first
+                    // one selected leads; the others take the same new level.
+                    const firstKey = itSelectedKeys.values().next().value;
+                    const visNode = itLastVisible.find(v => v.data.__key === firstKey);
+                    if (visNode) {
+                        event.preventDefault();
+                        itStepLevel(visNode.data, event.key === 'ArrowLeft' ? -1 : 1);
+                        return;
+                    }
                 }
 
                 if (!inTextField && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
