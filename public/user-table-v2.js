@@ -54,7 +54,7 @@ class UserTableManager extends TableCellInteraction {
      */
     setupCheckboxListeners() {
         // Select All checkbox in header
-        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const selectAllCheckbox = document.querySelector('#userManagementModal #selectAllCheckbox');
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', (e) => {
                 const tbody = document.getElementById(this.tableBodyId);
@@ -192,13 +192,13 @@ class UserTableManager extends TableCellInteraction {
         }
         
         // Apply mode: toggle CSS class and set title before making modal visible
-        const titleEl = document.getElementById('modalTitle');
+        const titleEl = document.querySelector('#userManagementModal #modalTitle');
         const saveSyncBtn = document.getElementById('modalSaveSyncBtn');
         
         if (mode === 'manage') {
             this.modalMode = 'manage';
             modal.classList.add('modal-manage-mode');
-            if (titleEl) titleEl.textContent = 'Members of ' + projectName;
+            if (titleEl) titleEl.textContent = 'Modify people';
             if (saveSyncBtn) { saveSyncBtn.textContent = 'Sync to Forma'; saveSyncBtn.onclick = () => syncOnly(); }
         } else if (mode === 'multi-new') {
             this.modalMode = 'multi-new';
@@ -235,7 +235,7 @@ class UserTableManager extends TableCellInteraction {
         const hubIdEl = document.getElementById('modalHubId');
         const projectNameEl = document.getElementById('modalProjectName');
         const projectIdEl = document.getElementById('modalProjectId');
-        const modalTitleEl = document.getElementById('modalTitle');
+        const modalTitleEl = document.querySelector('#userManagementModal #modalTitle');
         
         // Update hub info
         if (this.modalHubId) {
@@ -1249,7 +1249,7 @@ class UserTableManager extends TableCellInteraction {
             log('🗑️ All checked rows deleted successfully');
             
             // Uncheck "Select All" checkbox
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const selectAllCheckbox = document.querySelector('#userManagementModal #selectAllCheckbox');
             if (selectAllCheckbox) {
                 selectAllCheckbox.checked = false;
             }

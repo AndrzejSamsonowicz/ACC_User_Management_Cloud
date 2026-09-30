@@ -196,3 +196,8 @@ body.fm .fm-result-errors { margin: 0; padding: 8px 12px 8px 32px; background: v
 body.fm #invalidRolesBackdrop .fm-warn-title { font-weight: 700; margin-bottom: 8px; }
 body.fm #invalidRolesBackdrop .fm-warn-item { margin: 8px 0; padding: 10px 12px 10px 15px; background: var(--fm-warning-bg); box-shadow: inset 3px 0 0 #E8A317; border-radius: 2px; }
 body.fm #invalidRolesBackdrop .fm-warn-list { margin: 6px 0 0; padding-left: 20px; }
+
+/* Review: "N people with no changes" line */
+body.fm .fm-review-same-toggle { width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--fm-text-2); }
+body.fm .fm-review-same-toggle:hover { background: #FAFAFA; }
+body.fm .fm-link-text { color: var(--fm-link); }

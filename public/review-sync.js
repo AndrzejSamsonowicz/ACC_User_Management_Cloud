@@ -54,12 +54,42 @@
         const p = (products || []).find(x => x.key === key);
         return (p && p.access) || 'none';
     };
-    const isAdmin = (products, accessLevels) =>
-        accessOf(products, 'projectAdministration') === 'administrator' || !!(accessLevels && accessLevels.projectAdmin);
+    // Same source the table and the sync use: the projectAdministration product.
+    const isAdmin = (products) => accessOf(products, 'projectAdministration') === 'administrator';
+
+    // Role: when the Role cell was not edited the table keeps the original role IDs
+    // (language-proof, same rule the sync itself uses); otherwise compare names.
+    function roleChange(tableUser, projectUser) {
+        const meta = tableUser.metadata || {};
+        const currentRoles = Array.isArray(projectUser.roles) ? projectUser.roles.filter(r => r && r.name) : [];
+        const currentIds = (projectUser.roleIds && projectUser.roleIds.length ? projectUser.roleIds : currentRoles.map(r => r.id)).filter(Boolean);
+        const currentNames = currentRoles.map(r => r.name);
+        if (Array.isArray(meta.roleIds) && meta.roleIds.length) {
+            const a = [...new Set(meta.roleIds)].sort().join(',');
+            const b = [...new Set(currentIds)].sort().join(',');
+            return a === b ? null : `Role: ${currentNames.join(', ') || 'none'} → ${meta.allRoles || 'none'}`;
+        }
+        const wanted = String(meta.allRoles || meta.role || '').split(',').map(s => s.trim()).filter(Boolean);
+        const norm = (list) => [...new Set(list.map(s => s.toLowerCase()))].sort().join(',');
+        if (!wanted.length || norm(wanted) === norm(currentNames)) return null;
+        return `Role: ${currentNames.join(', ') || 'none'} → ${wanted.join(', ')}`;
+    }
+
+    // Company: only a non-empty company in the table is sent, so only that can change it.
+    function companyChange(tableUser, projectUser) {
+        const wanted = String((tableUser.metadata && tableUser.metadata.company) || '').trim();
+        const current = String(projectUser.companyName || '').trim();
+        if (!wanted || wanted.toLowerCase() === current.toLowerCase()) return null;
+        return `Company: ${current || 'none'} → ${wanted}`;
+    }
 
     function describeChange(tableUser, projectUser) {
         const notes = [];
-        const wasAdmin = isAdmin(projectUser.products, projectUser.accessLevels);
+        const role = roleChange(tableUser, projectUser);
+        const company = companyChange(tableUser, projectUser);
+        if (role) notes.push(role);
+        if (company) notes.push(company);
+        const wasAdmin = isAdmin(projectUser.products);
         const willBeAdmin = isAdmin(tableUser.products);
         if (willBeAdmin && !wasAdmin) notes.push('Becomes project admin');
         if (!willBeAdmin && wasAdmin) notes.push('No longer project admin');
@@ -169,15 +199,32 @@
         toggle.append(chev, name, counts);
         const list = el('div', 'fm-review-list');
         list.hidden = !open;
-        [['removed', diff.removed], ['added', diff.added], ['changed', diff.changed], ['same', diff.same]].forEach(([kind, rows]) => {
-            rows.forEach(row => {
-                const r = el('div', `fm-review-row is-${kind}`);
-                const who = el('span', 'fm-review-who');
-                who.append(avatar(row.email), el('span', 'fm-ell', row.email));
-                r.append(marker(kind), who, el('span', 'fm-review-note', row.note));
-                list.appendChild(r);
-            });
+        const addRow = (parent, kind, row) => {
+            const r = el('div', `fm-review-row is-${kind}`);
+            const who = el('span', 'fm-review-who');
+            who.append(avatar(row.email), el('span', 'fm-ell', row.email));
+            r.append(marker(kind), who, el('span', 'fm-review-note', row.note));
+            parent.appendChild(r);
+        };
+        [['removed', diff.removed], ['added', diff.added], ['changed', diff.changed]].forEach(([kind, rows]) => {
+            rows.forEach(row => addRow(list, kind, row));
         });
+        // People without changes: one line, expandable, so real changes stay visible.
+        if (diff.same.length) {
+            const sameToggle = el('button', 'fm-review-row is-same fm-review-same-toggle');
+            sameToggle.type = 'button';
+            sameToggle.setAttribute('aria-expanded', 'false');
+            sameToggle.append(marker('same'), el('span', 'fm-review-who', `${diff.same.length} ${diff.same.length === 1 ? 'person' : 'people'} with no changes`), el('span', 'fm-review-note fm-link-text', 'Show them'));
+            const sameList = el('div');
+            sameList.hidden = true;
+            sameToggle.addEventListener('click', () => {
+                if (!sameList.childElementCount) diff.same.forEach(row => addRow(sameList, 'same', row));
+                sameList.hidden = !sameList.hidden;
+                sameToggle.setAttribute('aria-expanded', String(!sameList.hidden));
+                sameToggle.lastChild.textContent = sameList.hidden ? 'Show them' : 'Hide them';
+            });
+            list.append(sameToggle, sameList);
+        }
         toggle.addEventListener('click', () => {
             list.hidden = !list.hidden;
             toggle.setAttribute('aria-expanded', String(!list.hidden));
@@ -266,8 +313,11 @@
         back.addEventListener('click', d.remove);
         const go = el('button', 'fm-btn fm-btn-primary');
         go.type = 'button';
-        go.textContent = changes === 0 ? 'Nothing to change' : `Sync ${changes} ${changes === 1 ? 'change' : 'changes'}`;
-        go.disabled = changes === 0;
+        // Never block the sync: this preview may not see every kind of edit.
+        go.textContent = changes === 0 ? 'Sync anyway' : `Sync ${changes} ${changes === 1 ? 'change' : 'changes'}`;
+        if (changes === 0) {
+            d.body.insertBefore(el('p', 'fm-muted fm-review-foot-note', 'No differences found between the table and Forma. You can still sync to re-apply the table.'), summary.nextSibling);
+        }
         go.addEventListener('click', () => { d.remove(); runSync(); });
         d.foot.append(back, go);
         go.focus();
