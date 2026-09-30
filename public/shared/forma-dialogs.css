@@ -237,6 +237,11 @@ body.fm .it-error-message { margin: 16px 32px; padding: 12px 12px 12px 15px; bor
 /* Column header like a Forma table header */
 body.fm .it-col-header { background: #fff; border-bottom: 1px solid var(--fm-divider); font-size: 14px; font-weight: 700; letter-spacing: 0; color: var(--fm-text); }
 body.fm .it-col-cell { padding: 0 8px; height: 48px; display: flex; align-items: center; border-right: 0; }
+/* Column resize handles: a short divider at each boundary, blue and full height while hovered or dragged */
+body.fm .it-col-resizer { right: 0; width: 9px; background: transparent; }
+body.fm .it-col-resizer::after { content: ''; position: absolute; top: 14px; bottom: 14px; right: 4px; width: 1px; background: var(--fm-divider); }
+body.fm .it-col-resizer:hover, body.fm .it-col-resizer.it-col-resizing { background: transparent; }
+body.fm .it-col-resizer:hover::after, body.fm .it-col-resizer.it-col-resizing::after { top: 0; bottom: 0; right: 3px; width: 3px; background: var(--fm-blue); }
 body.fm .it-help-dot { background: #BBBBBB; }
 body.fm .it-help-tooltip { background: #fff; color: var(--fm-text); box-shadow: var(--fm-shadow); border-radius: 4px; font-size: 13px; line-height: 1.6; width: 260px; }
 body.fm .it-modal-body { padding: 4px 0 24px; }

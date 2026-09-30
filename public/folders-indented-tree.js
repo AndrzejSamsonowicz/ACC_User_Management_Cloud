@@ -70,7 +70,16 @@
     // User-resizable column widths (px). "Name" holds the indented tree itself
     // (toggle + icon + label); "Level" and "Users" are fixed-position columns
     // that line up across every row regardless of indent depth.
-    let itColWidths = { name: 420, level: 220, users: 90 };
+    const IT_COL_DEFAULTS = { name: 420, level: 220, users: 90 };
+    let itColWidths = { ...IT_COL_DEFAULTS };
+    // Remember the reader's column widths between sessions (per browser).
+    try {
+        const saved = JSON.parse(localStorage.getItem('fmFolderColWidths') || 'null');
+        if (saved) ['name', 'level'].forEach(c => { if (Number.isFinite(saved[c])) itColWidths[c] = saved[c]; });
+    } catch { /* storage unavailable: use defaults */ }
+    function itSaveColWidths() {
+        try { localStorage.setItem('fmFolderColWidths', JSON.stringify({ name: itColWidths.name, level: itColWidths.level })); } catch { /* ignore */ }
+    }
     const IT_COL_MIN = { name: 160, level: 120, users: 50 };
     let itUserListWidth = 352; // "Project Users" left panel width (px), user-resizable
     const IT_USER_LIST_MIN = 220;
@@ -2192,6 +2201,14 @@
                 handle.classList.add('it-col-resizing');
                 document.body.style.cursor = 'col-resize';
             });
+            handle.addEventListener('dblclick', () => {
+                const col = handle.dataset.col;
+                itColWidths[col] = IT_COL_DEFAULTS[col];
+                itSaveColWidths();
+                itApplyColumnWidths(overlay);
+                const container = document.getElementById('itContainer');
+                if (container) itRedrawColumnsOnly(container);
+            });
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -2212,6 +2229,7 @@
         document.addEventListener('mouseup', () => {
             if (!dragCol) return;
             dragCol = null;
+            itSaveColWidths();
             document.body.style.cursor = '';
             overlay.querySelectorAll('.it-col-resizer').forEach(h => h.classList.remove('it-col-resizing'));
         });
@@ -2643,13 +2661,13 @@
                     <div class="it-userlist-resizer" id="itUserListResizer" title="Drag to resize"></div>
                     <div class="it-modal-body-wrap">
                         <div class="it-col-header" id="itColHeader">
-                            <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name"></span></div>
+                            <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name" title="Drag to resize. Double-click to reset."></span></div>
                             <div class="it-col-cell" data-col="level">
                                 <span id="itLevelColLabel">Permissions</span>
                                 <span class="it-help-dot" tabindex="0">?
                                     <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control</span>
                                 </span>
-                                <span class="it-col-resizer" data-col="level"></span>
+                                <span class="it-col-resizer" data-col="level" title="Drag to resize. Double-click to reset."></span>
                             </div>
                             <div class="it-col-cell" data-col="users" id="itUsersColHeader"><span id="itUsersColLabel">Users</span></div>
                         </div>
