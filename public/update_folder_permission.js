@@ -795,9 +795,14 @@
                             }
                         });
 
-                        // Check for DELETE
+                        // Check for DELETE: only where this folder's permissions were loaded
+                        // into the model (or after "Remove all access"). Anywhere else the
+                        // model doesn't know what exists, and deleting could remove real access.
+                        const deletesAllowed = (typeof permissionsLoadedFolderIds !== 'undefined' && permissionsLoadedFolderIds.has(folder.folderId))
+                            || (typeof itCleaned !== 'undefined' && itCleaned);
+                        if (!deletesAllowed) log(`  🛡 Not loaded in this session, deletes skipped: ${folderName}`);
                         accPermMap.forEach((accPerm, key) => {
-                            if (!jsonPermMap.has(key)) {
+                            if (deletesAllowed && !jsonPermMap.has(key)) {
                                 if (isProjectAdmin(accPerm.subjectId, accPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP DELETE: Project admin (${accPerm.user})`);
                                     syncSummary.skippedAdmins++;

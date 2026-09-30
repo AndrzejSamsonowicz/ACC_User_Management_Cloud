@@ -61,8 +61,10 @@
             
             return permissions;
         } catch (error) {
+            // null = "unknown", not "no permissions": callers must not treat this
+            // folder as loaded (an empty list here once made Sync delete real access).
             console.error('❌ Error fetching folder permissions:', error);
-            return [];
+            return null;
         }
     }
 
@@ -78,6 +80,9 @@
         
         const permissionsMap = {};
         const uniqueFolderIds = new Set();
+        // Folders whose permissions could not be read; exposed for loadExistingACCPermissions.
+        const failedFolderIds = new Set();
+        window.FolderPermissions.lastFailedFolderIds = failedFolderIds;
 
         // Collect all unique folder IDs from hierarchy (any depth level)
         hierarchy.forEach(row => {
@@ -105,7 +110,8 @@
             
             const batchResults = await Promise.all(batchPromises);
             batchResults.forEach(({ folderId, permissions }) => {
-                permissionsMap[folderId] = permissions;
+                if (permissions === null) failedFolderIds.add(folderId);
+                else permissionsMap[folderId] = permissions;
             });
             
             log(`📊 Progress: ${Math.min(i + batchSize, folderIds.length)}/${folderIds.length} folders`);

@@ -23,6 +23,14 @@
     let folderUserAssignments = new Map();
 
     /**
+     * Folders whose permissions were actually read from Forma into the model.
+     * Sync only deletes access in these folders (see update_folder_permission.js):
+     * anywhere else the model can't know what exists, so a delete could remove
+     * real access the app never loaded.
+     */
+    let permissionsLoadedFolderIds = new Set();
+
+    /**
      * Progress modal functions
      */
     function showLoadingProgress(message, percent) {
@@ -92,6 +100,7 @@
         folderChildrenCache = {};
         expandedFolderIds = new Set();
         folderUserAssignments = new Map();
+        permissionsLoadedFolderIds = new Set();
 
         // Open the indented tree — the primary (and only) UI for managing
         // folder access. It creates its own modal, including the left
@@ -2297,6 +2306,23 @@
                 }
             });
 
+            // Folders whose permissions failed to load, plus everything under them
+            // (their inherited access would be incomplete): left unloaded, so they
+            // load properly next time instead of keeping a wrong partial view.
+            const failedIds = (window.FolderPermissions && window.FolderPermissions.lastFailedFolderIds) || new Set();
+            const unreliableIds = new Set();
+            if (failedIds.size > 0) {
+                hierarchy.forEach(hRow => {
+                    let underFailed = false;
+                    for (let d = 0; d < currentFolderDisplayDepth; d++) {
+                        const f = hRow[levelKeyForDepth(d)];
+                        if (!f?.id) continue;
+                        if (failedIds.has(f.id)) underFailed = true;
+                        if (underFailed) unreliableIds.add(f.id);
+                    }
+                });
+            }
+
             // Build visible folder list to process
             const visibleFolders = buildVisibleFolderRows(hierarchy);
             let totalPermissionsLoaded = 0;
@@ -2313,10 +2339,14 @@
                 const folderId = folder.id;
                 if (!folderId) continue;
                 if (onlyFolderIds && !onlyFolderIds.has(folderId)) continue;
+                if (unreliableIds.has(folderId)) continue;
 
-                // Skip folders that already have model entries (don't overwrite user edits)
+                // Folders that already have model entries: keep them (user edits).
+                // If this folder's own permissions were never loaded (its entries came
+                // only from propagating a parent's access), add its own ones below.
                 const existingEntries = folderUserAssignments.get(folderId);
-                if (existingEntries && existingEntries.length > 0) continue;
+                const mergeOwnOnly = !!(existingEntries && existingEntries.length > 0);
+                if (mergeOwnOnly && permissionsLoadedFolderIds.has(folderId)) continue;
 
                 const isRootLevel = depth === 0;
                 const isChildLevel = depth > 0;
@@ -2368,12 +2398,29 @@
                 }
 
                 const permissionEntries = Array.from(effectivePermissions.values());
+                if (mergeOwnOnly) {
+                    const present = new Set(existingEntries.map(e => e.user));
+                    permissionEntries.filter(p => !p.isInherited && !present.has(p.identifier)).forEach(perm => {
+                        existingEntries.push({
+                            user: perm.identifier,
+                            displayName: perm.displayName || perm.identifier,
+                            level: String(perm.level),
+                            subjectType: perm.type || '',
+                            subjectId: perm.subjectId || '',
+                            isInherited: false
+                        });
+                        totalPermissionsLoaded++;
+                    });
+                    permissionsLoadedFolderIds.add(folderId);
+                    continue;
+                }
                 permissionEntries.sort((a, b) => {
                     const nameA = (a.displayName || '').toLowerCase();
                     const nameB = (b.displayName || '').toLowerCase();
                     return nameA.localeCompare(nameB);
                 });
 
+                permissionsLoadedFolderIds.add(folderId);
                 if (permissionEntries.length === 0) continue;
 
                 // Populate folderUserAssignments model
@@ -2388,6 +2435,13 @@
 
                 folderUserAssignments.set(folderId, modelEntries);
                 totalPermissionsLoaded += modelEntries.length;
+            }
+
+            // Tell the user when some folders could not be read
+            const warnEl = document.getElementById('itErrorMessage');
+            if (warnEl && unreliableIds.size > 0) {
+                warnEl.textContent = `The permissions of ${unreliableIds.size} ${unreliableIds.size === 1 ? 'folder' : 'folders'} could not be loaded from Forma, so they are shown without their own access. Sync will not remove anything there. Close and reopen Folder access to try again.`;
+                warnEl.style.display = 'block';
             }
 
             // Re-render the table from the updated model
