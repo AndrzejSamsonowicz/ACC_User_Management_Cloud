@@ -1291,12 +1291,52 @@
         label.className = 'it-level-label';
         label.textContent = labelOverride || lv.short;
         view.append(pills, label);
-        view.title = labelOverride || lv.name;
         const widget = view.closest('.it-level-input');
+        view.title = widget ? '' : (labelOverride || lv.name); // editable ones use itShowLevelTip
         if (widget) {
             widget.setAttribute('aria-valuenow', String(n));
             widget.setAttribute('aria-valuetext', lv.name);
         }
+    }
+
+    // Tooltip for editable levels: names the level and says how to change it
+    // (arrow keys only). One element on <body>, since the SVG foreignObject
+    // around each widget would clip it.
+    let itLevelTip = null;
+    let itLevelTipTimer = null;
+    function itShowLevelTip(widget) {
+        clearTimeout(itLevelTipTimer);
+        if (!itLevelTip) {
+            itLevelTip = document.createElement('div');
+            itLevelTip.className = 'it-level-tip';
+            itLevelTip.setAttribute('role', 'tooltip');
+            itLevelTip.hidden = true;
+            document.body.appendChild(itLevelTip);
+            // The tree scrolls under a fixed-position tip, so drop it on any scroll.
+            document.addEventListener('scroll', itHideLevelTip, true);
+        }
+        const name = document.createElement('strong');
+        name.textContent = widget.getAttribute('aria-valuetext') || '';
+        const how = document.createElement('span');
+        how.textContent = document.activeElement === widget
+            ? 'Press ← or → to change the level.'
+            : 'Click it, then press ← or → to change the level.';
+        itLevelTip.replaceChildren(name, how);
+        itLevelTip.hidden = false;
+        const r = widget.getBoundingClientRect();
+        const t = itLevelTip.getBoundingClientRect();
+        const left = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, window.innerWidth - t.width - 8));
+        const top = r.top - t.height - 8 >= 8 ? r.top - t.height - 8 : r.bottom + 8;
+        itLevelTip.style.left = left + 'px';
+        itLevelTip.style.top = top + 'px';
+    }
+    function itQueueLevelTip(widget) {
+        clearTimeout(itLevelTipTimer);
+        itLevelTipTimer = setTimeout(() => { if (widget.isConnected) itShowLevelTip(widget); }, 350);
+    }
+    function itHideLevelTip() {
+        clearTimeout(itLevelTipTimer);
+        if (itLevelTip) itLevelTip.hidden = true;
     }
 
     /**
@@ -1723,17 +1763,23 @@
                     .attr('role', 'slider')
                     .attr('aria-label', `Access level for ${d.name}`)
                     .attr('aria-valuemin', 1).attr('aria-valuemax', 6)
+                    .attr('aria-keyshortcuts', 'ArrowLeft ArrowRight')
                     .on('click', (event) => { event.stopPropagation(); event.currentTarget.focus(); })
                     .on('mousedown', (event) => event.stopPropagation())
+                    .on('mouseenter', (event) => itQueueLevelTip(event.currentTarget))
+                    .on('mouseleave', (event) => { if (document.activeElement !== event.currentTarget) itHideLevelTip(); })
+                    .on('focus', (event) => itShowLevelTip(event.currentTarget))
+                    .on('blur', () => itHideLevelTip())
                     .on('keydown', (event) => {
                         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
                         event.preventDefault();
                         event.stopPropagation(); // not the tree's own arrow-key navigation
+                        const widget = event.currentTarget;
                         itStepLevel(d, event.key === 'ArrowLeft' ? -1 : 1);
+                        requestAnimationFrame(() => { if (widget.isConnected && document.activeElement === widget) itShowLevelTip(widget); });
                     });
             }
             itFillLevelView(view, isAdminRow ? 6 : d.level, isAdminRow ? 'Project admin' : null);
-            if (editable) view.title += '. Click, then use ← and → to change';
             if (!editable) {
                 view.title = isAdminRow ? 'Project admins have full access'
                     : d.isInherited ? 'Inherited from the parent folder'
@@ -2665,7 +2711,7 @@
                             <div class="it-col-cell" data-col="level">
                                 <span id="itLevelColLabel">Permissions</span>
                                 <span class="it-help-dot" tabindex="0">?
-                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control</span>
+                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control<br><br>To change a level, click it, then press ← or →.</span>
                                 </span>
                                 <span class="it-col-resizer" data-col="level" title="Drag to resize. Double-click to reset."></span>
                             </div>

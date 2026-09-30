@@ -317,3 +317,11 @@ body.fm .pu-search-clear:hover { background: var(--fm-panel); color: var(--fm-te
 body.fm .pu-search-status { font-size: 13px; color: var(--fm-text-2); min-height: 0; }
 body.fm .pu-search-status:empty { display: none; }
 body.fm .user-list-item[hidden] { display: none !important; }
+
+/* Folder access: tooltip on editable levels (how to change them) */
+body.fm .it-level-tip {
+    position: fixed; z-index: 20000; max-width: 260px; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+    background: #fff; color: var(--fm-text); border-radius: 4px; box-shadow: var(--fm-shadow);
+    font-size: 13px; line-height: 18px; pointer-events: none;
+}
