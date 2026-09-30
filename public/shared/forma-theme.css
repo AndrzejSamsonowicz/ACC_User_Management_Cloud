@@ -56,7 +56,9 @@
 .fm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .fm-btn-primary { background: var(--fm-blue); border-color: var(--fm-blue); color: #fff; }
 .fm-btn-primary:hover { background: var(--fm-blue-hover); border-color: var(--fm-blue-hover); }
-.fm-btn-primary:disabled { background: var(--fm-blue); border-color: var(--fm-blue); }
+.fm a.fm-btn-primary { color: #fff; }
+.fm a.fm-btn { text-decoration: none; }
+& background: var(--fm-blue); border-color: var(--fm-blue); }
 .fm-btn-text { border-color: transparent; background: transparent; color: var(--fm-link); padding: 0 8px; }
 .fm-btn-text:hover { border-color: transparent; text-decoration: underline; }
 .fm-btn-lg { height: 40px; }
@@ -165,3 +167,20 @@
     .fm-lockup-mark { width: 64px; height: 64px; }
     .fm-lockup-name { font-size: 28px; white-space: normal; }
 }
+
+/* Purchase page: order line styled as a Forma table row */
+.fm-order { width: 100%; border-collapse: collapse; }
+.fm-order th { height: 36px; padding: 0; text-align: left; font-weight: 700; border-bottom: 1px solid var(--fm-divider); }
+.fm-order td { height: 64px; padding: 0; vertical-align: middle; border-bottom: 1px solid var(--fm-divider); }
+.fm-order th:last-child, .fm-order td:last-child { text-align: right; }
+.fm-order-sub { display: block; font-size: 13px; color: var(--fm-text-2); }
+.fm-order-price { font-size: 30px; line-height: 42px; font-weight: 400; }
+.fm-paypal { min-height: 48px; }
+.fm-paypal-loading { display: flex; align-items: center; gap: 10px; height: 48px; color: var(--fm-text-2); }
+.fm-spinner-dark { border-color: #EEEEEE; border-top-color: var(--fm-blue); }
+.fm-secure-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; }
+.fm-secure-note svg { flex: none; margin-top: 1px; }
+.fm-key { display: flex; gap: 8px; }
+.fm-key-value { font-size: 18px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; background: var(--fm-panel); }
+.fm-next-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.fm-auth-title:focus { outline: none; }

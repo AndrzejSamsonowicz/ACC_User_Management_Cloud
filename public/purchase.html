@@ -3,306 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Purchase Forma User Management License</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Artifact+Elements:wght@400;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Artifact Elements', Arial, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #0696D7 0%, #0057A0 100%);
-            min-height: 100vh;
-            padding: 40px 20px;
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 40px;
-        }
-        
-        .header h1 {
-            font-size: 36px;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            font-size: 18px;
-            opacity: 0.9;
-        }
-        
-        .pricing-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            padding: 40px;
-            margin-bottom: 30px;
-        }
-        
-        .price-header {
-            text-align: center;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 30px;
-            margin-bottom: 30px;
-        }
-        
-        .price {
-            font-size: 48px;
-            color: #0696D7;
-            font-weight: 700;
-        }
-        
-        .price-period {
-            font-size: 18px;
-            color: #6c757d;
-        }
-        
-        .features-list {
-            list-style: none;
-            margin-bottom: 30px;
-        }
-        
-        .features-list li {
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex;
-            align-items: center;
-        }
-        
-        .features-list li:last-child {
-            border-bottom: none;
-        }
-        
-        .features-list li::before {
-            content: "✓";
-            color: #28a745;
-            font-weight: bold;
-            font-size: 20px;
-            margin-right: 15px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 6px;
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        input[type="email"] {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #0696D7;
-            box-shadow: 0 0 0 3px rgba(6, 150, 215, 0.1);
-        }
-        
-        .paypal-button-container {
-            margin-top: 30px;
-        }
-        
-        .alert {
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }
-        
-        .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        
-        .alert-info {
-            background-color: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-        }
-        
-        .info-box {
-            background: #f8f9fa;
-            border-left: 4px solid #0696D7;
-            padding: 20px;
-            margin-top: 30px;
-            border-radius: 4px;
-        }
-        
-        .info-box h3 {
-            color: #333;
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-        
-        .info-box p {
-            color: #6c757d;
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 8px;
-        }
-        
-        .back-link {
-            text-align: center;
-            margin-top: 20px;
-        }
-        
-        .back-link a {
-            color: white;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        
-        .back-link a:hover {
-            text-decoration: underline;
-        }
-        
-        .license-display {
-            background: #f8f9fa;
-            border: 2px dashed #0696D7;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .license-key {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0696D7;
-            font-family: 'Courier New', monospace;
-            letter-spacing: 2px;
-            margin: 15px 0;
-        }
-        
-        .copy-button {
-            background-color: #0696D7;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        
-        .copy-button:hover {
-            background-color: #0057A0;
-        }
-        
-        .hidden {
-            display: none;
-        }
-    </style>
+    <title>Buy a license - Forma User Manager</title>
+    <link rel="stylesheet" href="shared/forma-theme.css?v=20260930p">
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Forma User Management</h1>
-        </div>
-        
-        <div class="pricing-card" id="purchaseSection">
-            <div class="price-header">
-                <div class="price" id="priceDisplay">&nbsp;</div>
-                <div class="price-period">per year</div>
+<body class="fm">
+    <div class="fm-auth">
+        <section class="fm-auth-brand">
+            <div class="fm-lockup" role="img" aria-label="Forma User Manager by Digibuild">
+                <img class="fm-lockup-mark" src="forma-user-manager-mark.svg" alt="">
+                <div class="fm-lockup-text">
+                    <span class="fm-lockup-name">Forma <em>User</em> Manager</span>
+                    <span class="fm-lockup-by">By Digibuild</span>
+                </div>
             </div>
-            
-            <ul class="features-list">
-                <li>Manage unlimited projects and users</li>
-                <li>Bulk user operations and permissions</li>
-                <li>Secure credential storage</li>
-                <li>Regular updates and improvements</li>
-                <li>12 months of access</li>
-                <li>Automatic renewal reminders</li>
+            <ul class="fm-auth-points">
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="1.5"></rect><path d="M3.5 9.5h17M8 3v4M16 3v4" stroke-linecap="round"></path></svg>Twelve months of access for one account, from the day you pay.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><path d="M5 20V5.5L13 4v16M13 9h6v11M3.5 20h17" stroke-linecap="round" stroke-linejoin="round"></path></svg>No limit on the hubs, projects or people you manage.</li>
+                <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0696D7" stroke-width="1.7" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="1.5"></rect><path d="M4 7l8 6 8-6" stroke-linecap="round" stroke-linejoin="round"></path></svg>An email reminder before the license ends. It never renews or charges you by itself.</li>
             </ul>
-            
-            <div id="alertMessage" class="alert"></div>
-            
-            <div class="form-group">
-                <label for="customerEmail">Your Email Address</label>
-                <input type="email" id="customerEmail" placeholder="you@example.com" required>
-                <small style="color: #6c757d; font-size: 12px;">Your license key will be sent to this email</small>
+            <div class="fm-auth-legal">
+                <a href="terms.html">Terms of Service</a>
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="https://www.digibuild.ch" rel="noopener">digibuild.ch</a>
             </div>
-            
-            <!-- PayPal Button Container -->
-            <div id="paypal-button-container" class="paypal-button-container"></div>
-            
-            <div class="info-box">
-                <h3>🔒 Secure Payment</h3>
-                <p>All transactions are processed securely through PayPal. We never store your payment information.</p>
-                <p><strong>After purchase:</strong> You'll receive your license key via email within minutes. Use this key to register your account.</p>
-            </div>
-        </div>
-        
-        <!-- Success Section (Hidden Initially) -->
-        <div class="pricing-card hidden" id="successSection">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <div style="font-size: 64px; color: #28a745;">✓</div>
-                <h2 style="color: #28a745; margin-top: 20px;">Payment Successful!</h2>
-                <p style="color: #6c757d; margin-top: 10px;">Thank you for your purchase</p>
-            </div>
-            
-            <div class="license-display">
-                <p style="color: #6c757d; margin-bottom: 10px;">Your License Key:</p>
-                <div class="license-key" id="displayLicenseKey">XXXX-XXXX-XXXX-XXXX</div>
-                <button class="copy-button" onclick="copyLicenseKey()">Copy to Clipboard</button>
-            </div>
-            
-            <div class="info-box">
-                <h3>📧 Check Your Email</h3>
-                <p>We've sent your license key to <strong id="customerEmailDisplay"></strong></p>
-                <p>Next steps:</p>
-                <ol style="margin-left: 20px; margin-top: 10px;">
-                    <li>Go to the registration page</li>
-                    <li>Enter your email and license key</li>
-                    <li>Create your password</li>
-                    <li>Verify your email</li>
-                    <li>Start using the tool!</li>
-                </ol>
-            </div>
-            
-            <div style="text-align: center; margin-top: 30px;">
-                <a href="register.html" id="registerNowLink" style="background-color: #0696D7; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; display: inline-block;">
-                    Register Now →
-                </a>
-            </div>
-        </div>
-        
-        <div class="back-link">
-            <a href="login.html">← Back to Login</a>
-        </div>
+        </section>
 
-        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
-            <a href="terms.html" style="color: #6c757d;">Terms of Service</a>
-            &nbsp;&middot;&nbsp;
-            <a href="privacy.html" style="color: #6c757d;">Privacy Policy</a>
-        </div>
+        <main class="fm-auth-main">
+            <div class="fm-auth-form" id="purchaseSection">
+                <div>
+                    <h1 class="fm-auth-title">Buy a license</h1>
+                    <p class="fm-auth-lead">Pay with PayPal. Your license key appears on this page and is sent to you by email.</p>
+                </div>
+
+                <table class="fm-order">
+                    <thead><tr><th scope="col">Item</th><th scope="col">Price</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Forma User Manager<span class="fm-order-sub">1 year, 1 account</span></td>
+                            <td class="fm-order-price num" id="priceDisplay" aria-live="polite">&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div id="alertMessage" class="fm-alert" role="alert"></div>
+
+                <label class="fm-field" for="customerEmail">
+                    <span class="fm-label">Email for the license key</span>
+                    <input class="fm-input fm-input-lg" type="email" id="customerEmail" required autocomplete="email" placeholder="you@example.com">
+                    <span class="fm-hint">We send the license key to this address.</span>
+                </label>
+
+                <div class="fm-paypal">
+                    <div class="fm-paypal-loading" id="paypalLoading" hidden><span class="fm-spinner fm-spinner-dark"></span>Loading PayPal</div>
+                    <div id="paypal-button-container"></div>
+                </div>
+
+                <p class="fm-hint fm-secure-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="1.5"></rect><path d="M8 10.5V7.5a4 4 0 018 0v3" stroke-linecap="round"></path></svg>PayPal handles the payment. Your card and bank details never reach Forma User Manager.</p>
+
+                <hr class="fm-divider">
+
+                <span>Already have a license? <a href="login.html">Sign in</a></span>
+                <div class="fm-auth-legal-mobile">
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                </div>
+            </div>
+
+            <div class="fm-auth-form" id="successSection" hidden>
+                <div>
+                    <h1 class="fm-auth-title" id="successTitle" tabindex="-1">Payment received</h1>
+                    <p class="fm-auth-lead">Thank you. We also sent this key to <strong id="customerEmailDisplay"></strong>.</p>
+                </div>
+
+                <div class="fm-field">
+                    <label class="fm-label" for="displayLicenseKey">Your license key</label>
+                    <div class="fm-key">
+                        <input class="fm-input fm-input-lg fm-key-value" id="displayLicenseKey" readonly value="">
+                        <button type="button" class="fm-btn fm-btn-lg" id="copyKeyBtn">Copy</button>
+                    </div>
+                </div>
+
+                <ol class="fm-next-steps">
+                    <li>Create your account with this license key.</li>
+                    <li>Confirm your email from the message we send you.</li>
+                    <li>Sign in and connect your Autodesk account.</li>
+                </ol>
+
+                <a href="register.html" id="registerNowLink" class="fm-btn fm-btn-primary fm-btn-lg fm-btn-block">Create your account</a>
+                <span>Already have an account? <a href="login.html" id="signInWithKeyLink">Sign in to add this key</a></span>
+            </div>
+        </main>
     </div>
 
     <script>
@@ -318,19 +108,28 @@
                 const config = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(config.error || 'Purchasing is currently unavailable');
+                    throw new Error(config.error || 'Purchasing is not available right now. Try again later.');
                 }
 
                 document.getElementById('priceDisplay').textContent =
                     `${formatCurrency(config.currency)}${Number(config.price).toFixed(0)}`;
 
+                const loading = document.getElementById('paypalLoading');
+                loading.hidden = false;
                 const sdkScript = document.createElement('script');
                 sdkScript.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(config.clientId)}&currency=${encodeURIComponent(config.currency)}`;
-                sdkScript.onload = renderPayPalButtons;
-                sdkScript.onerror = () => showAlert('Failed to load PayPal. Please try again later.', 'error');
+                sdkScript.onload = () => {
+                    loading.hidden = true;
+                    renderPayPalButtons();
+                };
+                sdkScript.onerror = () => {
+                    loading.hidden = true;
+                    showAlert('PayPal could not be loaded. Check your connection or ad blocker, then reload the page.', 'error');
+                };
                 document.body.appendChild(sdkScript);
             } catch (error) {
                 console.error('Failed to load purchase config:', error);
+                document.getElementById('priceDisplay').textContent = '-';
                 showAlert(error.message, 'error');
             }
         })();
@@ -344,13 +143,16 @@
         // PayPal Button Configuration
         paypal.Buttons({
             createOrder: async function(data, actions) {
-                const email = document.getElementById('customerEmail').value.trim();
-                
+                const emailInput = document.getElementById('customerEmail');
+                const email = emailInput.value.trim();
+
                 if (!email || !validateEmail(email)) {
-                    showAlert('Please enter a valid email address', 'error');
+                    showAlert('Enter the email address the license key should be sent to.', 'error');
+                    emailInput.classList.add('is-invalid');
+                    emailInput.focus();
                     throw new Error('Invalid email');
                 }
-                
+
                 try {
                     // Create order on server and get license key
                     const response = await fetch(`${serverURL}/api/create-license-order`, {
@@ -358,29 +160,29 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email })
                     });
-                    
+
                     const data = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(data.error || 'Failed to create order');
+                        throw new Error(data.error || 'The order could not be created. Try again in a moment.');
                     }
 
                     currentOrderId = data.orderId;
 
                     // Return PayPal order ID
                     return data.orderId;
-                    
+
                 } catch (error) {
                     console.error('Order creation error:', error);
                     showAlert(error.message, 'error');
                     throw error;
                 }
             },
-            
+
             onApprove: async function(data, actions) {
                 try {
-                    showAlert('Processing payment...', 'info');
-                    
+                    showAlert('Confirming your payment with PayPal...', 'info');
+
                     // Capture the payment on server
                     const response = await fetch(`${serverURL}/api/capture-license-payment`, {
                         method: 'POST',
@@ -390,38 +192,39 @@
                             email: document.getElementById('customerEmail').value.trim()
                         })
                     });
-                    
+
                     const result = await response.json();
-                    
+
                     if (!response.ok) {
-                        throw new Error(result.error || 'Payment capture failed');
+                        throw new Error(result.error || 'PayPal did not confirm the payment.');
                     }
-                    
+
                     // Show success
-                    document.getElementById('purchaseSection').classList.add('hidden');
-                    document.getElementById('successSection').classList.remove('hidden');
-                    document.getElementById('displayLicenseKey').textContent = result.licenseKey;
+                    document.getElementById('purchaseSection').hidden = true;
+                    document.getElementById('successSection').hidden = false;
+                    document.getElementById('displayLicenseKey').value = result.licenseKey;
                     document.getElementById('customerEmailDisplay').textContent = result.email;
                     document.getElementById('registerNowLink').href =
                         `register.html?licenseKey=${encodeURIComponent(result.licenseKey)}`;
 
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    
+                    window.scrollTo({ top: 0 });
+                    document.getElementById('successTitle').focus();
+
                 } catch (error) {
                     console.error('Payment capture error:', error);
-                    showAlert('Payment processing failed: ' + error.message, 'error');
+                    showAlert(`Payment not completed: ${error.message} If PayPal charged you, contact support with your PayPal receipt.`, 'error');
                 }
             },
-            
+
             onError: function(err) {
                 console.error('PayPal error:', err);
-                showAlert('Payment failed. Please try again or contact support.', 'error');
+                showAlert('PayPal reported an error and no payment was made. Try again, or contact support if it keeps happening.', 'error');
             },
-            
+
             onCancel: function(data) {
-                showAlert('Payment cancelled. No charges were made.', 'info');
+                showAlert('Payment cancelled. You were not charged.', 'info');
             }
-            
+
         }).render('#paypal-button-container');
         }
 
@@ -429,26 +232,36 @@
         function validateEmail(email) {
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         }
-        
+
         function showAlert(message, type) {
             const alert = document.getElementById('alertMessage');
             alert.textContent = message;
-            alert.className = `alert alert-${type}`;
-            alert.style.display = 'block';
-            
-            if (type === 'success' || type === 'info') {
-                setTimeout(() => {
-                    alert.style.display = 'none';
-                }, 5000);
+            alert.className = `fm-alert fm-alert-${type} is-visible`;
+        }
+
+        document.getElementById('customerEmail').addEventListener('input', (e) => {
+            e.target.classList.remove('is-invalid');
+            document.getElementById('alertMessage').classList.remove('is-visible');
+        });
+
+        // Existing account holders: login.html applies a pending key right after sign-in.
+        document.getElementById('signInWithKeyLink').addEventListener('click', () => {
+            const key = document.getElementById('displayLicenseKey').value;
+            if (key) sessionStorage.setItem('pendingLicenseKey', key);
+        });
+
+        document.getElementById('copyKeyBtn').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            const keyInput = document.getElementById('displayLicenseKey');
+            try {
+                await navigator.clipboard.writeText(keyInput.value);
+                btn.textContent = 'Copied';
+            } catch {
+                keyInput.select();
+                btn.textContent = 'Press Ctrl+C';
             }
-        }
-        
-        function copyLicenseKey() {
-            const licenseKey = document.getElementById('displayLicenseKey').textContent;
-            navigator.clipboard.writeText(licenseKey).then(() => {
-                alert('License key copied to clipboard!');
-            });
-        }
+            setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+        });
     </script>
 </body>
 </html>
