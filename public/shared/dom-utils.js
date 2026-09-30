@@ -19,3 +19,13 @@ function escapeHtml(text) {
     if (typeof text !== 'string') return text;
     return text.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
+
+// Forma-style avatar colors: people get a pastel circle that is always the same
+// for the same email; roles and companies get Forma's neutral grey circle.
+const FM_AVATAR_COLORS = ['#F9B8AE', '#A9C7EC', '#BCDB95', '#FDD8A3', '#C9A7F9', '#9FDCD6', '#F5B5D6', '#D8D0C2'];
+function fmAvatarColors(type, key) {
+    if (type === 'company' || type === 'role') return { background: '#EEEEEE', color: '#666666' };
+    let sum = 0;
+    for (const ch of String(key || '')) sum += ch.charCodeAt(0);
+    return { background: FM_AVATAR_COLORS[sum % FM_AVATAR_COLORS.length], color: '#3C3C3C' };
+}

@@ -68,8 +68,8 @@
     // User-resizable column widths (px). "Name" holds the indented tree itself
     // (toggle + icon + label); "Level" and "Users" are fixed-position columns
     // that line up across every row regardless of indent depth.
-    let itColWidths = { name: 380, level: 90, users: 90 };
-    const IT_COL_MIN = { name: 160, level: 50, users: 50 };
+    let itColWidths = { name: 420, level: 220, users: 90 };
+    const IT_COL_MIN = { name: 160, level: 120, users: 50 };
     let itUserListWidth = 352; // "Project Users" left panel width (px), user-resizable
     const IT_USER_LIST_MIN = 220;
     const IT_USER_LIST_MAX = 700;
@@ -113,8 +113,8 @@
         return !!(n.children && n.children.length) || !!n.expandable;
     }
 
-    const IT_ROW_H = 24;
-    const IT_INDENT = 20;
+    const IT_ROW_H = 36;
+    const IT_INDENT = 24;
     const IT_ROW_X0 = 26; // left margin for depth-0 rows
     const IT_BOX = 12; // toggle square size
     const IT_BOX_HALF = IT_BOX / 2;
@@ -139,8 +139,7 @@
     // lighter yellow front body — the familiar filled folder glyph, in
     // place of the previous plain monochrome outline.
     const IT_FOLDER_ICON =
-        '<path d="M3 7.5c0-1.1.9-2 2-2h3.5l1.5 1.5H19c1.1 0 2 .9 2 2V8H3v-.5z" fill="#F2A900"/>' +
-        '<rect x="3" y="8" width="18" height="10.5" rx="1.5" fill="#FFC94D" stroke="#E29400" stroke-width="0.7"/>';
+        '<path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" fill="none" stroke="#3C3C3C" stroke-width="1.5" stroke-linejoin="round"/>';
 
     const IT_PEOPLE_ICON =
         '<circle cx="8" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
@@ -194,8 +193,7 @@
      * a representative mid-level shade so they still read as that type's color.
      */
     function itIconColorsFor(d) {
-        const subjectType = d.type === 'company' ? 'COMPANY' : d.type === 'role' ? 'ROLE' : 'USER';
-        return getSubjectColor(subjectType, d.level || 3);
+        return fmAvatarColors(d.type, d.email || d.name);
     }
 
     /**
@@ -239,28 +237,27 @@
         if (d.type === 'user') {
             const initials = itInitialsFor(d.realName || d.name, d.email);
             const colors = itIconColorsFor(d);
-            g.append('circle').attr('cx', 11).attr('cy', -1).attr('r', 11).attr('fill', colors.background).attr('stroke', 'rgba(0,0,0,0.15)').attr('stroke-width', 1);
+            g.append('circle').attr('cx', 12).attr('cy', 0).attr('r', 12).attr('fill', colors.background);
             g.append('text')
-                .attr('x', 11).attr('y', 2.5)
+                .attr('x', 12).attr('y', 4)
                 .attr('text-anchor', 'middle')
-                .attr('font-size', '9px').attr('font-weight', 'bold')
+                .attr('font-size', '11px').attr('font-weight', '600')
                 .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
                 .attr('fill', colors.color)
+                .attr('opacity', d.isInherited ? 0.7 : 1)
                 .text(initials);
-            return offsetX + 24;
+            return offsetX + 26;
         }
         if (d.type === 'company' || d.type === 'role') {
             const colors = itIconColorsFor(d);
-            g.append('circle').attr('cx', 11).attr('cy', -1).attr('r', 11).attr('fill', colors.background).attr('stroke', 'rgba(0,0,0,0.15)').attr('stroke-width', 1);
-            itAppendMiniSvg(g, 3, -9, 16, d.type === 'company' ? IT_BUILDING_ICON : IT_PEOPLE_ICON)
+            g.append('circle').attr('cx', 12).attr('cy', 0).attr('r', 12).attr('fill', colors.background);
+            itAppendMiniSvg(g, 5, -7, 14, d.type === 'company' ? IT_BUILDING_ICON : IT_PEOPLE_ICON)
                 .style('color', colors.color);
-            return offsetX + 24;
+            return offsetX + 26;
         }
-        // folder / group / anything else — filled yellow folder, no circle,
-        // drawn at 2x size (36px vs the 18px it used to be) so it doesn't
-        // get lost next to the colored avatar circles.
-        itAppendMiniSvg(g, -2, -18, 36, IT_FOLDER_ICON);
-        return offsetX + 36;
+        // folder / group / anything else: Forma's outline folder
+        itAppendMiniSvg(g, 0, -10, 20, IT_FOLDER_ICON);
+        return offsetX + 24;
     }
 
     /**
@@ -1209,6 +1206,42 @@
     }
 
     /** Update one entry's level in the model (+ its own node object), returning its descendant folder ids. */
+    // ---------- Forma permission pills ----------
+    // Forma shows folder access as 4 pills with the level name under them:
+    // View = 1 pill (View only, +Download, +Markups, +Upload), Edit = 3, Manage = 4.
+    const IT_LEVELS = [null,
+        { pills: 1, short: 'View', name: 'View only' },
+        { pills: 1, short: 'Download', name: 'View + Download' },
+        { pills: 1, short: 'Markups', name: 'View + Download + Publish markups' },
+        { pills: 1, short: 'Upload', name: 'View + Download + Publish markups + Upload' },
+        { pills: 3, short: 'Edit', name: 'View + Download + Publish markups + Upload + Edit' },
+        { pills: 4, short: 'Manage', name: 'Full control' }];
+
+    function itFillLevelView(view, level, labelOverride) {
+        const lv = IT_LEVELS[parseInt(level, 10)] || IT_LEVELS[1];
+        view.replaceChildren();
+        const pills = document.createElement('span');
+        pills.className = 'it-pills';
+        for (let i = 0; i < 4; i++) {
+            const pill = document.createElement('span');
+            pill.className = 'it-pill' + (i < lv.pills ? ' is-on' : '');
+            pills.appendChild(pill);
+        }
+        const label = document.createElement('span');
+        label.className = 'it-level-label';
+        label.textContent = labelOverride || lv.short;
+        view.append(pills, label);
+        view.title = labelOverride || lv.name;
+    }
+
+    /** Redraw a rendered row's pills after its level changed elsewhere (no full re-render). */
+    function itRefreshLevelWidget(rowEl, level) {
+        const view = rowEl.querySelector('.it-level-view');
+        if (view) itFillLevelView(view, level);
+        const select = rowEl.querySelector('select.it-level-input');
+        if (select) select.value = String(level);
+    }
+
     function itUpdateEntryLevel(node, newLevel) {
         if (!node.__folderId || !node.__entryUser) return null;
         const entries = folderUserAssignments.get(node.__folderId);
@@ -1242,13 +1275,7 @@
             if (rowNode.__entryUser !== entryUser) return;
             if (!descendantIds.has(rowNode.__folderId)) return;
             rowNode.level = newLevel;
-            const input = rowEl.querySelector('.it-level-input');
-            if (input) {
-                const colors = rowNode.subjectType ? getSubjectColor(rowNode.subjectType, newLevel) : getPermissionLevelColor(newLevel);
-                input.value = newLevel;
-                input.style.background = colors.background;
-                input.style.color = colors.color;
-            }
+            itRefreshLevelWidget(rowEl, newLevel);
             itUpdateIconColorsInPlace(rowEl, rowNode);
         });
     }
@@ -1261,13 +1288,7 @@
             if (!rowNode || rowNode.isInherited) return;
             if (rowNode.__folderId !== folderId || rowNode.__entryUser !== entryUser) return;
             rowNode.level = newLevel;
-            const input = rowEl.querySelector('.it-level-input');
-            if (input) {
-                const colors = rowNode.subjectType ? getSubjectColor(rowNode.subjectType, newLevel) : getPermissionLevelColor(newLevel);
-                input.value = newLevel;
-                input.style.background = colors.background;
-                input.style.color = colors.color;
-            }
+            itRefreshLevelWidget(rowEl, newLevel);
             itUpdateIconColorsInPlace(rowEl, rowNode);
         });
     }
@@ -1518,7 +1539,7 @@
         if (d.__key === itFocusedKey) {
             sel.append('rect')
                 .attr('class', 'it-focus-ring')
-                .attr('x', -1000).attr('y', -11).attr('width', 3000).attr('height', 22)
+                .attr('x', -1000).attr('y', -IT_ROW_H / 2 + 1).attr('width', 3000).attr('height', IT_ROW_H - 2)
                 .attr('fill', 'rgba(6,150,215,0.08)')
                 .attr('stroke', '#0696D7').attr('stroke-width', 1.5)
                 .style('pointer-events', 'none');
@@ -1533,12 +1554,10 @@
         if (hasChildren) {
             const toggleRect = sel.append('rect')
                 .attr('class', 'it-toggle')
-                .attr('x', -IT_BOX_HALF).attr('y', -IT_BOX_HALF)
-                .attr('width', IT_BOX).attr('height', IT_BOX)
+                .attr('x', -IT_BOX_HALF - 2).attr('y', -IT_BOX_HALF - 2)
+                .attr('width', IT_BOX + 4).attr('height', IT_BOX + 4)
                 .attr('rx', 2)
-                .attr('fill', loading ? '#bdbdbd' : '#a8a8a8')
-                .attr('stroke', '#7a7a7a')
-                .attr('stroke-width', 1);
+                .attr('fill', 'transparent');
             if (isSubjectRow) {
                 toggleRect.style('cursor', 'pointer').on('click', (event) => {
                     event.stopPropagation();
@@ -1546,14 +1565,19 @@
                     itToggleExpandNode(container, d);
                 });
             }
-            sel.append('text')
-                .attr('x', 0).attr('y', 3.5)
-                .attr('text-anchor', 'middle')
-                .attr('font-size', loading ? '8px' : '11px').attr('font-weight', 'bold')
-                .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
-                .attr('fill', '#ffffff')
-                .style('pointer-events', 'none')
-                .text(loading ? '…' : (expanded ? '−' : '+'));
+            if (loading) {
+                sel.append('text')
+                    .attr('x', 0).attr('y', 4).attr('text-anchor', 'middle')
+                    .attr('font-size', '12px').attr('fill', '#808080')
+                    .style('pointer-events', 'none')
+                    .text('…');
+            } else {
+                sel.append('path')
+                    .attr('d', expanded ? 'M-4.5 -2 L0 2.5 L4.5 -2' : 'M-2 -4.5 L2.5 0 L-2 4.5')
+                    .attr('fill', 'none').attr('stroke', '#3C3C3C').attr('stroke-width', 1.8)
+                    .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
+                    .style('pointer-events', 'none');
+            }
         }
 
         const iconWidth = itDrawIcon(sel, d, IT_BOX_HALF + 5, isSubjectRow ? () => { itClearSelection(); itToggleExpandNode(container, d); } : null);
@@ -1564,16 +1588,15 @@
         // on every drag, so it's computed fresh each render rather than fixed.
         const boundaries = itGetColBoundaries();
         const availablePx = Math.max(boundaries.levelStart - rowX - nameX - 10, 40);
-        const maxChars = Math.max(Math.floor(availablePx / 6.6), 3);
+        const maxChars = Math.max(Math.floor(availablePx / 7.4), 3);
         const displayName = itTruncate(d.name, maxChars);
         const deletable = isSubjectRow && itIsDeletableNode(d);
         const label = sel.append('text')
             .attr('x', nameX).attr('y', 4)
-            .attr('font-size', '12.5px')
+            .attr('font-size', '14px')
             .attr('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
-            .attr('font-weight', (d.type === 'folder' || d.type === 'group') ? '600' : (d.__matched ? 'bold' : 'normal'))
-            .attr('font-style', d.isInherited ? 'italic' : 'normal')
-            .attr('fill', d.__matched ? '#ff6b00' : (d.type === 'folder' || d.type === 'group' ? '#5f6368' : (d.isInherited ? '#999' : '#222')))
+            .attr('font-weight', (d.type === 'folder' || d.type === 'group') ? '700' : (d.__matched ? '700' : '400'))
+            .attr('fill', d.__matched ? '#0696D7' : (d.isInherited ? '#808080' : '#3C3C3C'))
             .style('cursor', deletable ? 'pointer' : null)
             .text(displayName);
         if (isSubjectRow) {
@@ -1591,8 +1614,8 @@
                 .attr('x', bbox.x - 3).attr('y', bbox.y - 2)
                 .attr('width', bbox.width + 6).attr('height', bbox.height + 4)
                 .attr('rx', 3)
-                .attr('fill', 'rgba(220,53,69,0.15)')
-                .attr('stroke', 'rgba(220,53,69,0.5)').attr('stroke-width', 1)
+                .attr('fill', '#EDF8FC')
+                .attr('stroke', '#0696D7').attr('stroke-width', 1)
                 .style('pointer-events', 'none');
         }
         const accessCountText = typeof d.accessCount === 'number'
@@ -1605,102 +1628,58 @@
         // real <input> (via foreignObject) so editing behaves exactly like
         // the main table: arrow keys step 1-6, typed digits are clamped,
         // inherited entries are readonly. -----
-        if (itLevelColumnVisible() && d.level && itIsProjectAdmin(d.email)) {
-            // Project Admins have automatic full access regardless of any
-            // explicit entry — a numeric level would be misleading here.
-            const colX = boundaries.levelStart - rowX + 8;
-            sel.append('text')
-                .attr('x', colX).attr('y', 3)
-                .attr('font-size', '10.5px')
-                .attr('fill', '#aaa')
-                .text('Admin');
-        } else if (itLevelColumnVisible() && d.level) {
-            const colX = boundaries.levelStart - rowX + 8;
-            const colors = d.subjectType ? getSubjectColor(d.subjectType, d.level) : getPermissionLevelColor(d.level);
-            const editable = !d.isInherited && !!d.__folderId;
-
-            const input = sel.append('foreignObject')
-                .attr('x', colX).attr('y', -9).attr('width', 22).attr('height', 18)
-                .append('xhtml:input')
-                .attr('type', 'text')
-                .attr('maxlength', 1)
-                .attr('class', 'it-level-input')
-                .property('value', d.level)
-                .property('readOnly', !editable)
-                .property('title', !editable
-                    ? (d.isInherited
-                        ? 'Inherited from parent folder (read-only)'
-                        : (d.viaLabel ? `${d.viaLabel} — edit it from the folder's own Role/Company row (read-only here)` : ''))
-                    : '')
-                .style('width', '20px').style('height', '16px')
-                .style('box-sizing', 'border-box')
-                .style('text-align', 'center')
-                .style('font-size', '10px').style('font-weight', 'bold')
-                .style('font-family', "'Artifakt Element', 'Noto Sans', Arial, sans-serif")
-                .style('border', 'none').style('border-radius', '3px').style('padding', '0')
-                .style('background', colors.background).style('color', colors.color)
-                .style('outline', 'none')
-                .style('cursor', editable ? 'text' : 'default')
-                .style('opacity', editable ? 1 : 0.85);
+        if (itLevelColumnVisible() && d.level) {
+            const colX = boundaries.levelStart - rowX + 12;
+            const isAdminRow = itIsProjectAdmin(d.email);
+            // Project Admins have full access regardless of any explicit entry.
+            const editable = !isAdminRow && !d.isInherited && !!d.__folderId;
+            const fo = sel.append('foreignObject')
+                .attr('x', colX).attr('y', -15).attr('width', 120).attr('height', 30);
+            const wrap = fo.append('xhtml:div')
+                .attr('class', 'it-level' + (editable ? ' is-editable' : '') + (d.isInherited ? ' is-inherited' : ''));
+            const view = wrap.append('xhtml:div').attr('class', 'it-level-view').node();
+            itFillLevelView(view, isAdminRow ? 6 : d.level, isAdminRow ? 'Project admin' : null);
+            if (!editable) {
+                view.title = isAdminRow ? 'Project admins have full access'
+                    : d.isInherited ? 'Inherited from the parent folder'
+                    : (d.viaLabel ? `${d.viaLabel}: change it on the folder's own role or company row` : view.title);
+            }
 
             if (editable) {
-                const applyColors = (el, level) => {
-                    const c = d.subjectType ? getSubjectColor(d.subjectType, level) : getPermissionLevelColor(level);
-                    el.style.background = c.background;
-                    el.style.color = c.color;
-                };
-                input
+                wrap.append('xhtml:span').attr('class', 'it-level-chev').attr('aria-hidden', 'true');
+                const select = wrap.append('xhtml:select')
+                    .attr('class', 'it-level-input')
+                    .attr('aria-label', `Access level for ${d.name}`)
                     .on('click', (event) => event.stopPropagation())
                     .on('mousedown', (event) => event.stopPropagation())
-                    .on('keydown', function(event) {
-                        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-                        event.preventDefault();
-                        let level = parseInt(this.value) || 1;
-                        level = event.key === 'ArrowLeft' ? Math.max(1, level - 1) : Math.min(6, level + 1);
-                        this.value = level;
-                        applyColors(this, level);
-                        itCommitLevelChange(d, String(level));
-                        itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
-                    })
-                    .on('input', function() {
-                        const value = this.value;
-                        if (value && (value < '1' || value > '6' || isNaN(value))) {
-                            this.value = value.slice(0, -1);
-                            return;
-                        }
-                        if (value && value >= '1' && value <= '6') {
-                            applyColors(this, value);
-                            itCommitLevelChange(d, value);
-                            itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
-                        }
-                    })
                     .on('change', function() {
-                        const level = this.value || '6';
-                        this.value = level;
-                        applyColors(this, level);
-                        itCommitLevelChange(d, level);
+                        itFillLevelView(view, this.value);
+                        itCommitLevelChange(d, this.value);
                         itUpdateIconColorsInPlace(this.closest('g.it-row'), d);
                     });
+                IT_LEVELS.forEach((lv, i) => {
+                    if (!lv) return;
+                    select.append('xhtml:option').attr('value', String(i)).text(lv.name);
+                });
+                select.property('value', String(d.level));
             }
 
             const noteParts = [];
-            if (d.isInherited) noteParts.push('inherited');
+            if (d.isInherited) noteParts.push('Inherited');
             if (d.viaLabel) noteParts.push(d.viaLabel);
-            if (noteParts.length > 0) {
-                // Clip against whichever column comes next (Folders/Users if
-                // shown, else the row's own right edge) instead of letting it
-                // run on indefinitely and overlap that column's content.
-                const noteFull = noteParts.join(' · ');
-                const noteX = colX + 26;
+            if (!isAdminRow && noteParts.length > 0) {
+                // Clip against whichever column comes next instead of overlapping it.
+                const noteFull = noteParts.join(', ');
+                const noteX = colX + 124;
                 const clipBoundary = itUsersColumnVisible() ? boundaries.usersStart : boundaries.end;
                 const availableForNote = clipBoundary - rowX - noteX - 6;
-                const maxNoteChars = Math.floor(availableForNote / 6);
+                const maxNoteChars = Math.floor(availableForNote / 6.4);
                 if (maxNoteChars > 0) {
                     const noteDisplay = itTruncate(noteFull, maxNoteChars);
                     const noteText = sel.append('text')
-                        .attr('x', noteX).attr('y', 3)
-                        .attr('font-size', '9.5px').attr('font-style', 'italic')
-                        .attr('fill', '#999')
+                        .attr('x', noteX).attr('y', 4)
+                        .attr('font-size', '12px')
+                        .attr('fill', '#808080')
                         .text(noteDisplay);
                     if (noteDisplay !== noteFull) noteText.append('title').text(noteFull);
                 }
@@ -1717,15 +1696,15 @@
             const colX = boundaries.usersStart - rowX + 8;
             sel.append('text')
                 .attr('x', colX).attr('y', 3)
-                .attr('font-size', '11px').attr('fill', d.userCount > 0 ? '#444' : '#ccc')
+                .attr('font-size', '14px').attr('fill', d.userCount > 0 ? '#666666' : '#BBBBBB')
                 .text(d.userCount > 0 ? d.userCount : '—');
         } else if (itUsersColumnVisible() && accessCountText) {
             const colX = boundaries.usersStart - rowX + 8;
             sel.append('text')
                 .attr('x', colX).attr('y', 3)
-                .attr('font-size', '11px')
-                .attr('font-weight', d.accessCount === 0 ? 'bold' : 'normal')
-                .attr('fill', d.accessCount === 0 ? '#e67e22' : '#444')
+                .attr('font-size', '14px')
+                .attr('font-weight', d.accessCount === 0 ? '700' : '400')
+                .attr('fill', d.accessCount === 0 ? '#B37600' : '#666666')
                 .text(accessCountText);
         }
     }
@@ -1915,8 +1894,8 @@
         let svg = d3.select(container).select('svg.it-svg');
         if (svg.empty()) {
             svg = d3.select(container).append('svg').attr('class', 'it-svg').style('display', 'block');
-            svg.append('g').attr('class', 'it-col-lines').attr('stroke', '#e8e8e8').attr('stroke-width', 1);
-            svg.append('g').attr('class', 'it-links').attr('fill', 'none').attr('stroke', '#aaa').attr('stroke-width', 0.9);
+            svg.append('g').attr('class', 'it-col-lines').attr('stroke', '#EEEEEE').attr('stroke-width', 1);
+            svg.append('g').attr('class', 'it-links').attr('fill', 'none').attr('stroke', '#DCDCDC').attr('stroke-width', 1);
             svg.append('g').attr('class', 'it-rows');
         }
         svg.attr('width', width).attr('height', height);
@@ -2014,9 +1993,9 @@
     function itUpdateStatusBar(count) {
         const el = document.getElementById('itStatusBar');
         if (!el) return;
-        const modeLabel = itMode === 'folders' ? 'Folders → Users'
-            : itMode === 'users' ? 'Users → Folders'
-            : 'Roles/Companies → Users → Folders';
+        const modeLabel = itMode === 'folders' ? 'By folder'
+            : itMode === 'users' ? 'By person'
+            : 'By role or company';
         const selCount = itSelectedKeys.size;
         const isBusy = itTreeBusy || itLoadingKeys.size > 0;
         const busyMarkup = isBusy
@@ -2096,7 +2075,7 @@
         const levelCell = overlay.querySelector('.it-col-cell[data-col="level"]');
         if (levelCell) levelCell.style.display = itLevelColumnVisible() ? '' : 'none';
         const levelLabel = overlay.querySelector('#itLevelColLabel');
-        if (levelLabel) levelLabel.textContent = itMode === 'users' ? 'Accessed' : 'Level';
+        if (levelLabel) levelLabel.textContent = itMode === 'users' ? 'Access' : 'Permissions';
         itUpdateUsersColumnHeader(overlay);
     }
 
@@ -2568,25 +2547,25 @@
                     <h3 id="itModalTitle">Folder Access</h3>
                     <div class="it-mode-wrap">
                         <div class="it-segmented" id="itModeSegmented" role="tablist" aria-label="View orientation">
-                            <button type="button" class="it-seg-btn active" data-mode="folders">Folders → Users</button>
-                            <button type="button" class="it-seg-btn" data-mode="users">Users → Folders</button>
-                            <button type="button" class="it-seg-btn" data-mode="subjects">Roles/Companies → Users → Folders</button>
+                            <button type="button" class="it-seg-btn active" data-mode="folders">By folder</button>
+                            <button type="button" class="it-seg-btn" data-mode="users">By person</button>
+                            <button type="button" class="it-seg-btn" data-mode="subjects">By role or company</button>
                         </div>
                         <div class="it-mode-subtitle" id="itModeSubtitle">See who has access to each folder</div>
                     </div>
                     <div class="it-search-wrap">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
-                        <input type="text" id="itSearch" class="it-search" placeholder="Search name or email..." autocomplete="off" />
+                        <input type="text" id="itSearch" class="it-search" placeholder="Search for name or email" autocomplete="off" />
                         <span class="it-search-match-count" id="itSearchMatchCount" style="display:none;"></span>
                         <button type="button" class="it-search-clear" id="itSearchClear" title="Clear search">&times;</button>
                     </div>
-                    <button id="itExpandAllBtn" class="it-small-btn" type="button">Expand</button>
-                    <button id="itCollapseAllBtn" class="it-small-btn" type="button">Collapse All</button>
+                    <button id="itExpandAllBtn" class="it-small-btn" type="button" title="Open one more level of folders">Expand one level</button>
+                    <button id="itCollapseAllBtn" class="it-small-btn" type="button">Collapse all</button>
                     <button id="itCleanBtn" class="it-small-btn it-danger-btn" type="button">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        Clean Folders
+                        Remove all access
                     </button>
-                    <button id="itSyncBtn" class="it-small-btn it-sync-btn" type="button">Sync with the project</button>
+                    <button id="itSyncBtn" class="it-small-btn it-sync-btn" type="button">Sync to Forma</button>
                     <span class="it-close">&times;</span>
                 </div>
                 <div id="itErrorMessage" class="it-error-message" style="display:none;"></div>
@@ -2597,9 +2576,9 @@
                         <div class="it-col-header" id="itColHeader">
                             <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name"></span></div>
                             <div class="it-col-cell" data-col="level">
-                                <span id="itLevelColLabel">Level</span>
+                                <span id="itLevelColLabel">Permissions</span>
                                 <span class="it-help-dot" tabindex="0">?
-                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>1 View Only &middot; 2 +Download &middot; 3 +Markups<br>4 +Upload &middot; 5 +Edit &middot; 6 Full control</span>
+                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control</span>
                                 </span>
                                 <span class="it-col-resizer" data-col="level"></span>
                             </div>

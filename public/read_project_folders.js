@@ -31,11 +31,11 @@
             progressModal = document.createElement('div');
             progressModal.id = 'folderLoadingProgress';
             progressModal.innerHTML = `
-                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10200; display: flex; align-items: center; justify-content: center;">
-                    <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); min-width: 400px;">
-                        <h4 id="folderLoadingMessage" style="margin: 0 0 20px 0; color: #333; font-size: 16px; text-align: center;"></h4>
-                        <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
-                            <div id="folderLoadingBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;"></div>
+                <div class="fm-overlay is-open" style="z-index: 10200;">
+                    <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="folderLoadingMessage" style="max-width: 420px;">
+                        <div class="fm-dialog-body">
+                            <div id="folderLoadingMessage" style="font-size: 16px;"></div>
+                            <div class="fm-progress"><div id="folderLoadingBar" class="fm-progress-bar" style="width: 0%;"></div></div>
                         </div>
                     </div>
                 </div>
@@ -104,7 +104,13 @@
         const errorMessage = document.getElementById('itErrorMessage');
         const itBody = document.getElementById('itContainer');
 
-        if (modalTitle) modalTitle.textContent = `Folder Access: ${projectName}`;
+        if (modalTitle) {
+            // Project name comes from Forma: DOM text, not HTML
+            const proj = document.createElement('span');
+            proj.className = 'it-proj';
+            proj.textContent = projectName;
+            modalTitle.replaceChildren('Folder access ', proj);
+        }
         if (contentRow) contentRow.style.display = 'none';
         if (errorMessage) errorMessage.style.display = 'none';
 
@@ -1822,7 +1828,7 @@
             const safeSecondary = item.secondary ? escapeHtml(item.secondary) : '';
             const safeInitials = escapeHtml(item.initials || '?');
             const iconType = item.iconType || 'user';
-            const colors = getSubjectColor(iconType === 'company' ? 'COMPANY' : iconType === 'role' ? 'ROLE' : 'USER', 3);
+            const colors = fmAvatarColors(iconType, item.value || item.primary);
             let iconMarkup = '';
 
             if (iconType === 'company') {
