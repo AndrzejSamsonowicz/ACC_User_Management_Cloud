@@ -326,9 +326,15 @@ body.fm .it-level-tip {
     font-size: 13px; line-height: 18px; pointer-events: none;
 }
 
-/* Modify people: filters above the table */
-body.fm #userManagementModal .modal-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-body.fm #userManagementModal .modal-filter { position: relative; flex: 0 1 220px; min-width: 160px; }
-body.fm #userManagementModal .modal-filter svg { position: absolute; left: 10px; top: 10px; pointer-events: none; }
-body.fm #userManagementModal .modal-filter .fm-input { padding-left: 34px; background: #fff; }
-body.fm #userManagementModal .modal-filter-bar .modal-table-summary { margin-left: auto; }
+/* Modify people: filter row under the column headers (shares their widths) */
+body.fm #userManagementModal .modal-table thead { position: sticky; top: 0; z-index: 4; background: #fff; }
+body.fm #userManagementModal .modal-table thead th { position: relative; top: auto; }
+body.fm #userManagementModal .modal-filter-row td { height: 48px; padding: 0 8px; background: #fff; border-bottom: 1px solid var(--fm-divider); overflow: visible; }
+body.fm #userManagementModal .modal-filter { position: relative; display: block; }
+body.fm #userManagementModal .modal-filter svg { position: absolute; left: 9px; top: 8px; pointer-events: none; }
+body.fm #userManagementModal .modal-filter .fm-input { height: 32px; padding: 0 8px 0 31px; font-size: 13px; background: #fff; text-overflow: ellipsis; }
+body.fm #userManagementModal .modal-filter-status { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+body.fm #userManagementModal .modal-col-resizer { right: -4px; width: 9px; }
+body.fm #userManagementModal .modal-col-resizer::after { content: ''; position: absolute; top: 14px; bottom: 14px; left: 4px; width: 1px; background: var(--fm-divider); }
+body.fm #userManagementModal .modal-col-resizer:hover, body.fm #userManagementModal .modal-col-resizer.resizing { background: transparent; }
+body.fm #userManagementModal .modal-col-resizer:hover::after, body.fm #userManagementModal .modal-col-resizer.resizing::after { top: 0; bottom: 0; left: 3px; width: 3px; background: var(--fm-blue); }

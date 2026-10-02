@@ -400,7 +400,7 @@
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
     <link rel="stylesheet" href="shared/forma-app.css?v=20260930c">
-    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261002a">
+    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261002b">
 </head>
 <body class="fm fm-app">
     <!-- Auth loading overlay -->
@@ -2943,7 +2943,7 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="table-cell-interaction.js?v=20261002a"></script>
+    <script src="table-cell-interaction.js?v=20261002b"></script>
     <script src="user-table-v2.js?v=20261002b"></script>
     <script src="xlsx.full.min.js"></script>
     <script src="d3.v7.min.js"></script>
@@ -3037,12 +3037,9 @@
                     <div style="margin-top: 10px; font-style: italic; font-size: 13px;">Remove the repeated rows, then sync again.</div>
                 </div>
                 
-                <div class="modal-filter-bar">
-                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterEmail" data-col="1" placeholder="Filter by email" title="Separate with &amp; to show several, e.g. andrew &amp; bob" aria-label="Filter by email" autocomplete="off"></label>
-                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterCompany" data-col="2" placeholder="Filter by company" title="Separate with &amp; to show several, e.g. alpha &amp; beta" aria-label="Filter by company" autocomplete="off"></label>
-                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterRole" data-col="3" placeholder="Filter by role" title="Separate with &amp; to show several, e.g. architect &amp; engineer" aria-label="Filter by role" autocomplete="off"></label>
-                    <button type="button" class="fm-btn fm-btn-text" id="modalFilterClear" hidden>Clear filters</button>
+                <div class="modal-filter-status">
                     <div class="modal-table-summary" id="modalTableSummary" aria-live="polite">0 users</div>
+                    <button type="button" class="fm-btn fm-btn-text" id="modalFilterClear" hidden>Clear filters</button>
                 </div>
 
                 <div class="modal-table-container">
@@ -3064,6 +3061,13 @@
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Build<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.71%; white-space: normal;">Cost Manage&shy;ment<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-resizable-th" style="width: 6.72%; white-space: normal;">Site &amp; Building<br>Design<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
+                            </tr>
+                            <tr class="modal-filter-row">
+                                <td></td>
+                                <td><label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterEmail" data-col="1" placeholder="Search, e.g. andrew &amp; bob" title="Separate with &amp; to show several, e.g. andrew &amp; bob" aria-label="Filter by email" autocomplete="off"></label></td>
+                                <td><label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterCompany" data-col="2" placeholder="Search, e.g. granite &amp; pinnacle" title="Separate with &amp; to show several, e.g. granite &amp; pinnacle" aria-label="Filter by company" autocomplete="off"></label></td>
+                                <td><label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterRole" data-col="3" placeholder="Search, e.g. architect &amp; engineer" title="Separate with &amp; to show several, e.g. architect &amp; engineer" aria-label="Filter by role" autocomplete="off"></label></td>
+                                <td colspan="7"></td>
                             </tr>
                         </thead>
                         <tbody id="modalTableBody"></tbody>
@@ -3088,86 +3092,93 @@
             observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
         })();
 
-        // Per-column drag-to-resize for Email, Company, Role, and the 7
-        // access columns, using PERCENTAGE widths that always sum to
-        // exactly 100% — the checkbox column keeps a fixed 3% and is never
-        // touched. table-layout: fixed treats percentage <th> widths as
-        // literal proportions of the table's own width (unlike px widths,
-        // which the browser will happily overflow rather than shrink below
-        // — that's what caused the table to exceed 100% and need
-        // horizontal scroll before). Because the 11 columns' percentages
-        // always sum to 100, the table can never be wider than the modal:
-        // dragging one column's handle grows it by taking width away from
-        // the OTHER resizable columns, proportionally to their current
-        // share, so the total never changes.
+        // Column resizing for the Modify people table, spreadsheet-style:
+        // dragging a column's right edge moves only that edge, so it stays
+        // under the pointer. The column to its right gives up (or takes) the
+        // width; when it reaches its minimum, the next one along gives way.
+        // Columns to the left never move. Widths stay percentages that sum
+        // to 100%, so the table always fills the dialog with no horizontal
+        // scroll (table-layout: fixed). The last column has no right
+        // neighbour, so it has no handle. Widths are remembered per browser;
+        // double-click a handle to restore the default widths.
         (function setupModalColumnResize() {
             const modal = document.getElementById('userManagementModal');
-            if (!modal) return;
+            const table = document.getElementById('modalUserTable');
+            if (!modal || !table) return;
 
-            const MIN_PERCENT = 3;
-            let dragging = false;
-            let dragTh = null;
-            let dragStartX = 0;
-            let tableWidthAtStart = 0;
-            let startPercents = new Map(); // th -> its % at drag start
-            let otherThs = [];
+            const STORAGE_KEY = 'fmModifyPeopleColWidths';
+            const ths = Array.from(table.querySelectorAll('thead tr:first-child > th'));
+            const defaults = ths.map(th => th.style.width);
+            // Text columns need room for a value; tick-box columns less so.
+            const minPx = th => th.classList.contains('modal-editable') ? 110 : 56;
 
-            const currentPercent = (th) => parseFloat(th.style.width) || 0;
+            const applyPercents = (percents) => ths.forEach((th, i) => { th.style.width = percents[i] + '%'; });
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+                if (Array.isArray(saved) && saved.length === ths.length && saved.every(Number.isFinite)) applyPercents(saved);
+            } catch { /* storage unavailable: keep defaults */ }
+            const save = () => {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ths.map(th => parseFloat(th.style.width)))); } catch { /* ignore */ }
+            };
+
+            const lastHandle = ths[ths.length - 1].querySelector('.modal-col-resizer');
+            if (lastHandle) lastHandle.remove();
+
+            let drag = null; // { index, startX, tableWidth, widths: px at drag start, handle }
 
             modal.querySelectorAll('.modal-col-resizer').forEach(handle => {
+                handle.title = 'Drag to resize. Double-click to reset all columns.';
                 handle.addEventListener('mousedown', (e) => {
                     e.preventDefault();
-                    e.stopPropagation();
-                    dragTh = handle.closest('th');
-                    if (!dragTh) return;
-
-                    const table = document.getElementById('modalUserTable');
-                    tableWidthAtStart = table.getBoundingClientRect().width;
-
-                    otherThs = Array.from(modal.querySelectorAll('.modal-resizable-th')).filter(th => th !== dragTh);
-                    startPercents = new Map();
-                    startPercents.set(dragTh, currentPercent(dragTh));
-                    otherThs.forEach(th => startPercents.set(th, currentPercent(th)));
-
-                    dragging = true;
-                    dragStartX = e.clientX;
+                    e.stopPropagation(); // not a sort click
+                    const th = handle.closest('th');
+                    drag = {
+                        index: ths.indexOf(th),
+                        startX: e.clientX,
+                        tableWidth: table.getBoundingClientRect().width,
+                        widths: ths.map(h => h.getBoundingClientRect().width),
+                        handle
+                    };
                     handle.classList.add('resizing');
                     document.body.style.cursor = 'col-resize';
+                });
+                handle.addEventListener('click', (e) => e.stopPropagation()); // not a sort click
+                handle.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    ths.forEach((th, i) => { th.style.width = defaults[i]; });
+                    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
                 });
             });
 
             document.addEventListener('mousemove', (e) => {
-                if (!dragging || !dragTh) return;
-
-                const deltaPercent = ((e.clientX - dragStartX) / tableWidthAtStart) * 100;
-                const dragStart = startPercents.get(dragTh);
-                const othersStartSum = otherThs.reduce((sum, th) => sum + startPercents.get(th), 0);
-
-                // Clamp so the drag column can't take others below their floor.
-                const maxDragPercent = dragStart + othersStartSum - (MIN_PERCENT * otherThs.length);
-                const newDragPercent = Math.min(maxDragPercent, Math.max(MIN_PERCENT, dragStart + deltaPercent));
-                const actualDelta = newDragPercent - dragStart;
-
-                dragTh.style.width = newDragPercent + '%';
-
-                // Take exactly actualDelta away from the others, split
-                // proportionally to each one's own starting share, so the
-                // 11 columns' percentages still sum to 100 afterward.
-                otherThs.forEach(th => {
-                    const start = startPercents.get(th);
-                    const share = othersStartSum > 0 ? start / othersStartSum : 1 / otherThs.length;
-                    const newPercent = Math.max(MIN_PERCENT, start - actualDelta * share);
-                    th.style.width = newPercent + '%';
-                });
+                if (!drag) return;
+                const { index, widths, tableWidth } = drag;
+                const next = widths.slice();
+                let delta = e.clientX - drag.startX;
+                if (delta > 0) {
+                    // Grow this column; columns to the right give way in turn.
+                    let remaining = delta;
+                    for (let j = index + 1; j < next.length && remaining > 0; j++) {
+                        const give = Math.min(remaining, Math.max(0, next[j] - minPx(ths[j])));
+                        next[j] -= give;
+                        remaining -= give;
+                    }
+                    next[index] += delta - remaining;
+                } else if (delta < 0) {
+                    // Shrink this column; only its right neighbour grows.
+                    const take = Math.min(-delta, Math.max(0, next[index] - minPx(ths[index])));
+                    next[index] -= take;
+                    next[index + 1] += take;
+                }
+                applyPercents(next.map(w => (w / tableWidth) * 100));
             });
 
             document.addEventListener('mouseup', () => {
-                if (!dragging) return;
-                dragging = false;
-                const handle = dragTh ? dragTh.querySelector('.modal-col-resizer.resizing') : null;
-                if (handle) handle.classList.remove('resizing');
-                dragTh = null;
+                if (!drag) return;
+                drag.handle.classList.remove('resizing');
+                drag = null;
                 document.body.style.cursor = '';
+                save();
             });
         })();
     </script>

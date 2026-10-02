@@ -215,7 +215,8 @@ class TableCellInteraction {
     setupMouseSelectionListeners() {
         document.addEventListener('mousedown', (e) => {
             const table = document.getElementById(this.tableId);
-            const clickedInsideTable = table && table.contains(e.target);
+            // The header (sorting, filters) counts as outside: it clears the cell selection.
+            const clickedInsideTable = table && table.contains(e.target) && !e.target.closest('thead');
 
             if (!clickedInsideTable && this.selectedCells.size > 0) {
                 this.selectedCells.forEach(c => {
@@ -659,6 +660,8 @@ class TableCellInteraction {
      */
     setupCopyPasteListeners() {
         document.addEventListener('keydown', (e) => {
+            // Typing in a text box (e.g. a table filter) never copies, pastes or clears cells.
+            if (e.target instanceof Element && e.target.matches('input, textarea, select')) return;
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
                 if (this.selectedCells.size > 0) {
                     e.preventDefault();
