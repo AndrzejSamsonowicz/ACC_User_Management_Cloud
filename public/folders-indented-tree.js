@@ -2201,7 +2201,7 @@
         const levelCell = overlay.querySelector('.it-col-cell[data-col="level"]');
         if (levelCell) levelCell.style.display = itLevelColumnVisible() ? '' : 'none';
         const levelLabel = overlay.querySelector('#itLevelColLabel');
-        if (levelLabel) levelLabel.textContent = itMode === 'users' ? 'Access' : 'Permissions';
+        if (levelLabel) levelLabel.textContent = 'Access level';
         itUpdateUsersColumnHeader(overlay);
     }
 
@@ -2716,7 +2716,7 @@
                         <div class="it-col-header" id="itColHeader">
                             <div class="it-col-cell" data-col="name">Name<span class="it-col-resizer" data-col="name" title="Drag to resize. Double-click to reset."></span></div>
                             <div class="it-col-cell" data-col="level">
-                                <span id="itLevelColLabel">Permissions</span>
+                                <span id="itLevelColLabel">Access level</span>
                                 <span class="it-help-dot" tabindex="0">?
                                     <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control<br><br>To change a level, click it, then press ← or →.</span>
                                 </span>

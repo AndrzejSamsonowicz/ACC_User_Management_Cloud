@@ -1,4 +1,6 @@
 // Account Users Management
+// The "Account users" dialog (Forma look: shared/forma-dialogs.css, .au-*),
+// plus fetchAllAccountUsers*, which other modules use to read the account's users.
 class AccountUsersManager {
     constructor() {
         this.currentAccessToken = null;
@@ -10,198 +12,145 @@ class AccountUsersManager {
     }
 
     createModal() {
-        // Create modal HTML
+        const searchIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg>';
+        const filter = (col, label, example) => `
+            <td><label class="au-filter">${searchIcon}<input type="text" class="fm-input" data-col="${col}"
+                placeholder="Search, e.g. ${example}" title="Separate with &amp; to show several, e.g. ${example}"
+                aria-label="Filter by ${label}" autocomplete="off"></label></td>`;
+
         const modalHTML = `
-            <div id="accountUsersModal" class="account-users-modal" style="display: none;">
-                <div class="account-users-modal-content">
-                    <div class="account-users-modal-header">
-                        <h3 id="accountModalTitle">Account Users</h3>
-                        <span class="account-users-modal-close">&times;</span>
-                    </div>
-                    <div class="account-users-modal-body">
-                        <div id="accountUsersLoadingMessage">Loading users...</div>
-                        <div id="accountUsersTableContainer" style="display: none;">
-                            <table id="accountUsersTable">
-                                <thead>
-                                    <tr>
-                                        <th>Email</th>
-                                        <th>Default Role</th>
-                                        <th>Company</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="accountUsersTableBody">
-                                </tbody>
-                            </table>
+            <div id="accountUsersModal" class="fm-overlay au-overlay">
+                <div class="fm-dialog au-dialog" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+                    <div class="fm-dialog-head">
+                        <div>
+                            <h2 class="fm-dialog-title" id="accountModalTitle">Account users</h2>
+                            <div class="au-sub" id="accountUsersHub"></div>
                         </div>
-                        <div id="accountUsersErrorMessage" style="display: none; color: red;"></div>
+                        <button type="button" class="fm-dialog-close account-users-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="au-status">
+                        <span id="accountUsersSummary" aria-live="polite"></span>
+                        <button type="button" class="fm-btn fm-btn-text" id="accountUsersClearFilters" hidden>Clear filters</button>
+                    </div>
+                    <div class="au-loading" id="accountUsersLoadingMessage"><span class="fm-spinner fm-spinner-dark"></span><span id="accountUsersLoadingText">Loading users</span></div>
+                    <div class="fm-alert fm-alert-error au-error" id="accountUsersErrorMessage" role="alert"></div>
+                    <div class="au-table-wrap" id="accountUsersTableContainer" hidden>
+                        <table class="au-table" id="accountUsersTable">
+                            <colgroup><col style="width: 40%"><col style="width: 25%"><col style="width: 35%"></colgroup>
+                            <thead>
+                                <tr><th scope="col">Email</th><th scope="col">Default role</th><th scope="col">Company</th></tr>
+                                <tr class="au-filter-row">
+                                    ${filter(0, 'email', 'andrew &amp; bob')}
+                                    ${filter(1, 'default role', 'architect &amp; engineer')}
+                                    ${filter(2, 'company', 'granite &amp; pinnacle')}
+                                </tr>
+                            </thead>
+                            <tbody id="accountUsersTableBody"></tbody>
+                        </table>
+                        <p class="au-empty" id="accountUsersNoMatch" hidden>No users match these filters. Change or clear them to see more.</p>
                     </div>
                 </div>
             </div>
         `;
 
-        // Add CSS styles
-        const styles = `
-            <style>
-                .account-users-modal {
-                    position: fixed;
-                    z-index: 1001;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0,0,0,0.5);
-                }
-
-                .account-users-modal-content {
-                    background-color: #fefefe;
-                    margin: 3% auto;
-                    padding: 0;
-                    border: 1px solid #888;
-                    width: 90%;
-                    max-width: 1000px;
-                    border-radius: 8px;
-                    max-height: 85vh;
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .account-users-modal-header {
-                    padding: 15px 20px;
-                    background-color: #e8f4f8;
-                    border-bottom: 1px solid #ddd;
-                    border-radius: 8px 8px 0 0;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-
-                .account-users-modal-header h3 {
-                    margin: 0;
-                    color: #333;
-                }
-
-                .account-users-modal-close {
-                    color: #aaa;
-                    font-size: 28px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    line-height: 1;
-                }
-
-                .account-users-modal-close:hover,
-                .account-users-modal-close:focus {
-                    color: #000;
-                }
-
-                .account-users-modal-body {
-                    padding: 20px;
-                    flex-grow: 1;
-                    overflow-y: auto;
-                }
-
-                #accountUsersTable {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 10px;
-                }
-
-                #accountUsersTable th,
-                #accountUsersTable td {
-                    border: 1px solid #ddd;
-                    padding: 12px;
-                    text-align: left;
-                }
-
-                #accountUsersTable th {
-                    background-color: #f8f9fa;
-                    font-weight: bold;
-                    position: sticky;
-                    top: 0;
-                }
-
-                #accountUsersTable tr:nth-child(even) {
-                    background-color: #f9f9f9;
-                }
-
-                #accountUsersTable tr:hover {
-                    background-color: #f0f8ff;
-                }
-
-                #accountUsersLoadingMessage {
-                    text-align: center;
-                    padding: 40px;
-                    font-size: 16px;
-                    color: #666;
-                }
-            </style>
-        `;
-
-        // Add modal to the page
-        document.head.insertAdjacentHTML('beforeend', styles);
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-        // Set up event listeners
         this.setupModalEvents();
     }
 
     setupModalEvents() {
         const modal = document.getElementById('accountUsersModal');
-        const closeBtn = document.querySelector('.account-users-modal-close');
+        modal.querySelector('.account-users-modal-close').addEventListener('click', () => this.closeModal());
 
-        // Close modal when clicking the X
-        closeBtn.addEventListener('click', () => {
-            this.closeModal();
+        // Close when clicking the dimmed background
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) this.closeModal();
         });
 
-        // Close modal when clicking outside of it
-        window.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                this.closeModal();
-            }
-        });
-
-        // Close modal when pressing ESC key
+        // Esc clears the filter you're typing in first, then closes the dialog
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && modal.style.display === 'block') {
-                this.closeModal();
-            }
+            if (event.key === 'Escape' && modal.classList.contains('is-open')) this.closeModal();
         });
+
+        this.getFilterInputs().forEach(input => {
+            input.addEventListener('input', () => this.applyFilters());
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && input.value) {
+                    event.stopPropagation();
+                    input.value = '';
+                    this.applyFilters();
+                }
+            });
+        });
+        document.getElementById('accountUsersClearFilters').addEventListener('click', () => {
+            this.getFilterInputs().forEach(input => { input.value = ''; });
+            this.applyFilters();
+        });
+    }
+
+    getFilterInputs() {
+        return Array.from(document.querySelectorAll('#accountUsersModal .au-filter input'));
+    }
+
+    /**
+     * Show only rows matching every filter (case-insensitive). Within a filter,
+     * "andrew & bob" shows either; the words of each part must all appear.
+     */
+    applyFilters() {
+        const terms = this.getFilterInputs()
+            .map(input => ({
+                col: Number(input.dataset.col),
+                groups: input.value.toLowerCase().split('&')
+                    .map(part => part.trim().split(/\s+/).filter(Boolean))
+                    .filter(words => words.length > 0)
+            }))
+            .filter(t => t.groups.length > 0);
+
+        const rows = Array.from(document.getElementById('accountUsersTableBody').rows);
+        let shown = 0;
+        rows.forEach(row => {
+            const match = terms.every(t => {
+                const text = (row.cells[t.col]?.textContent || '').toLowerCase();
+                return t.groups.some(words => words.every(w => text.includes(w)));
+            });
+            row.hidden = !match;
+            if (match) shown++;
+        });
+
+        const users = n => `${n} ${n === 1 ? 'user' : 'users'}`;
+        document.getElementById('accountUsersSummary').textContent =
+            terms.length ? `Showing ${shown} of ${users(rows.length)}` : users(rows.length);
+        document.getElementById('accountUsersClearFilters').hidden = terms.length === 0;
+        document.getElementById('accountUsersNoMatch').hidden = !(terms.length && shown === 0);
     }
 
     async showAccountUsers(accountId, accountName) {
         const modal = document.getElementById('accountUsersModal');
-        const modalTitle = document.getElementById('accountModalTitle');
         const loadingMessage = document.getElementById('accountUsersLoadingMessage');
         const tableContainer = document.getElementById('accountUsersTableContainer');
         const errorMessage = document.getElementById('accountUsersErrorMessage');
-        
-        // Set modal title
-        modalTitle.textContent = `Users in Account: ${accountName}`;
-        
+
+        document.getElementById('accountUsersHub').textContent = accountName || '';
+        document.getElementById('accountUsersSummary').textContent = '';
+        this.getFilterInputs().forEach(input => { input.value = ''; });
+
         // Show modal and loading state
-        modal.style.display = 'block';
-        loadingMessage.style.display = 'block';
-        tableContainer.style.display = 'none';
-        errorMessage.style.display = 'none';
+        modal.classList.add('is-open');
+        loadingMessage.hidden = false;
+        tableContainer.hidden = true;
+        errorMessage.classList.remove('is-visible');
 
         try {
             // Fetch all users with pagination
             const allUsers = await this.fetchAllAccountUsers(accountId);
-            
-            // Display users in table
             this.displayUsersTable(allUsers, accountName);
-            
-            // Show table, hide loading
-            loadingMessage.style.display = 'none';
-            tableContainer.style.display = 'block';
-            
+            loadingMessage.hidden = true;
+            tableContainer.hidden = false;
+            this.getFilterInputs()[0]?.focus();
         } catch (error) {
             console.error('Error fetching account users:', error);
-            
-            // Show error message
-            loadingMessage.style.display = 'none';
-            errorMessage.textContent = `Failed to load users: ${error.message}`;
-            errorMessage.style.display = 'block';
+            loadingMessage.hidden = true;
+            errorMessage.textContent = `The account's users could not be loaded (${error.message}). Close this dialog and try again. If it keeps failing, check that the app is still added under Custom Integrations in Forma Account Admin.`;
+            errorMessage.classList.add('is-visible');
         }
     }
 
@@ -209,7 +158,7 @@ class AccountUsersManager {
         // If a token is provided, use it; otherwise use the current token
         // This allows external callers to provide their own 2-legged token
         const tokenToUse = providedToken || this.currentAccessToken;
-        
+
         let allUsers = [];
         let offset = 0;
         const limit = 100;
@@ -249,10 +198,10 @@ class AccountUsersManager {
                     log('Error response (text):', textError);
                     throw new Error(`API error ${response.status}: ${response.statusText} - ${textError}`);
                 }
-                
-                const errorMessage = errorData.message || 
-                                   errorData.error || 
-                                   errorData.error_description || 
+
+                const errorMessage = errorData.message ||
+                                   errorData.error ||
+                                   errorData.error_description ||
                                    errorData.detail ||
                                    (errorData.errors && errorData.errors[0] && errorData.errors[0].detail) ||
                                    `HTTP ${response.status}: ${response.statusText}`;
@@ -265,9 +214,9 @@ class AccountUsersManager {
             if (usersData && Array.isArray(usersData) && usersData.length > 0) {
                 allUsers = allUsers.concat(usersData);
 
-                // Update loading message with progress
-                const loadingMessage = document.getElementById('accountUsersLoadingMessage');
-                loadingMessage.textContent = `Loading users... Found ${allUsers.length} users so far.`;
+                // Update loading message with progress (only visible while the dialog is loading)
+                const loadingText = document.getElementById('accountUsersLoadingText');
+                if (loadingText) loadingText.textContent = `Loading users: ${allUsers.length} so far`;
 
                 // Check if we got fewer results than requested (indicates end of data)
                 if (usersData.length < limit) {
@@ -294,41 +243,32 @@ class AccountUsersManager {
 
     displayUsersTable(users, accountName) {
         const tableBody = document.getElementById('accountUsersTableBody');
-        
-        // Clear existing rows
-        tableBody.innerHTML = '';
+        tableBody.replaceChildren();
 
         // Filter and sort users
         const validUsers = users
             .filter(user => user.email) // Filter out any null/undefined emails
             .sort((a, b) => a.email.localeCompare(b.email));
 
-        // Create table rows
-        validUsers.forEach((user, index) => {
+        // Values come from Autodesk: built with textContent, never as HTML.
+        const cell = (value) => {
+            const td = document.createElement('td');
+            if (value) {
+                td.textContent = value;
+                td.title = value;
+            } else {
+                td.textContent = 'Not set';
+                td.className = 'au-unset';
+            }
+            return td;
+        };
+        validUsers.forEach(user => {
             const row = document.createElement('tr');
-            
-            // Email cell
-            const emailCell = document.createElement('td');
-            emailCell.textContent = user.email || 'N/A';
-            row.appendChild(emailCell);
-            
-            // Default Role cell
-            const roleCell = document.createElement('td');
-            roleCell.textContent = user.default_role || user.role || 'N/A';
-            row.appendChild(roleCell);
-            
-            // Company cell
-            const companyCell = document.createElement('td');
-            const companyValue = user.company_name || 'N/A';
-            companyCell.textContent = companyValue;
-            row.appendChild(companyCell);
-            
+            row.append(cell(user.email), cell(user.default_role || user.role), cell(user.company_name));
             tableBody.appendChild(row);
         });
 
-        // Update modal title with count
-        const modalTitle = document.getElementById('accountModalTitle');
-        modalTitle.textContent = `Users in Account: ${accountName} (${validUsers.length} users)`;
+        this.applyFilters();
     }
 
     // Method to fetch account users with 2-legged token (for use by other modules)
@@ -345,16 +285,14 @@ class AccountUsersManager {
 
     closeModal() {
         const modal = document.getElementById('accountUsersModal');
-        modal.style.display = 'none';
-        
-        // Clear table content
-        document.getElementById('accountUsersTableBody').innerHTML = '';
-        
-        // Reset loading state
-        document.getElementById('accountUsersLoadingMessage').textContent = 'Loading users...';
-        document.getElementById('accountUsersLoadingMessage').style.display = 'block';
-        document.getElementById('accountUsersTableContainer').style.display = 'none';
-        document.getElementById('accountUsersErrorMessage').style.display = 'none';
+        modal.classList.remove('is-open');
+
+        // Clear table content and reset the loading state
+        document.getElementById('accountUsersTableBody').replaceChildren();
+        document.getElementById('accountUsersLoadingText').textContent = 'Loading users';
+        document.getElementById('accountUsersLoadingMessage').hidden = false;
+        document.getElementById('accountUsersTableContainer').hidden = true;
+        document.getElementById('accountUsersErrorMessage').classList.remove('is-visible');
     }
 }
 
