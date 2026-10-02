@@ -251,7 +251,7 @@ class TableCellInteraction {
         const row = cell.parentElement;
         const cellIndex = cell.cellIndex;
         const tbody = row.parentElement;
-        const rowIndex = Array.from(tbody.rows).indexOf(row);
+        const rowIndex = Array.from(tbody.rows).filter(r => !r.hidden).indexOf(row);
 
         const isToggleCell = cell.classList.contains('modal-access-cell');
         const isEditableCell = cell.classList.contains('modal-editable');
@@ -283,7 +283,7 @@ class TableCellInteraction {
 
             const lastRow = this.lastSelectedCell.parentElement;
             const lastCellIndex = this.lastSelectedCell.cellIndex;
-            const lastRowIndex = Array.from(tbody.rows).indexOf(lastRow);
+            const lastRowIndex = Array.from(tbody.rows).filter(r => !r.hidden).indexOf(lastRow);
 
             log(`  📍 Last cell: row=${lastRowIndex}, col=${lastCellIndex}`);
             log(`  📍 Current cell: row=${rowIndex}, col=${cellIndex}`);
@@ -366,7 +366,7 @@ class TableCellInteraction {
                 // VERTICAL selection (same column)
                 const startRow = Math.min(lastRowIndex, rowIndex);
                 const endRow = Math.max(lastRowIndex, rowIndex);
-                const allRows = Array.from(tbody.rows);
+                const allRows = Array.from(tbody.rows).filter(r => !r.hidden); // shown rows only
 
                 for (let r = startRow; r <= endRow; r++) {
                     const targetRow = allRows[r];
@@ -413,7 +413,7 @@ class TableCellInteraction {
                 const endRow = Math.max(lastRowIndex, rowIndex);
                 const startCol = Math.min(lastCellIndex, cellIndex);
                 const endCol = Math.max(lastCellIndex, cellIndex);
-                const allRows = Array.from(tbody.rows);
+                const allRows = Array.from(tbody.rows).filter(r => !r.hidden); // shown rows only
 
                 for (let r = startRow; r <= endRow; r++) {
                     const targetRow = allRows[r];
@@ -554,7 +554,7 @@ class TableCellInteraction {
             const tbodyEl = document.getElementById(this.tableBodyId);
             if (!tbodyEl.contains(cell)) return;
 
-            const allRows = Array.from(tbodyEl.rows);
+            const allRows = Array.from(tbodyEl.rows).filter(r => !r.hidden); // shown rows only
             const sourceRow = this.clickDragSourceCell.parentElement;
             const sourceColIndex = this.clickDragSourceCell.cellIndex;
             const sourceRowIndex = allRows.indexOf(sourceRow);
@@ -783,7 +783,7 @@ class TableCellInteraction {
 
         const targetCells = Array.from(this.selectedCells);
         const tbody = document.getElementById(this.tableBodyId);
-        const allRows = Array.from(tbody.rows);
+        const allRows = Array.from(tbody.rows).filter(r => !r.hidden); // shown rows only
 
         const firstTargetCell = targetCells[0];
         const targetRow = firstTargetCell.parentElement;
@@ -1000,7 +1000,7 @@ class TableCellInteraction {
                 this.draggedCells.add(this.dragSourceCell);
 
                 const tbodyEl = document.getElementById(this.tableBodyId);
-                const allRows = Array.from(tbodyEl.rows);
+                const allRows = Array.from(tbodyEl.rows).filter(r => !r.hidden); // shown rows only
 
                 if (isVertical) {
                     const minRowIndex = Math.min(allRows.indexOf(sourceRow), allRows.indexOf(targetRow));

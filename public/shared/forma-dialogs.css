@@ -325,3 +325,10 @@ body.fm .it-level-tip {
     background: #fff; color: var(--fm-text); border-radius: 4px; box-shadow: var(--fm-shadow);
     font-size: 13px; line-height: 18px; pointer-events: none;
 }
+
+/* Modify people: filters above the table */
+body.fm #userManagementModal .modal-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+body.fm #userManagementModal .modal-filter { position: relative; flex: 0 1 220px; min-width: 160px; }
+body.fm #userManagementModal .modal-filter svg { position: absolute; left: 10px; top: 10px; pointer-events: none; }
+body.fm #userManagementModal .modal-filter .fm-input { padding-left: 34px; background: #fff; }
+body.fm #userManagementModal .modal-filter-bar .modal-table-summary { margin-left: auto; }

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="forma-user-manager-mark.svg">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -399,7 +400,7 @@
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
     <link rel="stylesheet" href="shared/forma-app.css?v=20260930c">
-    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20260930i">
+    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261002a">
 </head>
 <body class="fm fm-app">
     <!-- Auth loading overlay -->
@@ -2942,8 +2943,8 @@
     </script>
 
     <!-- Load User Table Management Module -->
-    <script src="table-cell-interaction.js"></script>
-    <script src="user-table-v2.js?v=20260930c"></script>
+    <script src="table-cell-interaction.js?v=20261002a"></script>
+    <script src="user-table-v2.js?v=20261002b"></script>
     <script src="xlsx.full.min.js"></script>
     <script src="d3.v7.min.js"></script>
     <script src="import-from-project.js?v=20260930a"></script>
@@ -3006,7 +3007,7 @@
                         <button type="button" class="fm-btn" id="modalAddRowBtn" onclick="addModalRow()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>Add row</button>
                     </div>
                     <div>
-                        <button type="button" class="fm-btn fm-btn-text fm-btn-danger" id="modalDeleteRowBtn" onclick="deleteSelectedModalRows()">Remove selected rows</button>
+                        <button type="button" class="fm-btn fm-btn-text fm-btn-danger" id="modalDeleteRowBtn" onclick="deleteSelectedModalRows()">Remove selected users</button>
                         <button type="button" class="fm-btn fm-btn-text fm-btn-danger" id="modalClearTableBtn" onclick="clearModalTable()">Clear table</button>
                         <button type="button" class="fm-btn fm-btn-primary" id="modalSaveSyncBtn" onclick="syncModalUsers()">Sync to Forma</button>
                     </div>
@@ -3036,8 +3037,12 @@
                     <div style="margin-top: 10px; font-style: italic; font-size: 13px;">Remove the repeated rows, then sync again.</div>
                 </div>
                 
-                <div class="modal-table-summary" id="modalTableSummary">
-                    Total Users: 0
+                <div class="modal-filter-bar">
+                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterEmail" data-col="1" placeholder="Filter by email" title="Separate with &amp; to show several, e.g. andrew &amp; bob" aria-label="Filter by email" autocomplete="off"></label>
+                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterCompany" data-col="2" placeholder="Filter by company" title="Separate with &amp; to show several, e.g. alpha &amp; beta" aria-label="Filter by company" autocomplete="off"></label>
+                    <label class="modal-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input" id="modalFilterRole" data-col="3" placeholder="Filter by role" title="Separate with &amp; to show several, e.g. architect &amp; engineer" aria-label="Filter by role" autocomplete="off"></label>
+                    <button type="button" class="fm-btn fm-btn-text" id="modalFilterClear" hidden>Clear filters</button>
+                    <div class="modal-table-summary" id="modalTableSummary" aria-live="polite">0 users</div>
                 </div>
 
                 <div class="modal-table-container">
@@ -3045,7 +3050,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 3%; text-align: center;">
-                                    <input type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
+                                    <input type="checkbox" id="selectAllCheckbox" style="cursor: pointer;" aria-label="Select all shown users" title="Select all shown users">
                                 </th>
                                 <th class="modal-editable modal-resizable-th" style="width: 19%;">Email<span class="modal-col-resizer" title="Drag to resize this column"></span></th>
                                 <th class="modal-editable modal-resizable-th" style="width: 16%;">Company<span class="modal-col-resizer" title="Drag to resize this column"></span></th>

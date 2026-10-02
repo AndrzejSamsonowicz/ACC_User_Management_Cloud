@@ -43,7 +43,8 @@ class UserTableManager extends TableCellInteraction {
         this.setupEventListeners();
         this.setupSortingListeners();
         this.setupCheckboxListeners();
-        // this.setupDragToFillListeners(); // Disabled: Now using click-based shift selection
+        this.setupFilterListeners();
+        // this.setupDragToFillListeners();// Disabled: Now using click-based shift selection
         this.setupMouseSelectionListeners();
         this.setupCopyPasteListeners();
         this.setupClickDragPropagationListeners();
@@ -57,12 +58,14 @@ class UserTableManager extends TableCellInteraction {
         const selectAllCheckbox = document.querySelector('#userManagementModal #selectAllCheckbox');
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', (e) => {
+                // Only the rows the filters show; rows filtered out are never selected.
                 const tbody = document.getElementById(this.tableBodyId);
-                const checkboxes = tbody.querySelectorAll('input[type="checkbox"].row-checkbox');
-                checkboxes.forEach(checkbox => {
-                    checkbox.checked = e.target.checked;
+                Array.from(tbody.rows).forEach(row => {
+                    const checkbox = row.querySelector('input[type="checkbox"].row-checkbox');
+                    if (checkbox) checkbox.checked = !row.hidden && e.target.checked;
                 });
-                log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all rows`);
+                this.syncSelectAllCheckbox();
+                log(`✅ ${e.target.checked ? 'Selected' : 'Deselected'} all shown rows`);
             });
         }
         
@@ -74,7 +77,7 @@ class UserTableManager extends TableCellInteraction {
             const checkbox = e.target;
             if (checkbox.type !== 'checkbox' || !checkbox.classList.contains('row-checkbox')) return;
             
-            const checkboxes = Array.from(tbody.querySelectorAll('input[type="checkbox"].row-checkbox'));
+            const checkboxes = Array.from(tbody.querySelectorAll('tr:not([hidden]) input[type="checkbox"].row-checkbox'));
             const currentIndex = checkboxes.indexOf(checkbox);
             
             if (e.shiftKey && lastCheckedIndex !== null && lastCheckedIndex !== currentIndex) {
@@ -91,6 +94,7 @@ class UserTableManager extends TableCellInteraction {
             }
             
             lastCheckedIndex = currentIndex;
+            this.syncSelectAllCheckbox();
         });
         
         // OLD VERTICAL-ONLY shift-select for product toggles - DISABLED
@@ -168,6 +172,7 @@ class UserTableManager extends TableCellInteraction {
         log('🎯 openModal() called with projectId:', projectId, 'projectName:', projectName, 'mode:', mode);
         const modal = document.getElementById(this.modalId);
         log('🎯 Modal element:', modal);
+        this.getFilterInputs().forEach(input => { input.value = ''; });
         
         // Store the project info when modal opens
         if (projectId && projectName) {
@@ -1079,11 +1084,12 @@ class UserTableManager extends TableCellInteraction {
         log('📧 Emails to paste:', emails);
         log('🎯 Target cell:', targetCell);
         
+        if (this.hasActiveFilters()) this.clearFilters(); // the paste fills rows below; show them all first
         const tbody = document.getElementById(this.tableBodyId);
         const currentRow = targetCell.parentElement;
         const currentRowIndex = Array.from(tbody.rows).indexOf(currentRow);
-        
-        log(`📊 Pasting ${emails.length} emails starting at row ${currentRowIndex}`);
+
+        log(`📊 Pasting ${emails.length} emailsstarting at row ${currentRowIndex}`);
         log('📊 Current tbody rows:', tbody.rows.length);
         
         // Clear the existing emails from our tracking (we'll re-add valid ones)
@@ -1152,6 +1158,7 @@ class UserTableManager extends TableCellInteraction {
         log('🎯 Target cell:', targetCell);
         log('🎯 Target cell index (column):', targetCell.cellIndex);
         
+        if (this.hasActiveFilters()) this.clearFilters(); // the paste fills rows below; show them all first
         const tbody = document.getElementById(this.tableBodyId);
         const currentRow = targetCell.parentElement;
         const currentRowIndex = Array.from(tbody.rows).indexOf(currentRow);
@@ -1203,14 +1210,107 @@ class UserTableManager extends TableCellInteraction {
      * Update user count display
      */
     updateUserCount() {
-        const tbody = document.getElementById(this.tableBodyId);
-        const validRows = Array.from(tbody.rows).filter(row => {
-            const emailCell = row.cells[1]; // Email is now in cell[1], cell[0] is checkbox
-            return emailCell.textContent.trim() !== '' && 
-                   !emailCell.classList.contains('modal-error-cell');
+        // Re-applies the filters too, so new, edited and imported rows follow them.
+        this.applyFilters();
+    }
+
+    /** Filter inputs above the table: Email, Company and Role (their data-col is the cell index). */
+    getFilterInputs() {
+        return Array.from(document.querySelectorAll('#userManagementModal .modal-filter input'));
+    }
+
+    setupFilterListeners() {
+        this.getFilterInputs().forEach(input => {
+            input.addEventListener('input', () => this.applyFilters());
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && input.value) {
+                    e.stopPropagation(); // don't close the dialog
+                    input.value = '';
+                    this.applyFilters();
+                }
+            });
         });
-        document.getElementById(this.tableSummaryId).textContent = 
-            `Total Users: ${validRows.length}`;
+        const clear = document.getElementById('modalFilterClear');
+        if (clear) clear.addEventListener('click', () => this.clearFilters());
+    }
+
+    clearFilters() {
+        this.getFilterInputs().forEach(input => { input.value = ''; });
+        this.applyFilters();
+    }
+
+    hasActiveFilters() {
+        return this.getFilterInputs().some(input => input.value.trim() !== '');
+    }
+
+    /**
+     * Hide rows that don't match every filter (case-insensitive "contains").
+     * Rows with no email yet stay visible so new rows can be filled in.
+     * Filtered-out rows are unticked, so Remove only ever affects shown rows.
+     * Filters only change the view: Sync to Forma still sends every row.
+     */
+    applyFilters() {
+        const tbody = document.getElementById(this.tableBodyId);
+        if (!tbody) return;
+        // "andrew & bob" shows either: each &-separated part is an alternative,
+        // and all words within a part must appear (as in the Project Users search).
+        const terms = this.getFilterInputs()
+            .map(input => ({
+                col: Number(input.dataset.col),
+                groups: input.value.toLowerCase().split('&')
+                    .map(part => part.trim().split(/\s+/).filter(Boolean))
+                    .filter(words => words.length > 0)
+            }))
+            .filter(t => t.groups.length > 0);
+
+        let total = 0;
+        let shown = 0;
+        Array.from(tbody.rows).forEach(row => {
+            const emailCell = row.cells[1]; // cell[0] is the checkbox
+            const email = emailCell ? emailCell.textContent.trim() : '';
+            const match = terms.length === 0 || email === '' ||
+                terms.every(t => {
+                    const text = (row.cells[t.col]?.textContent || '').toLowerCase();
+                    return t.groups.some(words => words.every(w => text.includes(w)));
+                });
+            row.hidden = !match;
+            if (!match) {
+                const checkbox = row.querySelector('input[type="checkbox"].row-checkbox');
+                if (checkbox) checkbox.checked = false;
+                row.querySelectorAll('td.selected').forEach(cell => {
+                    cell.classList.remove('selected');
+                    if (this.selectedCells) this.selectedCells.delete(cell);
+                });
+            }
+            const valid = email !== '' && emailCell && !emailCell.classList.contains('modal-error-cell');
+            if (valid) {
+                total++;
+                if (match) shown++;
+            }
+        });
+        if (this.lastSelectedCell && this.lastSelectedCell.closest('tr')?.hidden) this.lastSelectedCell = null;
+
+        const people = n => `${n} ${n === 1 ? 'user' : 'users'}`;
+        const summary = document.getElementById(this.tableSummaryId);
+        if (summary) {
+            summary.textContent = terms.length
+                ? `Showing ${shown} of ${people(total)}. Sync to Forma still sends all of them.`
+                : people(total);
+        }
+        const clear = document.getElementById('modalFilterClear');
+        if (clear) clear.hidden = terms.length === 0;
+        this.syncSelectAllCheckbox();
+    }
+
+    /** Header checkbox: ticked when every shown row is ticked, dashed when only some are. */
+    syncSelectAllCheckbox() {
+        const selectAll = document.querySelector('#userManagementModal #selectAllCheckbox');
+        const tbody = document.getElementById(this.tableBodyId);
+        if (!selectAll || !tbody) return;
+        const boxes = Array.from(tbody.querySelectorAll('tr:not([hidden]) input[type="checkbox"].row-checkbox'));
+        const ticked = boxes.filter(b => b.checked).length;
+        selectAll.checked = boxes.length > 0 && ticked === boxes.length;
+        selectAll.indeterminate = ticked > 0 && ticked < boxes.length;
     }
 
     /**
@@ -1224,7 +1324,7 @@ class UserTableManager extends TableCellInteraction {
         const tbody = document.getElementById(this.tableBodyId);
         
         // Find all checked checkboxes
-        const checkedCheckboxes = tbody.querySelectorAll('input[type="checkbox"].row-checkbox:checked');
+        const checkedCheckboxes = tbody.querySelectorAll('tr:not([hidden]) input[type="checkbox"].row-checkbox:checked');
         
         if (checkedCheckboxes.length > 0) {
             log(`🗑️ Deleting ${checkedCheckboxes.length} checked rows`);
@@ -1261,8 +1361,8 @@ class UserTableManager extends TableCellInteraction {
             return;
         }
         
-        // Fallback: if no rows checked, delete based on focused cell or last row
-        const rows = Array.from(tbody.rows);
+        // Fallback: if no rows checked, delete based on focused cell or last shown row
+        const rows = Array.from(tbody.rows).filter(row => !row.hidden);
         
         if (rows.length === 0) {
             log('🗑️ No rows to delete');
