@@ -37,9 +37,10 @@
 }
 .fm-hub-btn:hover { background: var(--fm-panel); }
 .fm-hub-tile {
-    width: 28px; height: 28px; flex: none; border-radius: 2px; background: #EEEEEE;
+    width: 28px; height: 28px; flex: none; border-radius: 2px; overflow: hidden;
     display: inline-flex; align-items: center; justify-content: center;
 }
+.fm-hub-tile svg { display: block; }
 .fm-popover {
     position: absolute; top: calc(100% + 6px); left: 0; min-width: 300px; max-width: 420px;
     background: #fff; border-radius: 4px; box-shadow: var(--fm-shadow); padding: 8px 0; z-index: 50;

@@ -399,7 +399,7 @@
         .project-select-cb:disabled { cursor: not-allowed; }
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
-    <link rel="stylesheet" href="shared/forma-app.css?v=20260930c">
+    <link rel="stylesheet" href="shared/forma-app.css?v=20261005a">
     <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261002d">
 </head>
 <body class="fm fm-app">
@@ -415,7 +415,7 @@
         </a>
         <div class="fm-hub-picker" id="hubPicker" hidden>
             <button type="button" class="fm-hub-btn" id="hubPickerBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hubPopover">
-                <span class="fm-hub-tile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.7" aria-hidden="true"><path d="M5 20V5.5L13 4v16M13 9h6v11M3.5 20h17M8 8h2M8 11.5h2M8 15h2M15.5 12.5h1.5M15.5 16h1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="fm-hub-tile"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="2" fill="#EBEBEB"/><g fill="#C9C9C9"><rect x="9.7" y="11.7" width="3.9" height="11.4"/><rect x="14.6" y="5.6" width="3.9" height="17.5"/></g><g fill="#EBEBEB"><rect x="10.6" y="13.4" width="0.9" height="1.4"/><rect x="12.5" y="13.4" width="0.9" height="1.4"/><rect x="10.6" y="16.4" width="0.9" height="1.4"/><rect x="12.5" y="16.4" width="0.9" height="1.4"/><rect x="10.6" y="19.4" width="0.9" height="1.4"/><rect x="12.5" y="19.4" width="0.9" height="1.4"/><rect x="15.5" y="7.4" width="0.9" height="1.4"/><rect x="17.4" y="7.4" width="0.9" height="1.4"/><rect x="15.5" y="10.4" width="0.9" height="1.4"/><rect x="17.4" y="10.4" width="0.9" height="1.4"/><rect x="15.5" y="13.4" width="0.9" height="1.4"/><rect x="17.4" y="13.4" width="0.9" height="1.4"/><rect x="15.5" y="16.4" width="0.9" height="1.4"/><rect x="17.4" y="16.4" width="0.9" height="1.4"/><rect x="15.5" y="19.4" width="0.9" height="1.4"/><rect x="17.4" y="19.4" width="0.9" height="1.4"/></g></svg></span>
                 <span class="fm-ell" id="hubPickerLabel">Choose a hub</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -1557,16 +1557,13 @@
                 return;
             }
 
-            const svgNS = 'http://www.w3.org/2000/svg';
-            const buildingIcon = () => {
-                const svg = document.createElementNS(svgNS, 'svg');
-                svg.setAttribute('width', '18'); svg.setAttribute('height', '18'); svg.setAttribute('viewBox', '0 0 24 24');
-                svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', '#666'); svg.setAttribute('stroke-width', '1.6');
-                svg.setAttribute('aria-hidden', 'true'); svg.style.flex = 'none';
-                const path = document.createElementNS(svgNS, 'path');
-                path.setAttribute('d', 'M5 20V5.5L13 4v16M13 9h6v11M3.5 20h17M8 8h2M8 11.5h2M8 15h2M15.5 12.5h1.5M15.5 16h1.5');
-                path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round');
-                svg.appendChild(path);
+            // Forma's default project picture (grey tile, building and road), drawn as SVG.
+            const PROJECT_ICON_SVG = '<svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="8" fill="#EBEBEB"/><path d="M24 56C31 49 37 46 43 44L43 51C36 54 35 57 40 61C47 67 54 71 60 77L46 77C40 70 30 66 26 62C23.5 60 23 58 24 56Z" fill="#D2D2D2"/><path d="M42 34L55 41L55 62L42 55Z" fill="#D9D9D9"/><path d="M55 41L68 33L68 54L55 62Z" fill="#C8C8C8"/><path d="M42 34L55 26L68 33L55 41Z" fill="#E2E2E2"/><g fill="#EBEBEB" transform="matrix(13 7 0 21 42 34)"><rect x="0.12" y="0.08" width="0.18" height="0.14"/><rect x="0.12" y="0.3" width="0.18" height="0.14"/><rect x="0.12" y="0.52" width="0.18" height="0.14"/><rect x="0.12" y="0.74" width="0.18" height="0.14"/><rect x="0.42" y="0.08" width="0.18" height="0.14"/><rect x="0.42" y="0.3" width="0.18" height="0.14"/><rect x="0.42" y="0.52" width="0.18" height="0.14"/><rect x="0.42" y="0.74" width="0.18" height="0.14"/><rect x="0.72" y="0.08" width="0.18" height="0.14"/><rect x="0.72" y="0.3" width="0.18" height="0.14"/><rect x="0.72" y="0.52" width="0.18" height="0.14"/><rect x="0.72" y="0.74" width="0.18" height="0.14"/></g></svg>';
+            const projectIcon = () => {
+                const tpl = document.createElement('template');
+                tpl.innerHTML = PROJECT_ICON_SVG; // fixed markup, no project data
+                const svg = tpl.content.firstElementChild;
+                svg.style.flex = 'none';
                 return svg;
             };
 
@@ -1676,7 +1673,7 @@
                 const nameText = document.createElement('span');
                 nameText.className = 'fm-ell';
                 nameText.textContent = project.name;
-                nameCell.append(buildingIcon(), nameText);
+                nameCell.append(projectIcon(), nameText);
                 item.appendChild(nameCell);
 
                 const membersCell = document.createElement('div');
