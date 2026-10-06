@@ -424,3 +424,7 @@ body.fm .hi-skipped { margin: 6px 0 0; padding-left: 20px; max-height: 160px; ov
 body.fm .au-status .fm-btn-text { border-color: transparent !important; background: transparent !important; color: var(--fm-link) !important; height: 32px; padding: 0 8px; }
 body.fm .au-status .fm-btn-text:hover { text-decoration: underline; }
 body.fm .au-dialog.hi-done { height: auto; }
+body.fm .hi-head { display: flex; flex-direction: column; gap: 8px; }
+body.fm .hi-hub-field { display: flex; align-items: center; gap: 8px; color: var(--fm-text-2); }
+body.fm .hi-hub { width: 280px; height: 32px; padding: 0 8px; }
+body.fm .hi-other-hub { margin: 12px 24px 0; }
