@@ -224,6 +224,27 @@
         return names[level] || `Level ${level}`;
     }
 
+    // Activity log: the same level names the Folder access page shows (Forma's)
+    function formaLevelName(actions) {
+        const names = {
+            1: 'View only', 2: 'View + Download', 3: 'View + Download + Publish markups',
+            4: 'View + Download + Publish markups + Upload', 5: 'View + Download + Publish markups + Upload + Edit',
+            6: 'Full administrative controls'
+        };
+        return names[actionsToLevel(actions)] || '';
+    }
+
+    function recordFolderActivity(type, projectId, folderName, permissions) {
+        if (!window.ActivityLog) return;
+        const kinds = { USER: 'member', COMPANY: 'company', ROLE: 'role' };
+        permissions.forEach(p => ActivityLog.record({
+            tool: 'Folder access', type, projectId, folder: folderName,
+            member: p.user || p.subjectId,
+            memberType: kinds[String(p.subjectType).toUpperCase()] || 'member',
+            details: p.actions ? formaLevelName(p.actions) : ''
+        }));
+    }
+
     /**
      * Fetch current folder permissions from ACC
      */
@@ -384,6 +405,7 @@
 
                 const data = await response.json();
                 allResults.push(...(data.results || []));
+                recordFolderActivity('Folder permission given', projectId, folderName, chunk);
             } catch (error) {
                 console.error(`Error creating permissions:`, error);
                 return { success: false, error: error.message, results: allResults };
@@ -440,6 +462,7 @@
 
                 const data = await response.json();
                 allResults.push(...(data.results || []));
+                recordFolderActivity('Folder permission changed', projectId, folderName, chunk);
             } catch (error) {
                 console.error(`Error updating permissions:`, error);
                 return { success: false, error: error.message, results: allResults };
@@ -497,6 +520,7 @@
 
                 const responseText = await response.text();
                 log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
+                recordFolderActivity('Folder permission removed', projectId, folderName, chunk);
             } catch (error) {
                 console.error(`Error deleting permissions:`, error);
                 return { success: false, error: error.message };
@@ -993,6 +1017,8 @@
                 syncSummary.errors.forEach(err => log(`  - ${err}`));
             }
 
+                window.ActivityLog?.flush();
+
                 // Show results in modal
                 showFolderSyncResults(syncSummary);
                 
@@ -1004,6 +1030,7 @@
                 console.error('❌ Sync error:', error);
                 updateFolderSyncProgress(`The sync stopped: ${error.message}. Changes sent before this point are already in Forma; sync again to send the rest.`, 0, 'error');
                 isSyncing = false;
+                window.ActivityLog?.flush();
                 log('🔓 Sync failed - button unlocked');
                 alert(`Sync failed: ${error.message}`);
             }

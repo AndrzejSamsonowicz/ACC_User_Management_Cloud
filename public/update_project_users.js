@@ -20,6 +20,33 @@ const projectRoleCache = new Map(); // projectId -> Map(nameLower -> id)
  */
 const _syncAccountUsersMemo = new WeakMap(); // importUsers array -> Map(accountId -> Promise<users[]>)
 
+/**
+ * Plain-language summary of what a project-user PATCH changed, for the activity
+ * log (e.g. "Roles: Architect; Company: Acme; Project admin: on").
+ */
+function describeProjectUserChanges(projectUser, patchPayload, importUser, accountUser) {
+    const changes = [];
+    const before = (projectUser.roleIds || []).slice().sort().join(',');
+    const after = (patchPayload.roleIds || []).slice().sort().join(',');
+    if (before !== after) {
+        const roles = (importUser?.metadata?.allRoles || importUser?.metadata?.role || '').trim();
+        changes.push(`Roles: ${roles || 'none'}`);
+    }
+    if (patchPayload.companyId && patchPayload.companyId !== projectUser.companyId) {
+        changes.push(`Company: ${accountUser?.company_name || patchPayload.companyName || 'changed'}`);
+    }
+    const isAdmin = (products) => (products || []).some(p => p.key === 'projectAdministration' && p.access === 'administrator');
+    const wasAdmin = isAdmin(projectUser.products);
+    const nowAdmin = isAdmin(patchPayload.products);
+    if (wasAdmin !== nowAdmin) {
+        changes.push(`Project admin: ${nowAdmin ? 'on' : 'off'}`);
+    } else {
+        const current = new Map((projectUser.products || []).map(p => [p.key, p.access]));
+        if ((patchPayload.products || []).some(p => current.get(p.key) !== p.access)) changes.push('Product access changed');
+    }
+    return changes.join('; ');
+}
+
 function getAccountUsersForSync(accountId, importUsers) {
     if (!Array.isArray(importUsers)) {
         return accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
@@ -867,6 +894,11 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     const result = await response.json();
                     log(`✓ Updated ${userToPatch.email}:`, result);
                     results.updated++;
+                    window.ActivityLog?.record({
+                        tool: 'Project users', type: 'Member updated', projectId,
+                        member: userToPatch.email,
+                        details: describeProjectUserChanges(projectUser, patchPayload, importUser, accountUser)
+                    });
                     completedOperations++;
                     updateProgress();
                     return { success: true, email: userToPatch.email };
@@ -1029,6 +1061,15 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     const result = await response.json();
                     log(`✓ Batch ${batchIndex + 1} completed:`, result);
                     results.added += usersToAdd.length;
+                    usersToAdd.forEach(u => {
+                        const importUser = importEmailMap.get(u.email.toLowerCase());
+                        const roles = (importUser?.metadata?.allRoles || importUser?.metadata?.role || '').trim();
+                        const admin = u.products.some(p => p.key === 'projectAdministration' && p.access === 'administrator');
+                        window.ActivityLog?.record({
+                            tool: 'Project users', type: 'Member added', projectId, member: u.email,
+                            details: [roles && `Roles: ${roles}`, admin && 'Project admin'].filter(Boolean).join('; ')
+                        });
+                    });
                     processedCount += usersToAdd.length;
                     completedOperations += usersToAdd.length;
                     updateProgress();
@@ -1085,6 +1126,7 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
                     
                     log(`✓ Deleted ${userToDelete.email}`);
                     results.deleted++;
+                    window.ActivityLog?.record({ tool: 'Project users', type: 'Member removed', projectId, member: userToDelete.email });
                     completedOperations++;
                     updateProgress();
                     return { success: true, email: userToDelete.email };
@@ -1102,6 +1144,8 @@ async function executeSyncOperations(listToPatch, listToPost, listToDelete, proj
             await runWithConcurrency(listToDelete, 4, deleteUser);
         }
         
+        window.ActivityLog?.flush();
+
         // Show results in modal
         syncButton.textContent = 'Sync Complete!';
         syncButton.disabled = false;

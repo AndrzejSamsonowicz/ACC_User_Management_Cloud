@@ -691,6 +691,178 @@ app.get('/load', authenticateUser, async (req, res) => {
 
 
 // ============================================
+// Activity log
+// ============================================
+// Every change this app makes in Forma (members added/updated/removed, folder
+// permissions, companies created) is recorded per *account*, not per Firebase
+// user, so several BIM managers can later share one log: a user doc with
+// `activityAccountId` set reads and writes that account's log; otherwise the
+// account is just the user themself.
+//
+// Storage: activity/{accountId}/entries/{autoId}, one small document per change
+// (never one growing document - Firestore caps a document at 1 MiB). Only what's
+// needed to sort/filter stays readable (time, tool, type, actor uid); names,
+// emails, project/folder names and details are one AES-256-GCM blob. The key is
+// derived from ENCRYPTION_KEY + a per-account salt stored on activity/{accountId},
+// and cached in memory: scrypt per entry would cost ~50ms each, too slow for a
+// sync that logs hundreds of changes. Each entry still gets its own random IV.
+//
+// Retention: entries carry expireAt (12 months). The server deletes expired
+// entries for an account at most every 6 hours, on that account's next write
+// (a Firestore TTL policy on `expireAt` can be enabled as well; not required).
+const ACTIVITY_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
+const ACTIVITY_PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
+const ACTIVITY_MAX_WRITE = 200;
+const ACTIVITY_MAX_READ = 500;
+const ACTIVITY_FIELD_MAX = 500;
+const ACTIVITY_TOOLS = new Set(['Project users', 'Account users', 'Folder access']);
+const ACTIVITY_TYPES = new Set([
+    'Member added', 'Member updated', 'Member removed',
+    'Account member added', 'Account member updated', 'Company created',
+    'Folder permission given', 'Folder permission changed', 'Folder permission removed'
+]);
+const ACTIVITY_PAYLOAD_FIELDS = ['actorName', 'hub', 'project', 'member', 'memberType', 'folder', 'details'];
+
+const activityAccountCache = new Map(); // uid -> { accountId, at }
+const activityKeyCache = new Map();     // accountId -> Promise<Buffer>
+const activityLastPrune = new Map();    // accountId -> ms
+
+async function getActivityAccountId(uid) {
+    const cached = activityAccountCache.get(uid);
+    if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.accountId;
+    const userDoc = await db.collection('users').doc(uid).get();
+    const accountId = (userDoc.exists && userDoc.data().activityAccountId) || uid;
+    activityAccountCache.set(uid, { accountId, at: Date.now() });
+    return accountId;
+}
+
+function getActivityKey(accountId) {
+    if (!activityKeyCache.has(accountId)) {
+        const keyPromise = (async () => {
+            const ref = db.collection('activity').doc(accountId);
+            const saltHex = await db.runTransaction(async (t) => {
+                const snap = await t.get(ref);
+                if (snap.exists && snap.data().keySalt) return snap.data().keySalt;
+                const fresh = crypto.randomBytes(16).toString('hex');
+                t.set(ref, { keySalt: fresh, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                return fresh;
+            });
+            return deriveEncryptionKey(`activity:${accountId}`, Buffer.from(saltHex, 'hex'));
+        })();
+        keyPromise.catch(() => activityKeyCache.delete(accountId));
+        activityKeyCache.set(accountId, keyPromise);
+    }
+    return activityKeyCache.get(accountId);
+}
+
+function encryptActivityPayload(key, payload) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const data = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+    return { data: data.toString('base64'), iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64') };
+}
+
+function decryptActivityPayload(key, entry) {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(entry.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(entry.tag, 'base64'));
+    const plain = Buffer.concat([decipher.update(Buffer.from(entry.data, 'base64')), decipher.final()]);
+    return JSON.parse(plain.toString('utf8'));
+}
+
+async function pruneExpiredActivity(accountId) {
+    const last = activityLastPrune.get(accountId) || 0;
+    if (Date.now() - last < ACTIVITY_PRUNE_EVERY_MS) return;
+    activityLastPrune.set(accountId, Date.now());
+    const entries = db.collection('activity').doc(accountId).collection('entries');
+    const now = admin.firestore.Timestamp.now();
+    for (let round = 0; round < 10; round++) { // at most 4000 deletes per pass
+        const expired = await entries.where('expireAt', '<', now).limit(400).get();
+        if (expired.empty) return;
+        const batch = db.batch();
+        expired.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        if (expired.size < 400) return;
+    }
+}
+
+// Record activity entries. Body: { entries: [{ at, tool, type, actorName, hub,
+// project, member, memberType, folder, details }] } - at most 200 per call (the
+// client batches; the global /api rate limit is 100 requests per 15 minutes).
+app.post('/api/activity', authenticateUser, async (req, res) => {
+    try {
+        const entries = req.body && req.body.entries;
+        if (!Array.isArray(entries) || entries.length === 0 || entries.length > ACTIVITY_MAX_WRITE) {
+            return res.status(400).json({ error: `entries must be an array of 1-${ACTIVITY_MAX_WRITE} items` });
+        }
+        const accountId = await getActivityAccountId(req.user.uid);
+        const key = await getActivityKey(accountId);
+        const col = db.collection('activity').doc(accountId).collection('entries');
+        const now = Date.now();
+        const batch = db.batch();
+        let written = 0;
+        for (const e of entries) {
+            if (!e || !ACTIVITY_TOOLS.has(e.tool) || !ACTIVITY_TYPES.has(e.type)) continue;
+            // Keep the client's time of the change (entries are flushed a few seconds
+            // later), but never in the future or more than a day back.
+            const at = Number(e.at);
+            const atMs = Number.isFinite(at) ? Math.min(now, Math.max(now - 86400000, at)) : now;
+            const payload = { actorEmail: req.user.email || '' };
+            for (const f of ACTIVITY_PAYLOAD_FIELDS) {
+                if (typeof e[f] === 'string' && e[f]) payload[f] = e[f].slice(0, ACTIVITY_FIELD_MAX);
+            }
+            const enc = encryptActivityPayload(key, payload);
+            batch.set(col.doc(), {
+                ts: admin.firestore.Timestamp.fromMillis(atMs),
+                expireAt: admin.firestore.Timestamp.fromMillis(atMs + ACTIVITY_RETENTION_MS),
+                tool: e.tool,
+                type: e.type,
+                actorUid: req.user.uid,
+                ...enc
+            });
+            written++;
+        }
+        if (written > 0) await batch.commit();
+        res.json({ written });
+        pruneExpiredActivity(accountId).catch(err => console.error('Activity prune failed:', err.message));
+    } catch (error) {
+        res.status(500).json({ error: sanitizeError(error, 'Could not record activity').message });
+    }
+});
+
+// Read the account's activity, newest first. Query: limit (1-500, default 100),
+// after (the previous page's `next` - a document id, so entries that share a
+// timestamp at a page boundary are never skipped).
+app.get('/api/activity', authenticateUser, async (req, res) => {
+    try {
+        const limit = Math.min(ACTIVITY_MAX_READ, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const accountId = await getActivityAccountId(req.user.uid);
+        const col = db.collection('activity').doc(accountId).collection('entries');
+        let query = col.orderBy('ts', 'desc');
+        if (typeof req.query.after === 'string' && /^[A-Za-z0-9]{1,40}$/.test(req.query.after)) {
+            const cursor = await col.doc(req.query.after).get();
+            if (cursor.exists) query = query.startAfter(cursor);
+        }
+        const snap = await query.limit(limit).get();
+        if (snap.empty) return res.json({ entries: [], next: null });
+        const key = await getActivityKey(accountId);
+        const result = [];
+        snap.docs.forEach(doc => {
+            const d = doc.data();
+            const entry = { id: doc.id, at: d.ts.toMillis(), tool: d.tool, type: d.type, actorUid: d.actorUid };
+            try {
+                Object.assign(entry, decryptActivityPayload(key, d));
+            } catch (err) {
+                entry.unreadable = true;
+            }
+            result.push(entry);
+        });
+        res.json({ entries: result, next: snap.size === limit ? snap.docs[snap.docs.length - 1].id : null });
+    } catch (error) {
+        res.status(500).json({ error: sanitizeError(error, 'Could not load activity').message });
+    }
+});
+
+// ============================================
 // Firebase Authentication Middleware
 // ============================================
 
