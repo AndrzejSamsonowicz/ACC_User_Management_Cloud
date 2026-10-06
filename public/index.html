@@ -281,7 +281,8 @@
         /* Hide add/import buttons and swap Save & Sync label when in manage-existing mode */
         .modal-manage-mode #modalAddRowBtn,
         .modal-manage-mode #modalImportCSVBtn,
-        .modal-manage-mode #modalImportFromProjectBtn {
+        .modal-manage-mode #modalImportFromProjectBtn,
+        .modal-manage-mode #modalImportFromHubBtn {
             display: none !important;
         }
         
@@ -400,7 +401,7 @@
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
     <link rel="stylesheet" href="shared/forma-app.css?v=20261006a">
-    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261006f">
+    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261007b">
 </head>
 <body class="fm fm-app">
     <!-- Auth loading overlay -->
@@ -1417,6 +1418,22 @@
             return isAdmin;
         }
 
+        // Re-read the member count of the given projects (after a sync changed who
+        // is in them) and update the Members column, without reloading the app.
+        window.refreshProjectMemberCounts = async function (projectIds) {
+            const ids = [...new Set((projectIds || []).filter(Boolean))];
+            await Promise.all(ids.map(async (projectId) => {
+                try {
+                    const users = await runProjectAdminCheckLimited(() => fetchAllProjectUsers(projectId, currentAccessToken));
+                    projectMemberCount.set(projectId, users.length);
+                    const cell = document.getElementById(`projectMembers-${projectId}`);
+                    if (cell) cell.textContent = users.length;
+                } catch (error) {
+                    console.warn(`Could not refresh the member count of project ${projectId}:`, error);
+                }
+            }));
+        };
+
         // Function to handle hub selection
         async function selectHub(hubId, hubName, hubRegion) {
             const projectsHeader = document.getElementById('projectsHeader');
@@ -1722,6 +1739,7 @@
 
                 const membersCell = document.createElement('div');
                 membersCell.className = 'fm-cell-num num';
+                membersCell.id = `projectMembers-${project.id}`;
                 item.appendChild(membersCell);
 
                 const accessCell = document.createElement('div');
@@ -2400,9 +2418,10 @@
     <script src="xlsx.full.min.js"></script>
     <script src="d3.v7.min.js"></script>
     <script src="import-from-project.js?v=20260930a"></script>
+    <script src="import-from-hub.js?v=20261007b"></script>
     <script src="update_account_users.js?v=20261006a"></script>
     <script src="update_project_users.js?v=20261006a"></script>
-    <script src="review-sync.js?v=20261006a"></script>
+    <script src="review-sync.js?v=20261007a"></script>
     <script src="get_account_users.js?v=20261002a"></script>
     <script src="view_project_users.js?v=20260329172500"></script>
     <script src="manage_project_users.js?v=20260805"></script>
@@ -2456,6 +2475,7 @@
                     <div>
                         <button type="button" class="fm-btn" id="modalImportCSVBtn" onclick="importCSV()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 3H6.5A1.5 1.5 0 005 4.5v15A1.5 1.5 0 006.5 21h11a1.5 1.5 0 001.5-1.5V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5L12 17l2.5-2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Import from a file</button>
                         <button type="button" class="fm-btn" id="modalImportFromProjectBtn" onclick="openImportFromProjectModal()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"/></svg>Copy from another project</button>
+                        <button type="button" class="fm-btn" id="modalImportFromHubBtn" onclick="openImportFromHubModal()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="9" width="6" height="11" rx="1"/><rect x="13" y="4" width="6" height="16" rx="1"/><path d="M3 20h18" stroke-linecap="round"/></svg>Copy from the hub</button>
                         <button type="button" class="fm-btn" id="modalAddRowBtn" onclick="addModalRow()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>Add row</button>
                     </div>
                     <div>

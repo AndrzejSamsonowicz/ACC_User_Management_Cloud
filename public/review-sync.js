@@ -320,7 +320,14 @@
         if (changes === 0) {
             d.body.insertBefore(el('p', 'fm-muted fm-review-foot-note', 'No differences found between the table and Forma. You can still sync to re-apply the table.'), summary.nextSibling);
         }
-        go.addEventListener('click', () => { d.remove(); runSync(); });
+        go.addEventListener('click', () => {
+            d.remove();
+            // Once the sync is done, update the Members count of the synced projects.
+            // Autodesk can take a few seconds to list newly added people, so look again shortly after.
+            const ids = projects.map(p => p.id);
+            const refresh = () => { if (typeof window.refreshProjectMemberCounts === 'function') window.refreshProjectMemberCounts(ids); };
+            Promise.resolve(runSync()).finally(() => { refresh(); setTimeout(refresh, 10000); });
+        });
         d.foot.append(back, go);
         go.focus();
     }
