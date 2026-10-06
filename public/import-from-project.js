@@ -91,7 +91,7 @@ function createImportProjectModal() {
                         <!-- Right Column: Project Users -->
                         <div class="import-project-right">
                             <div class="import-users-header">
-                                <h4>Members</h4>
+                                <h4>Members <span id="importUsersCount" class="import-users-count" aria-live="polite"></span></h4>
                                 <div class="import-users-actions">
                                     <span style="font-size: 12px; color: #666; margin-right: 10px; font-style: italic;">Shift-click to select a range</span>
                                     <button onclick="checkAllImportUsers()" class="import-btn-small">Select all</button>
@@ -813,9 +813,9 @@ function renderImportUsersTable(users) {
             <thead>
                 <tr>
                     <th style="width: 3%; text-align: center;"><input type="checkbox" id="checkAllImportCheckbox" onchange="toggleAllImportUsers(this)"></th>
-                    <th class="import-resizable-th" style="width: 19%;">Email<span class="import-col-resizer" title="Drag to resize this column"></span></th>
-                    <th class="import-resizable-th" style="width: 16%;">Company<span class="import-col-resizer" title="Drag to resize this column"></span></th>
-                    <th class="import-resizable-th" style="width: 15%;">Role<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th import-sortable" data-sort-col="1" style="width: 19%;" title="Click to sort">Email<span class="import-sort-ind" aria-hidden="true"></span><span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th import-sortable" data-sort-col="2" style="width: 16%;" title="Click to sort">Company<span class="import-sort-ind" aria-hidden="true"></span><span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                    <th class="import-resizable-th import-sortable" data-sort-col="3" style="width: 15%;" title="Click to sort">Role<span class="import-sort-ind" aria-hidden="true"></span><span class="import-col-resizer" title="Drag to resize this column"></span></th>
                     <th class="import-resizable-th" style="width: 6.71%;" title="Project Administration">Project Admin<span class="import-col-resizer" title="Drag to resize this column"></span></th>
                     <th class="import-resizable-th" style="width: 6.71%;" title="Design Collaboration">Design Collaboration<span class="import-col-resizer" title="Drag to resize this column"></span></th>
                     <th class="import-resizable-th" style="width: 6.71%;" title="Model Coordination">Model Coordination<span class="import-col-resizer" title="Drag to resize this column"></span></th>
@@ -823,6 +823,13 @@ function renderImportUsersTable(users) {
                     <th class="import-resizable-th" style="width: 6.71%;" title="Build">Build<span class="import-col-resizer" title="Drag to resize this column"></span></th>
                     <th class="import-resizable-th" style="width: 6.71%;" title="Cost Management">Cost Management<span class="import-col-resizer" title="Drag to resize this column"></span></th>
                     <th class="import-resizable-th" style="width: 6.72%;" title="Site & Building Design">Site &amp; Building Design<span class="import-col-resizer" title="Drag to resize this column"></span></th>
+                </tr>
+                <tr class="au-filter-row import-filter-row">
+                    <td></td>
+                    <td><label class="au-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input import-filter" data-col="1" placeholder="Search, e.g. andrew &amp; bob" title="Separate with &amp; to show several, e.g. andrew &amp; bob" aria-label="Filter by email" autocomplete="off"></label></td>
+                    <td><label class="au-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input import-filter" data-col="2" placeholder="Search, e.g. granite &amp; pinnacle" title="Separate with &amp; to show several, e.g. granite &amp; pinnacle" aria-label="Filter by company" autocomplete="off"></label></td>
+                    <td><label class="au-filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg><input type="text" class="fm-input import-filter" data-col="3" placeholder="Search, e.g. architect &amp; engineer" title="Separate with &amp; to show several, e.g. architect &amp; engineer" aria-label="Filter by role" autocomplete="off"></label></td>
+                    <td colspan="7"></td>
                 </tr>
             </thead>
             <tbody>
@@ -872,8 +879,96 @@ function renderImportUsersTable(users) {
     `;
 
     usersList.innerHTML = tableHTML;
+    importSortState = { col: null, asc: true };
     setupImportCheckboxShiftClick();
     setupImportColumnResize();
+    setupImportFiltersAndSort();
+    applyImportFilters();
+}
+
+// ============================================================================
+// Filters (Email / Company / Role, as in the people table) and sorting
+// ============================================================================
+
+let importSortState = { col: null, asc: true };
+
+const importRows = () => Array.from(document.querySelectorAll('#importUsersList tbody tr'));
+
+/** Same rules as the people table: case-insensitive, "a & b" shows either, filters combine. */
+function applyImportFilters() {
+    const terms = Array.from(document.querySelectorAll('#importUsersList .import-filter'))
+        .map(input => ({
+            col: Number(input.dataset.col),
+            groups: input.value.toLowerCase().split('&')
+                .map(part => part.trim().split(/\s+/).filter(Boolean))
+                .filter(words => words.length > 0)
+        }))
+        .filter(t => t.groups.length > 0);
+    let shown = 0;
+    const rows = importRows();
+    rows.forEach(tr => {
+        const match = terms.every(t => {
+            const text = (tr.cells[t.col]?.textContent || '').toLowerCase();
+            return t.groups.some(words => words.every(w => text.includes(w)));
+        });
+        tr.hidden = !match;
+        if (!match) tr.querySelector('.import-user-checkbox').checked = false; // never copy someone you can't see
+        if (match) shown++;
+    });
+    const count = document.getElementById('importUsersCount');
+    if (count) count.textContent = terms.length ? `Showing ${shown} of ${rows.length}` : `${rows.length}`;
+    syncImportSelection();
+}
+
+/** selectedProjectUsers follows the ticked boxes; the header box shows all / some / none of the shown rows. */
+function syncImportSelection() {
+    const rows = importRows();
+    selectedProjectUsers = rows
+        .filter(tr => tr.querySelector('.import-user-checkbox').checked)
+        .map(tr => parseInt(tr.dataset.userIndex, 10));
+    const all = document.getElementById('checkAllImportCheckbox');
+    if (all) {
+        const shown = rows.filter(tr => !tr.hidden).map(tr => tr.querySelector('.import-user-checkbox'));
+        const ticked = shown.filter(cb => cb.checked).length;
+        all.checked = shown.length > 0 && ticked === shown.length;
+        all.indeterminate = ticked > 0 && ticked < shown.length;
+    }
+}
+
+function sortImportRows(col) {
+    importSortState = importSortState.col === col
+        ? { col, asc: !importSortState.asc }
+        : { col, asc: true };
+    const tbody = document.querySelector('#importUsersList tbody');
+    if (!tbody) return;
+    const dir = importSortState.asc ? 1 : -1;
+    importRows()
+        .sort((a, b) => dir * (a.cells[col]?.textContent || '').localeCompare(b.cells[col]?.textContent || '', undefined, { numeric: true, sensitivity: 'base' }))
+        .forEach(tr => tbody.appendChild(tr));
+    document.querySelectorAll('#importUsersList .import-sortable').forEach(th => {
+        const on = Number(th.dataset.sortCol) === col;
+        th.querySelector('.import-sort-ind').textContent = on ? (importSortState.asc ? '▲' : '▼') : '';
+        th.setAttribute('aria-sort', on ? (importSortState.asc ? 'ascending' : 'descending') : 'none');
+    });
+}
+
+function setupImportFiltersAndSort() {
+    document.querySelectorAll('#importUsersList .import-filter').forEach(input => {
+        input.addEventListener('input', applyImportFilters);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && input.value) {
+                e.stopPropagation(); // clear the box, don't close the dialog
+                input.value = '';
+                applyImportFilters();
+            }
+        });
+    });
+    document.querySelectorAll('#importUsersList .import-sortable').forEach(th => {
+        th.addEventListener('click', (e) => {
+            if (e.target.closest('.import-col-resizer')) return; // resizing, not sorting
+            sortImportRows(Number(th.dataset.sortCol));
+        });
+    });
 }
 
 // ============================================================================
@@ -1021,58 +1116,34 @@ function renderServiceIndicator(access) {
  * Attach Shift+click range selection to the import user checkboxes.
  */
 function setupImportCheckboxShiftClick() {
-    const checkboxes = document.querySelectorAll('.import-user-checkbox');
-    let lastCheckedIndex = null;
-
-    checkboxes.forEach((checkbox, currentIndex) => {
+    let lastClicked = null;
+    document.querySelectorAll('.import-user-checkbox').forEach(checkbox => {
         checkbox.addEventListener('click', (e) => {
-            if (e.shiftKey && lastCheckedIndex !== null && lastCheckedIndex !== currentIndex) {
-                const start = Math.min(lastCheckedIndex, currentIndex);
-                const end   = Math.max(lastCheckedIndex, currentIndex);
-                const checkState = checkbox.checked;
-
-                for (let i = start; i <= end; i++) {
-                    const targetCheckbox = checkboxes[i];
-                    targetCheckbox.checked = checkState;
-
-                    const userIndex = parseInt(targetCheckbox.dataset.userIndex);
-                    if (checkState) {
-                        if (!selectedProjectUsers.includes(userIndex)) {
-                            selectedProjectUsers.push(userIndex);
-                        }
-                    } else {
-                        const idx = selectedProjectUsers.indexOf(userIndex);
-                        if (idx > -1) selectedProjectUsers.splice(idx, 1);
-                    }
-                }
+            // Rows shown right now, in their current (sorted, filtered) order.
+            const shown = importRows().filter(tr => !tr.hidden).map(tr => tr.querySelector('.import-user-checkbox'));
+            const current = shown.indexOf(checkbox);
+            const last = shown.indexOf(lastClicked);
+            if (e.shiftKey && last >= 0 && current >= 0 && last !== current) {
+                const [start, end] = last < current ? [last, current] : [current, last];
+                for (let i = start; i <= end; i++) shown[i].checked = checkbox.checked;
             }
-            lastCheckedIndex = currentIndex;
+            lastClicked = checkbox;
+            syncImportSelection();
         });
     });
 }
 
 function toggleImportUser(index, checkbox) {
-    if (checkbox.checked) {
-        if (!selectedProjectUsers.includes(index)) {
-            selectedProjectUsers.push(index);
-        }
-    } else {
-        const idx = selectedProjectUsers.indexOf(index);
-        if (idx > -1) selectedProjectUsers.splice(idx, 1);
-    }
+    syncImportSelection();
     log(`User ${index} toggled, selected count: ${selectedProjectUsers.length}`);
 }
 
 function toggleAllImportUsers(checkbox) {
-    const allCheckboxes = document.querySelectorAll('.import-user-checkbox');
-    selectedProjectUsers = [];
-
-    allCheckboxes.forEach((cb, index) => {
-        cb.checked = checkbox.checked;
-        if (checkbox.checked) {
-            selectedProjectUsers.push(index);
-        }
+    // Only the people the filters show; hidden people are never selected.
+    importRows().forEach(tr => {
+        tr.querySelector('.import-user-checkbox').checked = !tr.hidden && checkbox.checked;
     });
+    syncImportSelection();
 
     log(`All users toggled: ${checkbox.checked ? 'checked' : 'unchecked'}, count: ${selectedProjectUsers.length}`);
 }

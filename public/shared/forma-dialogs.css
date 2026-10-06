@@ -428,3 +428,12 @@ body.fm .hi-head { display: flex; flex-direction: column; gap: 8px; }
 body.fm .hi-hub-field { display: flex; align-items: center; gap: 8px; color: var(--fm-text-2); }
 body.fm .hi-hub { width: 280px; height: 32px; padding: 0 8px; }
 body.fm .hi-other-hub { margin: 12px 24px 0; }
+
+/* Copy people from another project: filters under the headers, sortable Email / Company / Role */
+body.fm .import-users-table thead { position: sticky; top: 0; z-index: 10; background: #fff; }
+body.fm .import-users-table thead th { position: relative; top: auto; }
+body.fm .import-filter-row td { height: 48px; padding: 0 6px; background: #fff; border-bottom: 1px solid var(--fm-divider); overflow: visible; }
+body.fm .import-users-table th.import-sortable { cursor: pointer; user-select: none; }
+body.fm .import-users-table th.import-sortable:hover { color: var(--fm-blue); }
+body.fm .import-sort-ind { margin-left: 4px; font-size: 10px; color: var(--fm-blue); }
+body.fm .import-users-count { font-weight: 400; color: var(--fm-text-2); margin-left: 6px; }
