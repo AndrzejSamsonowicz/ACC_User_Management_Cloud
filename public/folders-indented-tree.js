@@ -61,6 +61,7 @@
     let itDeletedGrants = [];
     let itPendingChangeCount = 0; // local edits not yet pushed to ACC — shown as a badge on Sync
     let itFocusedKey = null; // keyboard-navigation focus (Up/Down/Left/Right), independent of itSelectedKeys
+    let itFocusVisible = false; // outline the focused row only after arrow-key moves, not mouse clicks
     let itDeleteConfirmEl = null; // the pending "delete N entries?" toast, if one is showing
     let itContextMenuEl = null; // the open right-click menu, if any
     let itAllLevelsLoaded = false; // whole folder tree + permissions loaded (for search)
@@ -897,6 +898,7 @@
         if (!itIsDeletableNode(node)) return;
         const key = node.__key;
         itFocusedKey = key;
+        itFocusVisible = false;
         itDismissDeleteConfirm();
 
         if (event && (event.ctrlKey || event.metaKey)) {
@@ -967,6 +969,7 @@
             return;
         }
         itFocusedKey = node.__key;
+        itFocusVisible = false;
         if (node.type === 'user' || node.type === 'company' || node.type === 'role') {
             if (itClearSelection()) itRenderTree(container);
             return;
@@ -990,6 +993,7 @@
     /** Up/Down: move keyboard focus to the previous/next visible row. */
     function itMoveFocusVertical(delta) {
         if (itLastVisible.length === 0) return;
+        itFocusVisible = true;
         let idx = itFocusedKey ? itLastVisible.findIndex(v => v.data.__key === itFocusedKey) : -1;
         if (idx < 0) idx = delta > 0 ? -1 : 0;
         idx = Math.max(0, Math.min(itLastVisible.length - 1, idx + delta));
@@ -1006,6 +1010,7 @@
      */
     async function itMoveFocusHorizontal(delta) {
         const container = document.getElementById('itContainer');
+        itFocusVisible = true;
         if (!itFocusedKey) {
             if (itLastVisible.length) {
                 itFocusedKey = itLastVisible[0].data.__key;
@@ -1530,9 +1535,9 @@
         const toast = document.createElement('div');
         toast.className = 'it-confirm-toast';
         toast.innerHTML = `
-            <span>Delete ${count} selected ${count === 1 ? 'entry' : 'entries'}? This can't be undone once synced.</span>
+            <span>Remove access for ${count} selected? This can't be undone once synced.</span>
             <button type="button" class="it-confirm-cancel">Cancel</button>
-            <button type="button" class="it-confirm-delete">Delete</button>
+            <button type="button" class="it-confirm-delete">Remove access</button>
         `;
         wrap.appendChild(toast);
         itDeleteConfirmEl = toast;
@@ -1586,7 +1591,7 @@
             <div class="it-ctx-sep"></div>
             <div class="it-ctx-item it-ctx-danger" data-action="delete">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Delete (${count} selected)
+                Remove access (${count} selected)
             </div>
         `;
         document.body.appendChild(menu);
@@ -1654,15 +1659,33 @@
         // folder/group default of "click anywhere on the row expands".
         const isSubjectRow = d.type === 'user' || d.type === 'company' || d.type === 'role';
 
-        // Keyboard-navigation focus ring — a full-row band so Up/Down/Left/
-        // Right always shows where you are, independent of any text
-        // selection (which only highlights the label itself).
-        if (d.__key === itFocusedKey) {
+        // Row geometry in this row's own coordinates (rows are translated by
+        // their indentation, rowX): the tree's left edge is -rowX.
+        const rowLeft = -rowX;
+        const rowWidth = Math.max(itGetColBoundaries().end, container.clientWidth || 0);
+
+        // Selected (Ctrl/Shift-click): the whole row tinted, with a blue left
+        // edge, as Forma marks a selected list item. Drawn first, behind everything.
+        if (itSelectedKeys.has(d.__key) && isSubjectRow && itIsDeletableNode(d)) {
+            sel.append('rect')
+                .attr('class', 'it-row-selected-bg')
+                .attr('x', rowLeft).attr('y', -IT_ROW_H / 2).attr('width', rowWidth).attr('height', IT_ROW_H)
+                .attr('fill', '#EDF8FC')
+                .style('pointer-events', 'none');
+            sel.append('rect')
+                .attr('x', rowLeft).attr('y', -IT_ROW_H / 2).attr('width', 3).attr('height', IT_ROW_H)
+                .attr('fill', '#0696D7')
+                .style('pointer-events', 'none');
+        }
+
+        // Keyboard position: a thin outline inside the row, shown only while
+        // moving with the arrow keys (mouse clicks don't draw it).
+        if (d.__key === itFocusedKey && itFocusVisible) {
             sel.append('rect')
                 .attr('class', 'it-focus-ring')
-                .attr('x', -1000).attr('y', -IT_ROW_H / 2 + 1).attr('width', 3000).attr('height', IT_ROW_H - 2)
-                .attr('fill', 'rgba(6,150,215,0.08)')
-                .attr('stroke', '#0696D7').attr('stroke-width', 1.5)
+                .attr('x', rowLeft + 1).attr('y', -IT_ROW_H / 2 + 1).attr('width', rowWidth - 2).attr('height', IT_ROW_H - 2)
+                .attr('fill', 'none')
+                .attr('stroke', '#0696D7').attr('stroke-width', 1)
                 .style('pointer-events', 'none');
         }
 
@@ -1726,20 +1749,7 @@
                 itSelectNode(container, d, event);
             });
         }
-        // Selection highlight is sized to the text itself (not the row) —
-        // inserted just behind the label so the text paints on top of it.
-        if (deletable && itSelectedKeys.has(d.__key)) {
-            const bbox = label.node().getBBox();
-            sel.insert('rect', () => label.node())
-                .attr('class', 'it-select-highlight')
-                .attr('x', bbox.x - 3).attr('y', bbox.y - 2)
-                .attr('width', bbox.width + 6).attr('height', bbox.height + 4)
-                .attr('rx', 3)
-                .attr('fill', '#EDF8FC')
-                .attr('stroke', '#0696D7').attr('stroke-width', 1)
-                .style('pointer-events', 'none');
-        }
-        const accessCountText = typeof d.accessCount === 'number'
+const accessCountText = typeof d.accessCount === 'number'
             ? `${d.accessCount} folder${d.accessCount === 1 ? '' : 's'}`
             : null;
         label.append('title').text(accessCountText ? `${d.name} — ${accessCountText}` : d.name);
@@ -2128,10 +2138,27 @@
             ? '<div class="it-progress-wrap" aria-live="polite"><div class="it-progress-bar"></div></div><div class="it-status-line"><span class="it-status-busy"><span class="it-busy-dot"></span>' + (itTreeBusyLabel || 'Loading folders…') + '</span></div>'
             : '';
         const items = [
-            `<span>${modeLabel} — ${count} row${count === 1 ? '' : 's'} visible</span>`,
-            selCount > 0 ? `<span class="it-status-sel">${selCount} selected</span>` : ''
-        ].filter(Boolean);
-        el.innerHTML = busyMarkup + '<div class="it-status-line">' + items.join(' ') + '</div>';
+            `<span>${modeLabel} — ${count} row${count === 1 ? '' : 's'} visible</span>`
+        ];
+        // While anything is selected: how many, and what you can do with them.
+        const selBar = selCount > 0
+            ? `<div class="it-selbar" role="region" aria-label="Selection"><strong>${selCount} selected</strong>` +
+              `<button type="button" class="fm-btn it-selbar-remove" data-sel-action="remove">Remove access</button>` +
+              `<span class="it-selbar-hint">← → changes their access level</span>` +
+              `<button type="button" class="fm-btn fm-btn-text it-selbar-clear" data-sel-action="clear">Clear selection</button></div>`
+            : '';
+        el.innerHTML = busyMarkup + selBar + '<div class="it-status-line">' + items.join(' ') + '</div>';
+        if (!el.dataset.selWired) {
+            el.dataset.selWired = '1';
+            el.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-sel-action]');
+                if (!btn) return;
+                const container = document.getElementById('itContainer');
+                if (!container) return;
+                if (btn.dataset.selAction === 'remove') itShowDeleteConfirm(container);
+                else if (itClearSelection()) itRenderTree(container);
+            });
+        }
     }
 
     /**
