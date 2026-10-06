@@ -59,7 +59,7 @@
     // otherwise the grant is purged only within that folder's own subtree
     // (a single per-folder direct-assignment delete).
     let itDeletedGrants = [];
-    let itPendingChangeCount = 0; // local edits not yet pushed to ACC — shown as a badge on Sync
+    let itPendingChangeCount = 0; // local edits not yet pushed to ACC (counted only; not shown)
     let itFocusedKey = null; // keyboard-navigation focus (Up/Down/Left/Right), independent of itSelectedKeys
     let itFocusVisible = false; // outline the focused row only after arrow-key moves, not mouse clicks
     let itDeleteConfirmEl = null; // the pending "delete N entries?" toast, if one is showing
@@ -871,20 +871,11 @@
         itUpdateSyncBadge();
     }
 
+    // Sync to Forma shows no count of pending changes (the counter itself is still
+    // kept in itPendingChangeCount); this only clears a badge left by older code.
     function itUpdateSyncBadge() {
-        const btn = document.getElementById('itSyncBtn');
-        if (!btn) return;
-        let badge = btn.querySelector('.it-sync-badge');
-        if (itPendingChangeCount > 0) {
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'it-sync-badge';
-                btn.appendChild(badge);
-            }
-            badge.textContent = itPendingChangeCount > 99 ? '99+' : String(itPendingChangeCount);
-        } else if (badge) {
-            badge.remove();
-        }
+        const badge = document.querySelector('#itSyncBtn .it-sync-badge');
+        if (badge) badge.remove();
     }
 
     /**
@@ -2488,12 +2479,6 @@ const accessCountText = typeof d.accessCount === 'number'
             .it-danger-btn:hover { background: #c82333 !important; border-color: #c82333 !important; }
             .it-sync-btn { background: #0696D7 !important; color: #fff !important; border-color: #0696D7 !important; font-weight: bold !important; position: relative; }
             .it-sync-btn:hover { background: #0057A0 !important; border-color: #0057A0 !important; }
-            .it-sync-badge {
-                position: absolute; top: -7px; right: -7px; background: #F2A900; color: #3a2c00; font-size: 10px; font-weight: 800;
-                min-width: 18px !important; height: 18px !important; border-radius: 999px !important; display: flex !important;
-                align-items: center; justify-content: center; padding: 0 4px !important; margin: 0 !important;
-                border: 2px solid #f5f5f5; font-variant-numeric: tabular-nums; line-height: 1;
-            }
             .it-error-message {
                 padding: 20px; margin: 15px 20px; background: #fff3cd; color: #856404;
                 border: 2px solid #ffc107; border-radius: 8px; text-align: center; flex-shrink: 0;

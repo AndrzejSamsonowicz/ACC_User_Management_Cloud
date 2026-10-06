@@ -232,7 +232,6 @@ body.fm .it-danger-btn { background: #fff !important; color: var(--fm-error) !im
 body.fm .it-danger-btn:hover { background: #fff !important; color: var(--fm-error) !important; border-color: var(--fm-error) !important; }
 body.fm .it-sync-btn { background: var(--fm-blue) !important; border-color: var(--fm-blue) !important; color: #fff !important; }
 body.fm .it-sync-btn:hover { background: var(--fm-blue-hover) !important; border-color: var(--fm-blue-hover) !important; color: #fff !important; }
-body.fm .it-sync-badge { background: #E8A317; color: #3C2A00; border-color: #fff; }
 body.fm .it-close { color: var(--fm-text); font-weight: 400; }
 body.fm .it-close:hover { color: var(--fm-text); transform: none; }
 body.fm .it-error-message { margin: 16px 32px; padding: 12px 12px 12px 15px; border: 0; border-radius: 2px; background: var(--fm-warning-bg); box-shadow: inset 3px 0 0 #E8A317; color: var(--fm-text); text-align: left; }
