@@ -1891,22 +1891,11 @@
             const colors = fmAvatarColors(iconType, item.value || item.primary);
             let iconMarkup = '';
 
+            // Forma's own glyphs (same as the Folder access tree).
             if (iconType === 'company') {
-                iconMarkup = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="display:block;">
-                        <path d="M5 21V5a1 1 0 011-1h8a1 1 0 011 1v16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                        <path d="M15 21v-6a1 1 0 011-1h3a1 1 0 011 1v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                        <path d="M4 21h17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                        <path d="M8 7.5h2M8 11h2M8 14.5h2M11 7.5h2M11 11h2M11 14.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                    </svg>`;
+                iconMarkup = `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="display:block;"><path d="M13.19 8.06h-1.84V4a.77.77 0 0 0-.29-.59l-2.59-2a.75.75 0 0 0-1 0L4.92 3.65a.77.77 0 0 0-.26.57v1.11H2.82a.74.74 0 0 0-.75.75V14a.75.75 0 0 0 .75.75h10.37a.75.75 0 0 0 .75-.75V8.81a.74.74 0 0 0-.75-.75Zm-7.13 4h-1.3V10.8h1.3Zm0-2.69h-1.3V8.11h1.3Zm2.59 2.73H7.36v-1.3h1.29Zm0-2.69H7.36v-1.3h1.29Zm0-2.68H7.36v-1.3h1.29Zm2.6 5.37H10v-1.3h1.3Z"/></svg>`;
             } else if (iconType === 'role') {
-                iconMarkup = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="display:block;">
-                        <circle cx="8" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
-                        <circle cx="16" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
-                        <path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                        <path d="M14 14.3c.7-.2 1.3-.3 2-.3 3.3 0 6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    </svg>`;
+                iconMarkup = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:block;"><path d="M4.38,8.93A3.66,3.66,0,1,1,8,12.63,3.66,3.66,0,0,1,4.38,8.93Zm6,5.55H5.63A4.53,4.53,0,0,0,1.1,19a.75.75,0,0,0,.75.74H14.17a.75.75,0,0,0,.75-.74A4.54,4.54,0,0,0,10.39,14.48Zm6.46-1.85A3.66,3.66,0,0,0,20.51,9V9a3.66,3.66,0,1,0-3.66,3.66ZM18,14.47H16.17a.55.55,0,0,0-.62.49,1.44,1.44,0,0,0,.36.95,12.09,12.09,0,0,1,.7,1.2A12.53,12.53,0,0,1,17.42,19c.15.46.33.75.75.75h3.61a.74.74,0,0,0,.74-.74A4.53,4.53,0,0,0,18,14.47Z"/></svg>`;
             }
 
             userHTML += `
