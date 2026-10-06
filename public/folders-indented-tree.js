@@ -2668,9 +2668,8 @@ const accessCountText = typeof d.accessCount === 'number'
             }
             .user-list-item:hover { background: #fff; border-color: #ddd; }
             .user-list-item.user-selected { background-color: #0696D7; border-color: #0057A0; color: #fff; }
-            .user-list-item.user-selected .pu-item-email, .user-list-item.user-selected .pu-handle { color: rgba(255,255,255,0.75); }
+            .user-list-item.user-selected .pu-item-email { color: rgba(255,255,255,0.75); }
             .user-list-item.dragging { opacity: 0.5; cursor: grabbing; }
-            .pu-handle { color: #b7b7b7; font-size: 11px; letter-spacing: -2px; flex-shrink: 0; }
             .pu-avatar {
                 width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center;
                 justify-content: center; font-size: 10px; font-weight: 700; background: #dceafd; color: #1560c4;

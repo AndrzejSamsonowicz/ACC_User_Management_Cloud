@@ -1911,7 +1911,6 @@
 
             userHTML += `
                 <div class="user-list-item" draggable="true" data-user="${safeValue}" data-search="${escapeHtml(item.search || item.value || '')}" title="${safeValue}">
-                    <span class="pu-handle">&#8942;&#8942;</span>
                     <span class="pu-avatar" style="background: ${colors.background}; color: ${colors.color};">${iconType === 'user' ? safeInitials : iconMarkup}</span>
                     <span class="pu-item-text">
                         <span class="pu-item-name">${safePrimary}</span>

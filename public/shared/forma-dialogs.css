@@ -201,6 +201,8 @@ body.fm #invalidRolesBackdrop .fm-warn-list { margin: 6px 0 0; padding-left: 20p
 body.fm .fm-review-same-toggle { width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--fm-text-2); }
 body.fm .fm-review-same-toggle:hover { background: #FAFAFA; }
 body.fm .fm-link-text { color: var(--fm-link); }
+body.fm .fm-review-chev-cell { display: flex; align-items: center; justify-content: center; }
+body.fm .fm-review-same-toggle[aria-expanded="true"] .fm-chev { transform: rotate(45deg); margin-top: -4px; }
 
 /* ---------- Folder access (folders-indented-tree.js) ---------- */
 body.fm .it-overlay { background: rgba(60, 60, 60, 0.5); }
@@ -293,9 +295,8 @@ body.fm .user-list-items { padding: 4px 0; gap: 0; }
 body.fm .user-list-item { border: 0; border-radius: 0; padding: 0 16px; min-height: 48px; font-size: 14px; color: var(--fm-text); }
 body.fm .user-list-item:hover { background: #fff; border-color: transparent; }
 body.fm .user-list-item.user-selected { background: var(--fm-selected); color: var(--fm-text); box-shadow: inset 2px 0 0 var(--fm-blue); border-color: transparent; }
-body.fm .user-list-item.user-selected .pu-item-email, body.fm .user-list-item.user-selected .pu-handle { color: var(--fm-text-2); }
+body.fm .user-list-item.user-selected .pu-item-email { color: var(--fm-text-2); }
 body.fm .user-list-item.user-selected .pu-avatar { filter: none; }
-body.fm .pu-handle { color: #BBBBBB; }
 body.fm .pu-avatar { font-size: 11px; font-weight: 600; }
 body.fm .pu-item-name { font-weight: 400; }
 body.fm .pu-item-email { font-size: 12px; color: var(--fm-text-2); }

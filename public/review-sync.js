@@ -203,7 +203,8 @@
             const r = el('div', `fm-review-row is-${kind}`);
             const who = el('span', 'fm-review-who');
             who.append(avatar(row.email), el('span', 'fm-ell', row.email));
-            r.append(marker(kind), who, el('span', 'fm-review-note', row.note));
+            // Unchanged people sit under the expandable line: no marker, just the indent.
+            r.append(kind === 'same' ? el('span') : marker(kind), who, el('span', 'fm-review-note', row.note));
             parent.appendChild(r);
         };
         [['removed', diff.removed], ['added', diff.added], ['changed', diff.changed]].forEach(([kind, rows]) => {
@@ -214,14 +215,15 @@
             const sameToggle = el('button', 'fm-review-row is-same fm-review-same-toggle');
             sameToggle.type = 'button';
             sameToggle.setAttribute('aria-expanded', 'false');
-            sameToggle.append(marker('same'), el('span', 'fm-review-who', `${diff.same.length} ${diff.same.length === 1 ? 'person' : 'people'} with no changes`), el('span', 'fm-review-note fm-link-text', 'Show them'));
+            const sameChev = el('span', 'fm-review-chev-cell');
+            sameChev.appendChild(el('span', 'fm-chev'));
+            sameToggle.append(sameChev, el('span', 'fm-review-who', `${diff.same.length} ${diff.same.length === 1 ? 'person' : 'people'} with no changes`));
             const sameList = el('div');
             sameList.hidden = true;
             sameToggle.addEventListener('click', () => {
                 if (!sameList.childElementCount) diff.same.forEach(row => addRow(sameList, 'same', row));
                 sameList.hidden = !sameList.hidden;
                 sameToggle.setAttribute('aria-expanded', String(!sameList.hidden));
-                sameToggle.lastChild.textContent = sameList.hidden ? 'Show them' : 'Hide them';
             });
             list.append(sameToggle, sameList);
         }
