@@ -9,35 +9,30 @@
     // (escapeHtml is defined in shared/dom-utils.js, loaded before this file)
 
     /**
-     * Show folder sync modal with progress
+     * Show folder sync modal with progress (Forma look: shared/forma-dialogs.css, .fs-*)
      */
     function showFolderSyncModal() {
-        // Remove existing modal if present
         const existingModal = document.getElementById('folderSyncModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
+        if (existingModal) existingModal.remove();
 
         const modalHTML = `
-            <div id="folderSyncModal" style="position: fixed; z-index: 10200; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
-                <div style="background-color: white; padding: 0; border-radius: 8px; width: 90%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <div style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
-                        <h2 style="margin: 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Folder Permissions Sync</h2>
-                        <span class="folder-sync-modal-close" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">&times;</span>
+            <div id="folderSyncModal" class="fm-overlay is-open fs-overlay">
+                <div class="fm-dialog fs-dialog" role="dialog" aria-modal="true" aria-labelledby="folderSyncTitle">
+                    <div class="fm-dialog-head">
+                        <h2 class="fm-dialog-title" id="folderSyncTitle">Sync to Forma</h2>
+                        <button type="button" class="fm-dialog-close folder-sync-modal-close" aria-label="Close">&times;</button>
                     </div>
-                    <div style="padding: 20px; overflow-y: auto; flex: 1;">
-                        <div id="folderSyncProgress" style="margin-bottom: 20px;">
-                            <h4 style="margin: 0 0 15px 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; color: #333;">Progress</h4>
-                            <div id="folderSyncStatus" style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px; color: #666; margin-bottom: 10px;">Preparing sync...</div>
-                            <div style="background: #e9ecef; border-radius: 4px; height: 30px; overflow: hidden;">
-                                <div id="folderSyncBar" style="background: rgb(6, 150, 215); height: 100%; width: 0%; transition: width 0.3s;"></div>
-                            </div>
+                    <div class="fs-body">
+                        <div id="folderSyncProgress" class="fs-progress">
+                            <div id="folderSyncStatus" class="fs-status" aria-live="polite">Preparing the sync</div>
+                            <div class="fs-track"><div id="folderSyncBar" class="fs-bar"></div></div>
                         </div>
-                        
-                        <div id="folderSyncResults" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;">
-                            <h4 style="margin: 0 0 10px 0; font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif;">Sync Complete!</h4>
-                            <div id="folderSyncResultsContent" style="font-family: 'Artifakt Element', 'Noto Sans', Arial, sans-serif; font-size: 14px; line-height: 1.8;"></div>
+                        <div id="folderSyncResults" hidden>
+                            <div id="folderSyncResultsContent"></div>
                         </div>
+                    </div>
+                    <div class="fm-dialog-foot" id="folderSyncFoot" hidden>
+                        <button type="button" class="fm-btn fm-btn-primary folder-sync-modal-close">Done</button>
                     </div>
                 </div>
             </div>
@@ -45,26 +40,66 @@
 
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-        // Setup event listeners
-        const closeBtn = document.querySelector('.folder-sync-modal-close');
-        const syncButton = document.getElementById('folderSyncButton');
-
-        if (closeBtn) {
-            closeBtn.onclick = () => {
+        document.querySelectorAll('#folderSyncModal .folder-sync-modal-close').forEach(btn => {
+            btn.onclick = () => {
                 const modal = document.getElementById('folderSyncModal');
                 if (modal) modal.remove();
             };
-        }
+        });
     }
 
-    function updateFolderSyncProgress(message, percent = null) {
+    /** tone: undefined while working, 'error' when the sync stopped. */
+    function updateFolderSyncProgress(message, percent = null, tone) {
         const statusEl = document.getElementById('folderSyncStatus');
         const barEl = document.getElementById('folderSyncBar');
 
-        if (statusEl) statusEl.textContent = message;
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.classList.toggle('is-error', tone === 'error');
+        }
         if (barEl && percent !== null) {
             barEl.style.width = `${percent}%`;
         }
+        if (tone === 'error') {
+            const foot = document.getElementById('folderSyncFoot');
+            if (foot) foot.hidden = false;
+        }
+    }
+
+    /** "name (folder)" -> row with the name, and the folder on the right. Built with textContent. */
+    function syncListRow(entry) {
+        const m = /^(.*) \(([^()]*)\)$/.exec(String(entry));
+        const row = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'fs-name';
+        name.textContent = m ? m[1] : String(entry);
+        row.appendChild(name);
+        if (m) {
+            const folder = document.createElement('span');
+            folder.className = 'fs-folder';
+            folder.textContent = m[2];
+            row.appendChild(folder);
+        }
+        return row;
+    }
+
+    function syncSection(title, entries, opts = {}) {
+        const section = document.createElement('section');
+        section.className = 'fs-section' + (opts.tone ? ` fm-alert fm-alert-${opts.tone} is-visible` : '');
+        const h = document.createElement('h3');
+        h.textContent = `${title} (${entries.length})`;
+        section.appendChild(h);
+        if (opts.hint) {
+            const hint = document.createElement('p');
+            hint.className = 'fs-hint';
+            hint.textContent = opts.hint;
+            section.appendChild(hint);
+        }
+        const list = document.createElement('ul');
+        list.className = 'fs-list';
+        entries.forEach(e => list.appendChild(opts.plain ? Object.assign(document.createElement('li'), { textContent: String(e) }) : syncListRow(e)));
+        section.appendChild(list);
+        return section;
     }
 
     function showFolderSyncResults(summary) {
@@ -72,103 +107,77 @@
         const resultsContent = document.getElementById('folderSyncResultsContent');
         const progressDiv = document.getElementById('folderSyncProgress');
         const syncButton = document.getElementById('folderSyncButton');
+        const foot = document.getElementById('folderSyncFoot');
+        const title = document.getElementById('folderSyncTitle');
 
-        if (progressDiv) progressDiv.style.display = 'none';
+        if (progressDiv) progressDiv.hidden = true;
         if (syncButton) syncButton.style.display = 'none';
+        if (!resultsContent) return;
+        resultsContent.replaceChildren();
 
-        let html = `
-            <div style="margin-bottom: 15px;">
-                <strong>Summary:</strong><br>
-                ➕ Created: ${summary.created}<br>
-                🔄 Updated: ${summary.updated}<br>
-                ➖ Deleted: ${summary.deleted}<br>
-                ⚠️ Skipped (Admins): ${summary.skippedAdmins || 0}<br>
-                ${summary.skippedInherited ? `🔒 Skipped (Inherited): ${summary.skippedInherited}<br>` : ''}
-            </div>
-        `;
+        const errors = summary.errors || [];
+        if (title) title.textContent = errors.length ? 'Sync finished with problems' : 'Sync finished';
 
-        if (summary.createdUsers.length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Created Users:</strong><br>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e8f5e9; border-radius: 4px;">
-                        ${summary.createdUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✓ ${escapeHtml(u)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
+        // Counts, as one Forma strip (zero values muted)
+        const counts = [
+            ['Added', summary.created || 0],
+            ['Updated', summary.updated || 0],
+            ['Removed', summary.deleted || 0],
+            ['Skipped: project admins', summary.skippedAdmins || 0]
+        ];
+        if (summary.skippedInherited) counts.push(['Skipped: inherited', summary.skippedInherited]);
+        const strip = document.createElement('div');
+        strip.className = 'fs-counts';
+        counts.forEach(([label, n]) => {
+            const cell = document.createElement('div');
+            cell.className = 'fs-count' + (n ? '' : ' is-zero');
+            const value = document.createElement('span');
+            value.className = 'fs-count-value';
+            value.textContent = String(n);
+            const text = document.createElement('span');
+            text.className = 'fs-count-label';
+            text.textContent = label;
+            cell.append(value, text);
+            strip.appendChild(cell);
+        });
+        resultsContent.appendChild(strip);
+
+        if (errors.length) {
+            resultsContent.appendChild(syncSection('Not sent to Forma', errors, {
+                tone: 'error', plain: true,
+                hint: "These changes didn't reach Forma. Sync again to retry them."
+            }));
+        }
+        const missing = [...(summary.nonExistentUsers || []), ...(summary.incompleteUsers || [])];
+        if (missing.length) {
+            resultsContent.appendChild(syncSection('Not in this project', missing, {
+                tone: 'warning',
+                hint: 'Add these people to the project first, then sync again.'
+            }));
+        }
+        if ((summary.inactiveUsers || []).length) {
+            resultsContent.appendChild(syncSection('Waiting for invitation', summary.inactiveUsers, {
+                tone: 'warning',
+                hint: "They haven't signed in to Autodesk yet. Add them again once they accept their invitation."
+            }));
+        }
+        if ((summary.inheritedConflicts || []).length) {
+            resultsContent.appendChild(syncSection('Skipped: higher access inherited from the parent folder', summary.inheritedConflicts, { plain: true }));
+        }
+        if (summary.createdUsers.length) resultsContent.appendChild(syncSection('Added', summary.createdUsers));
+        if (summary.updatedUsers.length) resultsContent.appendChild(syncSection('Updated', summary.updatedUsers));
+        if (summary.deletedUsers.length) resultsContent.appendChild(syncSection('Removed', summary.deletedUsers));
+
+        const nothing = !summary.createdUsers.length && !summary.updatedUsers.length && !summary.deletedUsers.length && !errors.length && !missing.length;
+        if (nothing) {
+            const p = document.createElement('p');
+            p.className = 'fs-hint';
+            p.textContent = 'Forma already matched your changes, so nothing needed sending.';
+            resultsContent.appendChild(p);
         }
 
-        if (summary.updatedUsers.length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Updated Users:</strong><br>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e3f2fd; border-radius: 4px;">
-                        ${summary.updatedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">↻ ${escapeHtml(u)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        if (summary.deletedUsers.length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Deleted Users:</strong><br>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #ffebee; border-radius: 4px;">
-                        ${summary.deletedUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">✗ ${escapeHtml(u)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        // Combine non-existent and incomplete users into single list
-        const allMissingUsers = [...(summary.nonExistentUsers || []), ...(summary.incompleteUsers || [])];
-        if (allMissingUsers.length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Users don't exist in the project:</strong><br>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
-                        ${allMissingUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⚠️ ${escapeHtml(u)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        if ((summary.inactiveUsers || []).length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Some users are inactive and will not be added to the folder:</strong><br>
-                    <div style="font-size: 12px; color: #666; margin-top: 2px;">They haven't logged into Autodesk yet - add them again once they accept their invite.</div>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #fff3e0; border-radius: 4px;">
-                        ${summary.inactiveUsers.map(u => `<div style="padding: 2px 0; font-size: 13px;">⏳ ${escapeHtml(u)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        if ((summary.inheritedConflicts || []).length > 0) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <strong>Skipped — higher access already inherited from parent folder:</strong><br>
-                    <div style="max-height: 150px; overflow-y: auto; margin-top: 5px; padding: 10px; background: #e8eaf6; border-radius: 4px;">
-                        ${summary.inheritedConflicts.map(c => `<div style="padding: 2px 0; font-size: 13px;">🔒 ${escapeHtml(c)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        if (summary.errors.length > 0) {
-            html += `
-                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 4px;">
-                    <strong style="color: #856404;">Errors (${summary.errors.length}):</strong><br>
-                    <div style="max-height: 100px; overflow-y: auto; margin-top: 5px; font-size: 12px; color: #856404;">
-                        ${summary.errors.map(e => `<div>• ${escapeHtml(e)}</div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        if (resultsContent) resultsContent.innerHTML = html;
-        if (resultsDiv) resultsDiv.style.display = 'block';
+        if (resultsDiv) resultsDiv.hidden = false;
+        if (foot) foot.hidden = false;
     }
 
     /**
@@ -521,7 +530,7 @@
         isSyncing = true;
         log('🔒 Sync started - button locked');
 
-        updateFolderSyncProgress('Reading permissions from table...', 0);
+        updateFolderSyncProgress('Reading your changes', 0);
 
         // Start sync immediately — returned (not fire-and-forget) so callers
         // that await syncPermissionsToACC() actually wait for the real work
@@ -535,10 +544,10 @@
             // source of truth regardless of what's currently on screen.
             try {
                 if (typeof currentHierarchy === 'undefined' || !currentHierarchy || currentHierarchy.length === 0) {
-                    updateFolderSyncProgress('Error: No folder data loaded', 0);
+                    updateFolderSyncProgress('No folders are loaded. Close Folder access, open it again, then sync.', 0, 'error');
                     isSyncing = false;
                     log('🔓 Sync failed (no folder data) - button unlocked');
-                    alert('No folder data loaded. Please reopen the modal.');
+                    alert('No folders are loaded. Close Folder access, open it again, then sync.');
                     return;
                 }
 
@@ -549,7 +558,7 @@
                 // still say a just-deleted user "exists", and ACC's own API would
                 // reject the whole batch with ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE.
                 try {
-                    updateFolderSyncProgress('Refreshing project membership...', 2);
+                    updateFolderSyncProgress('Checking who is in the project', 2);
                     currentProjectUsersRaw = await fetchAllProjectUsers(currentProjectData.projectId, currentProjectData.accessToken);
                 } catch (refreshError) {
                     console.warn('⚠️ Failed to refresh project users before sync, using cached list:', refreshError.message);
@@ -955,7 +964,7 @@
                 }
 
                 const progressPercent = (syncSummary.processedFolders / syncSummary.totalFolders) * 100;
-                updateFolderSyncProgress(`Syncing permissions... ${syncSummary.processedFolders}/${syncSummary.totalFolders} folders`, progressPercent);
+                updateFolderSyncProgress(`Sending changes to Forma: ${syncSummary.processedFolders} of ${syncSummary.totalFolders} folders`, progressPercent);
                 log(`📊 Progress: ${Math.round(progressPercent)}% (${syncSummary.processedFolders}/${syncSummary.totalFolders} folders)`);
                 
                 log(`📊 Current summary:`, {
@@ -993,7 +1002,7 @@
 
             } catch (error) {
                 console.error('❌ Sync error:', error);
-                updateFolderSyncProgress(`Error: ${error.message}`, 0);
+                updateFolderSyncProgress(`The sync stopped: ${error.message}. Changes sent before this point are already in Forma; sync again to send the rest.`, 0, 'error');
                 isSyncing = false;
                 log('🔓 Sync failed - button unlocked');
                 alert(`Sync failed: ${error.message}`);

@@ -384,3 +384,29 @@ body.fm .it-selbar-hint { color: var(--fm-text-2); font-size: 13px; }
 body.fm .it-selbar-clear { margin-left: auto; }
 body.fm .it-selbar .it-selbar-clear { border-color: transparent !important; background: transparent !important; color: var(--fm-link) !important; }
 body.fm .it-selbar .it-selbar-clear:hover { text-decoration: underline; }
+
+/* Folder access: Sync to Forma dialog (update_folder_permission.js) */
+body.fm .fs-overlay { z-index: 10200; }
+body.fm .fs-dialog { max-width: 640px; max-height: 85vh; }
+body.fm .fs-body { padding: 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+body.fm .fs-progress { display: flex; flex-direction: column; gap: 10px; }
+body.fm .fs-progress[hidden], body.fm #folderSyncResults[hidden] { display: none; }
+body.fm .fs-status { color: var(--fm-text-2); overflow-wrap: anywhere; }
+body.fm .fs-status.is-error { color: var(--fm-error); }
+body.fm .fs-track { height: 4px; border-radius: 4px; background: #EEEEEE; overflow: hidden; }
+body.fm .fs-bar { height: 100%; width: 0; background: var(--fm-blue); transition: width .3s; }
+@media (prefers-reduced-motion: reduce) { body.fm .fs-bar { transition: none; } }
+body.fm #folderSyncResultsContent { display: flex; flex-direction: column; gap: 16px; }
+body.fm .fs-counts { display: flex; flex-wrap: wrap; border: 1px solid var(--fm-divider); border-radius: 4px; }
+body.fm .fs-count { flex: 1 1 110px; padding: 10px 16px; display: flex; flex-direction: column; box-shadow: inset -1px 0 0 var(--fm-row-line); }
+body.fm .fs-count-value { font-size: 24px; line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums; }
+body.fm .fs-count-label { font-size: 13px; color: var(--fm-text-2); }
+body.fm .fs-count.is-zero .fs-count-value { color: var(--fm-text-3); font-weight: 400; }
+body.fm .fs-section h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+body.fm .fs-hint { margin: 0 0 6px; color: var(--fm-text-2); font-size: 13px; }
+body.fm .fs-list { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow-y: auto; }
+body.fm .fs-list li { display: flex; gap: 12px; min-height: 36px; align-items: center; border-bottom: 1px solid var(--fm-row-line); font-size: 14px; }
+body.fm .fm-alert .fs-list li { border-bottom-color: rgba(0, 0, 0, 0.06); }
+body.fm .fs-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.fm .fs-folder { color: var(--fm-text-2); white-space: nowrap; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+body.fm .fm-dialog-foot[hidden] { display: none; }

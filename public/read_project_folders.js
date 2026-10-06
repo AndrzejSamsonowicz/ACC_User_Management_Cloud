@@ -1859,8 +1859,8 @@
                 <div class="pu-help-body">
                     Drag a user, a company, or a role to add them to a folder.<br>
                     To find several people at once, separate their names with <kbd>&amp;</kbd> in the search box, e.g. <em>andrew &amp; bob</em>.<br>
-                    To change an access level, click its bars and press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>.<br>
-                    To change several at once, select them with <kbd>Ctrl</kbd>+click (or <kbd>Shift</kbd>+click for a range), then press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>. The first one you selected sets the level for all of them.<br>
+                    To change an access level, click its bars and press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd> on the keyboard.<br>
+                    To change several at once, select them with <kbd>Ctrl</kbd>+click (or <kbd>Shift</kbd>+click for a range), then press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd> on the keyboard. The first one you selected sets the level for all of them.<br>
                     Press <kbd>Ctrl</kbd> and <strong>scroll</strong> to zoom the tree in and out.<br>
                     <div style="margin-top: 10px;"><strong>Access levels</strong> (as in Forma, one bar per group):</div>
                     <div><strong>View</strong> (1 bar): View only, or View + Download</div>
