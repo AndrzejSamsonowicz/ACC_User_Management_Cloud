@@ -1267,14 +1267,17 @@
 
     /** Update one entry's level in the model (+ its own node object), returning its descendant folder ids. */
     // ---------- Permission bars ----------
-    // One bar per level (1-6), filled up to the current level, with the level name under them.
+    // As in Forma: four bars, one per group (View, Create, Edit, Manage), with the
+    // group name under them. The six levels map onto the groups; the first level of
+    // a two-level group (View only, ... + Publish markups) shows its group's bar
+    // outlined instead of filled. Arrow keys still step through all six levels.
     const IT_LEVELS = [null,
-        { short: 'View', name: 'View only' },
-        { short: 'Download', name: 'View + Download' },
-        { short: 'Markups', name: 'View + Download + Publish markups' },
-        { short: 'Upload', name: 'View + Download + Publish markups + Upload' },
-        { short: 'Edit', name: 'View + Download + Publish markups + Upload + Edit' },
-        { short: 'Manage', name: 'Full control' }];
+        { group: 'View', bars: 1, outlined: true, name: 'View only' },
+        { group: 'View', bars: 1, outlined: false, name: 'View + Download' },
+        { group: 'Create', bars: 2, outlined: true, name: 'View + Download + Publish markups' },
+        { group: 'Create', bars: 2, outlined: false, name: 'View + Download + Publish markups + Upload' },
+        { group: 'Edit', bars: 3, outlined: false, name: 'View + Download + Publish markups + Upload + Edit' },
+        { group: 'Manage', bars: 4, outlined: false, name: 'Full administrative controls' }];
 
     function itFillLevelView(view, level, labelOverride) {
         const n = Math.min(6, Math.max(1, parseInt(level, 10) || 1));
@@ -1282,14 +1285,15 @@
         view.replaceChildren();
         const pills = document.createElement('span');
         pills.className = 'it-pills';
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 4; i++) {
             const pill = document.createElement('span');
-            pill.className = 'it-pill' + (i < n ? ' is-on' : '');
+            const isLast = i === lv.bars - 1;
+            pill.className = 'it-pill' + (i < lv.bars ? (isLast && lv.outlined ? ' is-part' : ' is-on') : '');
             pills.appendChild(pill);
         }
         const label = document.createElement('span');
         label.className = 'it-level-label';
-        label.textContent = labelOverride || lv.short;
+        label.textContent = labelOverride || lv.group;
         view.append(pills, label);
         const widget = view.closest('.it-level-input');
         view.title = widget ? '' : (labelOverride || lv.name); // editable ones use itShowLevelTip
@@ -2718,7 +2722,7 @@
                             <div class="it-col-cell" data-col="level">
                                 <span id="itLevelColLabel">Access level</span>
                                 <span class="it-help-dot" tabindex="0">?
-                                    <span class="it-help-tooltip"><strong>Access levels</strong><br>View: view only, or with Download, Markups or Upload<br>Edit: all of the above plus Edit<br>Manage: full control<br><br>To change a level, click it, then press ← or →.</span>
+                                    <span class="it-help-tooltip it-schema"><strong class="it-schema-title">Access levels</strong><span class="it-schema-group"><span class="it-schema-head"><span class="it-pills"><span class="it-pill is-on"></span><span class="it-pill"></span><span class="it-pill"></span><span class="it-pill"></span></span><span>View</span></span><span class="it-schema-level">View only</span><span class="it-schema-level">View + Download</span></span><span class="it-schema-group"><span class="it-schema-head"><span class="it-pills"><span class="it-pill is-on"></span><span class="it-pill is-on"></span><span class="it-pill"></span><span class="it-pill"></span></span><span>Create</span></span><span class="it-schema-level">View + Download + Publish markups</span><span class="it-schema-level">View + Download + Publish markups + Upload</span></span><span class="it-schema-group"><span class="it-schema-head"><span class="it-pills"><span class="it-pill is-on"></span><span class="it-pill is-on"></span><span class="it-pill is-on"></span><span class="it-pill"></span></span><span>Edit</span></span><span class="it-schema-level">View + Download + Publish markups + Upload + Edit</span></span><span class="it-schema-group"><span class="it-schema-head"><span class="it-pills"><span class="it-pill is-on"></span><span class="it-pill is-on"></span><span class="it-pill is-on"></span><span class="it-pill is-on"></span></span><span>Manage</span></span><span class="it-schema-level">Full administrative controls</span></span><span class="it-schema-note"><span class="it-schema-head"><span class="it-pills"><span class="it-pill is-on"></span><span class="it-pill is-part"></span><span class="it-pill"></span><span class="it-pill"></span></span><span>Outlined bar: the first level of its group, e.g. View + Download + Publish markups.</span></span>To change a level, click it, then press ← or →.</span></span>
                                 </span>
                                 <span class="it-col-resizer" data-col="level" title="Drag to resize. Double-click to reset."></span>
                             </div>

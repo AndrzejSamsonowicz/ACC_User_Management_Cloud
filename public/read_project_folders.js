@@ -1862,13 +1862,12 @@
                     To change an access level, click its bars and press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>.<br>
                     To change several at once, select them with <kbd>Ctrl</kbd>+click (or <kbd>Shift</kbd>+click for a range), then press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd>. The first one you selected sets the level for all of them.<br>
                     Press <kbd>Ctrl</kbd> and <strong>scroll</strong> to zoom the tree in and out.<br>
-                    <div style="margin-top: 10px;"><strong>Access levels</strong> (one bar per level):</div>
-                    <div>1 View only</div>
-                    <div>2 + Download</div>
-                    <div>3 + Publish markups</div>
-                    <div>4 + Upload</div>
-                    <div>5 + Edit</div>
-                    <div>6 Full control (Manage)</div>
+                    <div style="margin-top: 10px;"><strong>Access levels</strong> (as in Forma, one bar per group):</div>
+                    <div><strong>View</strong> (1 bar): View only, or View + Download</div>
+                    <div><strong>Create</strong> (2 bars): + Publish markups, or + Publish markups + Upload</div>
+                    <div><strong>Edit</strong> (3 bars): + Upload + Edit</div>
+                    <div><strong>Manage</strong> (4 bars): full administrative controls</div>
+                    <div>An outlined bar marks the first level of its group: View only, or + Publish markups.</div>
                     <div class="pu-legend-row">
                         <span class="pu-chip pu-chip-user">User</span>
                         <span class="pu-chip pu-chip-company">Company</span>

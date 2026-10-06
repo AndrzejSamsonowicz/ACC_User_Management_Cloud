@@ -247,11 +247,14 @@ body.fm .it-help-tooltip { background: #fff; color: var(--fm-text); box-shadow: 
 body.fm .it-modal-body { padding: 4px 0 24px; }
 /* Permission pills */
 body.fm .it-level { position: relative; width: 100px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: var(--fm-font); border-radius: 2px; }
-body.fm .it-level-view { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 96px; }
-body.fm .it-pills { display: flex; gap: 3px; }
-body.fm .it-pill { width: 13px; height: 7px; border-radius: 16px; background: #EEEEEE; }
+body.fm .it-level-view { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100px; }
+/* Forma: four bars, 21x8, fully round; on = blue, outlined = first level of its group */
+body.fm .it-pills { display: flex; gap: 4px; }
+body.fm .it-pill { box-sizing: border-box; width: 21px; height: 8px; border-radius: 16px; background: #EEEEEE; }
 body.fm .it-pill.is-on { background: var(--fm-blue); }
+body.fm .it-pill.is-part { background: transparent; border: 1px solid #7CC3E6; }
 body.fm .it-level.is-inherited .it-pill.is-on { background: #9FD4EE; }
+body.fm .it-level.is-inherited .it-pill.is-part { border-color: #C3E3F3; }
 body.fm .it-level-label { font-size: 12px; line-height: 14px; color: var(--fm-text); white-space: nowrap; }
 body.fm .it-level.is-inherited .it-level-label { color: var(--fm-text-3); }
 body.fm .it-level-chev { width: 7px; height: 7px; border-right: 1.6px solid var(--fm-text); border-bottom: 1.6px solid var(--fm-text); transform: rotate(45deg); margin-top: -4px; }
@@ -361,3 +364,13 @@ body.fm .au-empty { margin: 0; padding: 24px 8px; color: var(--fm-text-2); }
 @media (max-width: 700px) { body.fm .au-table-wrap, body.fm .au-status { padding-left: 12px; padding-right: 12px; } }
 /* Access columns: header label centred over its centred tick boxes, at any column width */
 body.fm #userManagementModal .modal-table thead th.modal-resizable-th:not(.modal-editable) { text-align: center; }
+
+/* Access level help (?): Forma's grouped list of levels */
+body.fm .it-help-tooltip.it-schema { width: 380px; padding: 8px 0; line-height: 20px; font-weight: 400; }
+body.fm .it-schema-title { display: block; padding: 4px 16px 8px; }
+body.fm .it-schema-group { display: block; padding: 6px 0; border-top: 1px solid var(--fm-divider); }
+body.fm .it-schema-head { display: flex; align-items: center; gap: 12px; padding: 4px 16px; }
+body.fm .it-schema-level { display: block; padding: 4px 16px; color: var(--fm-text-2); }
+body.fm .it-schema-note { display: block; padding: 8px 16px 4px; border-top: 1px solid var(--fm-divider); color: var(--fm-text-2); }
+body.fm .it-schema-note .it-schema-head { padding: 0 0 6px; align-items: flex-start; }
+body.fm .it-schema-note .it-pills { margin-top: 6px; flex: none; }
