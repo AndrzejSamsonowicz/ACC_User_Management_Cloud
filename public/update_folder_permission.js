@@ -163,15 +163,15 @@
             }));
         }
         if ((summary.noDocsUsers || []).length) {
-            resultsContent.appendChild(syncSection('No Docs access in this project', summary.noDocsUsers, {
+            resultsContent.appendChild(syncSection('No Data Management access in this project', summary.noDocsUsers, {
                 tone: 'warning',
-                hint: 'Their Docs access is set to None in this project. Give them Docs access in Members, then sync again.'
+                hint: 'Their Data Management access is set to None in this project. Give them Data Management access in Members, then sync again.'
             }));
         }
         if ((summary.notInDocsUsers || []).length) {
-            resultsContent.appendChild(syncSection('Not in Docs for this project yet', summary.notInDocsUsers, {
+            resultsContent.appendChild(syncSection('Not in Data Management for this project yet', summary.notInDocsUsers, {
                 tone: 'warning',
-                hint: "Forma's Docs doesn't list them in this project yet, so they were left out and everyone else was sent. If they were just added to the project, sync again in a few minutes; otherwise check their Docs access in Members."
+                hint: "Forma still didn't list them in Data Management after waiting about a minute, so they were left out and everyone else was sent. Sync again in a few minutes; if it keeps happening, check their Data Management access in Members."
             }));
         }
         if ((summary.inheritedConflicts || []).length) {
@@ -436,7 +436,7 @@
             const badIds = notActiveSubjectIds(response.status, text);
             const dropped = pending.filter(p => badIds.has(String(p.subjectId).toLowerCase()));
             if (dropped.length === 0) throw new Error(`HTTP ${response.status}: ${text}`);
-            console.warn(`⚠️ Not in this project's Docs, left out of the batch: ${dropped.map(p => p.user).join(', ')}`);
+            console.warn(`⚠️ Not in this project's Data Management (yet), left out of the batch: ${dropped.map(p => p.user).join(', ')}`);
             rejected.push(...dropped);
             pending = pending.filter(p => !badIds.has(String(p.subjectId).toLowerCase()));
         }
@@ -444,11 +444,17 @@
         return { sent: [], rejected, data: {} };
     }
 
+    // People added to a project only moments ago are already project members
+    // (Admin API) but not yet known to Data Management, which provisions them a
+    // little later - so giving them folder access right after adding them is
+    // rejected. Wait and retry just them before reporting them as left out.
+    const NOT_READY_RETRY_DELAYS_MS = [20000, 20000, 20000];
+
     /**
      * Create/update/delete folder permissions in batches of 50 (Autodesk's hard
      * limit per request). Returns { success, sent, rejected, results, error }:
      * `sent` are the permissions Forma accepted (even if a later batch failed),
-     * `rejected` the users Autodesk said aren't in the project's Docs.
+     * `rejected` the users Data Management still didn't know after retrying.
      */
     async function runPermissionBatches(kind, projectId, folderId, folderName, permissions, accessToken) {
         const result = { success: true, sent: [], rejected: [], results: [] };
@@ -461,24 +467,43 @@
         const verb = { create: 'Creating', update: 'Updating', delete: 'Removing' }[kind];
         const activityType = { create: 'Folder permission given', update: 'Folder permission changed', delete: 'Folder permission removed' }[kind];
 
-        const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
-        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
-            const chunk = permissions.slice(i, i + BATCH_SIZE);
-            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
-            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
-            updateFolderSyncProgress(`${verb} access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
-            log(`📤 ${verb} ${chunk.length} permissions (batch ${chunkNum}/${totalChunks})...`);
+        // Sends `list` in batches; returns the people Data Management rejected,
+        // or throws (with what was sent so far already in `result`).
+        const sendAll = async (list) => {
+            const rejectedNow = [];
+            const totalChunks = Math.ceil(list.length / BATCH_SIZE);
+            for (let i = 0; i < list.length; i += BATCH_SIZE) {
+                const chunk = list.slice(i, i + BATCH_SIZE);
+                const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
+                const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
+                updateFolderSyncProgress(`${verb} access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
+                log(`📤 ${verb} ${chunk.length} permissions (batch ${chunkNum}/${totalChunks})...`);
 
-            try {
                 const { sent, rejected, data } = await postPermissionBatch(apiUrl, chunk, accessToken, kind !== 'delete');
                 result.sent.push(...sent);
-                result.rejected.push(...rejected);
+                rejectedNow.push(...rejected);
                 result.results.push(...((data && data.results) || []));
                 if (sent.length) recordFolderActivity(activityType, projectId, folderName, sent);
-            } catch (error) {
-                console.error(`Error ${verb.toLowerCase()} permissions:`, error);
-                return { ...result, success: false, error: error.message };
             }
+            return rejectedNow;
+        };
+
+        try {
+            let waiting = await sendAll(permissions);
+            // Removing access from someone Data Management doesn't know has nothing to wait for
+            if (kind !== 'delete') {
+                for (let round = 0; round < NOT_READY_RETRY_DELAYS_MS.length && waiting.length > 0; round++) {
+                    const n = waiting.length;
+                    updateFolderSyncProgress(`Waiting for Forma to finish adding ${n} ${n === 1 ? 'person' : 'people'} to Data Management, then trying "${folderName}" again (${round + 1} of ${NOT_READY_RETRY_DELAYS_MS.length})...`);
+                    log(`⏳ ${n} not in Data Management yet for ${folderName}, retrying in ${NOT_READY_RETRY_DELAYS_MS[round] / 1000}s`);
+                    await new Promise(resolve => setTimeout(resolve, NOT_READY_RETRY_DELAYS_MS[round]));
+                    waiting = await sendAll(waiting);
+                }
+            }
+            result.rejected.push(...waiting);
+        } catch (error) {
+            console.error(`Error ${verb.toLowerCase()} permissions:`, error);
+            return { ...result, success: false, error: error.message };
         }
         return result;
     }
@@ -736,7 +761,7 @@
                                     syncSummary.skippedInactive++;
                                     syncSummary.inactiveUsers.push(jsonPerm.user);
                                 } else if (hasNoDocsAccess(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
-                                    log(`  ⚠️ SKIP CREATE: No Docs access in this project (${jsonPerm.user})`);
+                                    log(`  ⚠️ SKIP CREATE: No Data Management access in this project (${jsonPerm.user})`);
                                     syncSummary.noDocsUsers.push(`${jsonPerm.user} (${folderName})`);
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
@@ -770,7 +795,7 @@
                                         syncSummary.skippedInactive++;
                                         syncSummary.inactiveUsers.push(jsonPerm.user);
                                     } else if (hasNoDocsAccess(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
-                                        log(`  ⚠️ SKIP UPDATE: No Docs access in this project (${jsonPerm.user})`);
+                                        log(`  ⚠️ SKIP UPDATE: No Data Management access in this project (${jsonPerm.user})`);
                                         syncSummary.noDocsUsers.push(`${jsonPerm.user} (${folderName})`);
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                         log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
