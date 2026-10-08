@@ -116,7 +116,8 @@
         resultsContent.replaceChildren();
 
         const errors = summary.errors || [];
-        if (title) title.textContent = errors.length ? 'Sync finished with problems' : 'Sync finished';
+        const leftOut = (summary.notInDocsUsers || []).length + (summary.noDocsUsers || []).length;
+        if (title) title.textContent = errors.length || leftOut ? 'Sync finished with problems' : 'Sync finished';
 
         // Counts, as one Forma strip (zero values muted)
         const counts = [
@@ -161,6 +162,18 @@
                 hint: "They haven't signed in to Autodesk yet. Add them again once they accept their invitation."
             }));
         }
+        if ((summary.noDocsUsers || []).length) {
+            resultsContent.appendChild(syncSection('No Docs access in this project', summary.noDocsUsers, {
+                tone: 'warning',
+                hint: 'Their Docs access is set to None in this project. Give them Docs access in Members, then sync again.'
+            }));
+        }
+        if ((summary.notInDocsUsers || []).length) {
+            resultsContent.appendChild(syncSection('Not in Docs for this project yet', summary.notInDocsUsers, {
+                tone: 'warning',
+                hint: "Forma's Docs doesn't list them in this project yet, so they were left out and everyone else was sent. If they were just added to the project, sync again in a few minutes; otherwise check their Docs access in Members."
+            }));
+        }
         if ((summary.inheritedConflicts || []).length) {
             resultsContent.appendChild(syncSection('Skipped: higher access inherited from the parent folder', summary.inheritedConflicts, { plain: true }));
         }
@@ -168,7 +181,8 @@
         if (summary.updatedUsers.length) resultsContent.appendChild(syncSection('Updated', summary.updatedUsers));
         if (summary.deletedUsers.length) resultsContent.appendChild(syncSection('Removed', summary.deletedUsers));
 
-        const nothing = !summary.createdUsers.length && !summary.updatedUsers.length && !summary.deletedUsers.length && !errors.length && !missing.length;
+        const nothing = !summary.createdUsers.length && !summary.updatedUsers.length && !summary.deletedUsers.length && !errors.length && !missing.length
+            && !(summary.noDocsUsers || []).length && !(summary.notInDocsUsers || []).length;
         if (nothing) {
             const p = document.createElement('p');
             p.className = 'fs-hint';
@@ -330,6 +344,18 @@
     }
 
     /**
+     * A project member whose Docs access is "None" isn't in the project's Docs,
+     * so folder permissions for them are rejected (and used to take the whole
+     * batch down with them). Only blocks when the data clearly says so.
+     */
+    function hasNoDocsAccess(subjectId, subjectType, usersById) {
+        if (subjectType !== 'USER') return false;
+        const user = usersById && usersById.get(subjectId);
+        const docs = user && Array.isArray(user.products) && user.products.find(p => p.key === 'docs');
+        return !!docs && docs.access === 'none';
+    }
+
+    /**
      * Check if a user is a project admin
      */
     function isProjectAdmin(subjectId, subjectType, usersById) {
@@ -360,176 +386,106 @@
     }
 
     /**
-     * Batch create folder permissions
+     * Autodesk rejects a whole permissions batch with
+     * ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE when *some* of its users
+     * aren't in the project's Docs (yet) - e.g. their Docs access is "None", or
+     * they were added to the project minutes ago and Docs hasn't caught up. The
+     * error lists those users ("error ids: a,b,c"). Returns them as a Set of
+     * lower-cased subject ids, or an empty Set for any other error.
      */
-    async function batchCreatePermissions(projectId, folderId, folderName, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
-
-        const BATCH_SIZE = 50; // Autodesk permissions:batch-create hard limit per request
-        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-        const folderUrn = encodeURIComponent(folderId);
-        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-create`;
-
-        const allResults = [];
-        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
-            const chunk = permissions.slice(i, i + BATCH_SIZE);
-            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
-            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
-            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
-            updateFolderSyncProgress(`Creating access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
-
-            // Strip non-API fields before sending
-            const apiPayload = chunk.map(p => ({
-                subjectId: p.subjectId,
-                subjectType: p.subjectType,
-                actions: p.actions
-            }));
-
-            log(`📤 Creating ${apiPayload.length} permissions (batch ${chunkNum}/${totalChunks})...`);
-            log(`📤 Payload:`, JSON.stringify(apiPayload));
-
-            try {
-                const response = await apsFetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(apiPayload)
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-
-                const data = await response.json();
-                allResults.push(...(data.results || []));
-                recordFolderActivity('Folder permission given', projectId, folderName, chunk);
-            } catch (error) {
-                console.error(`Error creating permissions:`, error);
-                return { success: false, error: error.message, results: allResults };
-            }
-
-        }
-
-        return { success: true, results: allResults };
+    function notActiveSubjectIds(status, errorText) {
+        if (status !== 400 || !String(errorText).includes('ERR_PERMISSION_RESOURCE_NOT_EXIST_OR_NOT_ACTIVE')) return new Set();
+        let detail = String(errorText);
+        try {
+            const parsed = JSON.parse(errorText);
+            detail = parsed.detail || parsed.title || detail;
+        } catch (e) { /* not JSON */ }
+        const m = /error ids:\s*([0-9a-zA-Z,\s-]+)/i.exec(detail);
+        return new Set(m ? m[1].split(',').map(id => id.trim().toLowerCase()).filter(Boolean) : []);
     }
 
     /**
-     * Batch update folder permissions
+     * Send one permissions batch (create/update/delete share the request shape).
+     * If Autodesk names users who aren't in the project's Docs, drop exactly
+     * those and resend the rest, so a few people can't block everyone else.
+     * Returns { sent, rejected, data }; throws on any other error.
      */
-    async function batchUpdatePermissions(projectId, folderId, folderName, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
+    async function postPermissionBatch(apiUrl, chunk, accessToken, includeActions) {
+        let pending = chunk;
+        const rejected = [];
+        for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
+            const response = await apsFetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                // Strip non-API fields before sending
+                body: JSON.stringify(pending.map(p => includeActions
+                    ? { subjectId: p.subjectId, subjectType: p.subjectType, actions: p.actions }
+                    : { subjectId: p.subjectId, subjectType: p.subjectType }))
+            });
 
-        const BATCH_SIZE = 50; // Autodesk permissions:batch-update hard limit per request
-        const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
-        const folderUrn = encodeURIComponent(folderId);
-        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-update`;
-
-        const allResults = [];
-        for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
-            const chunk = permissions.slice(i, i + BATCH_SIZE);
-            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
-            const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
-            const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
-            updateFolderSyncProgress(`Updating access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
-
-            // Strip non-API fields before sending
-            const apiPayload = chunk.map(p => ({
-                subjectId: p.subjectId,
-                subjectType: p.subjectType,
-                actions: p.actions
-            }));
-
-            log(`📤 Updating ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
-            log(`📤 Payload:`, JSON.stringify(apiPayload));
-
-            try {
-                const response = await apsFetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(apiPayload)
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-
-                const data = await response.json();
-                allResults.push(...(data.results || []));
-                recordFolderActivity('Folder permission changed', projectId, folderName, chunk);
-            } catch (error) {
-                console.error(`Error updating permissions:`, error);
-                return { success: false, error: error.message, results: allResults };
+            const text = await response.text().catch(() => '');
+            if (response.ok) {
+                let data = {};
+                try { data = text ? JSON.parse(text) : {}; } catch (e) { /* empty or non-JSON body */ }
+                return { sent: pending, rejected, data };
             }
 
+            const badIds = notActiveSubjectIds(response.status, text);
+            const dropped = pending.filter(p => badIds.has(String(p.subjectId).toLowerCase()));
+            if (dropped.length === 0) throw new Error(`HTTP ${response.status}: ${text}`);
+            console.warn(`⚠️ Not in this project's Docs, left out of the batch: ${dropped.map(p => p.user).join(', ')}`);
+            rejected.push(...dropped);
+            pending = pending.filter(p => !badIds.has(String(p.subjectId).toLowerCase()));
         }
-
-        return { success: true, results: allResults };
+        if (pending.length > 0) throw new Error('Autodesk kept rejecting this batch');
+        return { sent: [], rejected, data: {} };
     }
 
     /**
-     * Batch delete folder permissions
+     * Create/update/delete folder permissions in batches of 50 (Autodesk's hard
+     * limit per request). Returns { success, sent, rejected, results, error }:
+     * `sent` are the permissions Forma accepted (even if a later batch failed),
+     * `rejected` the users Autodesk said aren't in the project's Docs.
      */
-    async function batchDeletePermissions(projectId, folderId, folderName, permissions, accessToken) {
-        if (permissions.length === 0) return { success: true, results: [] };
+    async function runPermissionBatches(kind, projectId, folderId, folderName, permissions, accessToken) {
+        const result = { success: true, sent: [], rejected: [], results: [] };
+        if (permissions.length === 0) return result;
 
-        const BATCH_SIZE = 50; // Autodesk permissions:batch-delete hard limit per request
+        const BATCH_SIZE = 50;
         const formattedProjectId = projectId.startsWith('b.') ? projectId.substring(2) : projectId;
         const folderUrn = encodeURIComponent(folderId);
-        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-delete`;
+        const apiUrl = `https://developer.api.autodesk.com/bim360/docs/v1/projects/${formattedProjectId}/folders/${folderUrn}/permissions:batch-${kind}`;
+        const verb = { create: 'Creating', update: 'Updating', delete: 'Removing' }[kind];
+        const activityType = { create: 'Folder permission given', update: 'Folder permission changed', delete: 'Folder permission removed' }[kind];
 
+        const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
         for (let i = 0; i < permissions.length; i += BATCH_SIZE) {
             const chunk = permissions.slice(i, i + BATCH_SIZE);
-            const totalChunks = Math.ceil(permissions.length / BATCH_SIZE);
             const chunkNum = Math.floor(i / BATCH_SIZE) + 1;
             const preview = chunk.length > 1 ? `${chunk[0].user} and ${chunk.length - 1} more` : chunk[0].user;
-            updateFolderSyncProgress(`Removing access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
-
-            // Strip non-API fields before sending
-            const apiPayload = chunk.map(p => ({
-                subjectId: p.subjectId,
-                subjectType: p.subjectType
-            }));
-
-            log(`📤 Deleting ${apiPayload.length} permissions (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(permissions.length / BATCH_SIZE)})...`);
-            log(`📤 DELETE API URL: ${apiUrl}`);
-            log(`📤 DELETE Request Body:`, JSON.stringify(apiPayload, null, 2));
+            updateFolderSyncProgress(`${verb} access for ${preview} in "${folderName}"${totalChunks > 1 ? ` (batch ${chunkNum}/${totalChunks})` : ''}...`);
+            log(`📤 ${verb} ${chunk.length} permissions (batch ${chunkNum}/${totalChunks})...`);
 
             try {
-                const response = await apsFetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(apiPayload)
-                });
-
-                log(`📤 DELETE Response Status: ${response.status} ${response.statusText}`);
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-
-                const responseText = await response.text();
-                log(`📤 DELETE Response:`, responseText || 'No body (200 OK)');
-                recordFolderActivity('Folder permission removed', projectId, folderName, chunk);
+                const { sent, rejected, data } = await postPermissionBatch(apiUrl, chunk, accessToken, kind !== 'delete');
+                result.sent.push(...sent);
+                result.rejected.push(...rejected);
+                result.results.push(...((data && data.results) || []));
+                if (sent.length) recordFolderActivity(activityType, projectId, folderName, sent);
             } catch (error) {
-                console.error(`Error deleting permissions:`, error);
-                return { success: false, error: error.message };
+                console.error(`Error ${verb.toLowerCase()} permissions:`, error);
+                return { ...result, success: false, error: error.message };
             }
-
         }
-
-        return { success: true };
+        return result;
     }
+
+    const batchCreatePermissions = (...args) => runPermissionBatches('create', ...args);
+    const batchUpdatePermissions = (...args) => runPermissionBatches('update', ...args);
+    const batchDeletePermissions = (...args) => runPermissionBatches('delete', ...args);
 
     // Flag to prevent multiple simultaneous syncs
     let isSyncing = false;
@@ -678,6 +634,8 @@
                 deletedUsers: [],
                 nonExistentUsers: [],
                 inactiveUsers: [],
+                noDocsUsers: [],
+                notInDocsUsers: [],
                 incompleteUsers: [],
                 inheritedConflicts: []
             };
@@ -777,6 +735,9 @@
                                     log(`  ⚠️ SKIP CREATE: User is inactive/pending (${jsonPerm.user})`);
                                     syncSummary.skippedInactive++;
                                     syncSummary.inactiveUsers.push(jsonPerm.user);
+                                } else if (hasNoDocsAccess(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
+                                    log(`  ⚠️ SKIP CREATE: No Docs access in this project (${jsonPerm.user})`);
+                                    syncSummary.noDocsUsers.push(`${jsonPerm.user} (${folderName})`);
                                 } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                     log(`  ⚠️ SKIP CREATE: Project admin (${jsonPerm.user})`);
                                     syncSummary.skippedAdmins++;
@@ -808,6 +769,9 @@
                                         log(`  ⚠️ SKIP UPDATE: User is inactive/pending (${jsonPerm.user})`);
                                         syncSummary.skippedInactive++;
                                         syncSummary.inactiveUsers.push(jsonPerm.user);
+                                    } else if (hasNoDocsAccess(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
+                                        log(`  ⚠️ SKIP UPDATE: No Docs access in this project (${jsonPerm.user})`);
+                                        syncSummary.noDocsUsers.push(`${jsonPerm.user} (${folderName})`);
                                     } else if (isProjectAdmin(jsonPerm.subjectId, jsonPerm.subjectType, usersById)) {
                                         log(`  ⚠️ SKIP UPDATE: Project admin (${jsonPerm.user})`);
                                         syncSummary.skippedAdmins++;
@@ -858,7 +822,8 @@
                             errors: [],
                             createdUsers: [],
                             updatedUsers: [],
-                            deletedUsers: []
+                            deletedUsers: [],
+                            notInDocs: []
                         };
 
                         // CREATE
@@ -878,10 +843,10 @@
                                         permissions,
                                         currentProjectData.accessToken
                                     );
-                                    if (result.success) {
-                                        results.created += permissions.length;
-                                        results.createdUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
-                                    } else {
+                                    results.created += result.sent.length;
+                                    results.createdUsers.push(...result.sent.map(p => `${p.user} (${folderName})`));
+                                    results.notInDocs.push(...result.rejected.map(p => `${p.user} (${folderName})`));
+                                    if (!result.success) {
                                         console.error(`Create ${type} failed for ${folderName}:`, result.error);
                                         results.errors.push(`${folderName}: Create ${type} failed - ${result.error}`);
                                     }
@@ -906,10 +871,10 @@
                                         permissions,
                                         currentProjectData.accessToken
                                     );
-                                    if (result.success) {
-                                        results.updated += permissions.length;
-                                        results.updatedUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
-                                    } else {
+                                    results.updated += result.sent.length;
+                                    results.updatedUsers.push(...result.sent.map(p => `${p.user} (${folderName})`));
+                                    results.notInDocs.push(...result.rejected.map(p => `${p.user} (${folderName})`));
+                                    if (!result.success) {
                                         console.error(`Update ${type} failed for ${folderName}:`, result.error);
                                         results.errors.push(`${folderName}: Update ${type} failed - ${result.error}`);
                                     }
@@ -934,10 +899,10 @@
                                         permissions,
                                         currentProjectData.accessToken
                                     );
-                                    if (result.success) {
-                                        results.deleted += permissions.length;
-                                        results.deletedUsers.push(...permissions.map(p => `${p.user} (${folderName})`));
-                                    } else {
+                                    results.deleted += result.sent.length;
+                                    results.deletedUsers.push(...result.sent.map(p => `${p.user} (${folderName})`));
+                                    results.notInDocs.push(...result.rejected.map(p => `${p.user} (${folderName})`));
+                                    if (!result.success) {
                                         console.error(`Delete ${type} failed for ${folderName}:`, result.error);
                                         results.errors.push(`${folderName}: Delete ${type} failed - ${result.error}`);
                                     }
@@ -986,6 +951,7 @@
                     log(`  Adding ${results.deletedUsers.length} deleted users`);
                     syncSummary.deletedUsers.push(...results.deletedUsers);
                 }
+                if (results.notInDocs) syncSummary.notInDocsUsers.push(...results.notInDocs);
 
                 const progressPercent = (syncSummary.processedFolders / syncSummary.totalFolders) * 100;
                 updateFolderSyncProgress(`Sending changes to Forma: ${syncSummary.processedFolders} of ${syncSummary.totalFolders} folders`, progressPercent);
