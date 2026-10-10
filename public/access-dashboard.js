@@ -331,21 +331,23 @@
     }
 
     function headerHtml(projects) {
-        const sortInd = (col) => S.view === 'email' && S.sort.col === col ? `<span class="ad-sort" aria-hidden="true">${S.sort.asc ? '▲' : '▼'}</span>` : '';
-        const ariaSort = (col) => S.view === 'email' ? ` aria-sort="${S.sort.col === col ? (S.sort.asc ? 'ascending' : 'descending') : 'none'}"` : '';
+        const sortInd = (col) => S.sort.col === col ? `<span class="ad-sort" aria-hidden="true">${S.sort.asc ? '▲' : '▼'}</span>` : '';
+        const ariaSort = (col) => ` aria-sort="${S.sort.col === col ? (S.sort.asc ? 'ascending' : 'descending') : 'none'}"`;
         let lead;
         if (S.view === 'email') {
             lead = `<th scope="col" class="ad-name ad-sortable" data-sort="email"${ariaSort('email')}>Email${sortInd('email')}</th>`
                 + `<th scope="col" class="ad-text ad-sortable" data-sort="company"${ariaSort('company')}>Company${sortInd('company')}</th>`
                 + `<th scope="col" class="ad-text ad-sortable" data-sort="role"${ariaSort('role')}>Role${sortInd('role')}</th>`;
         } else {
-            lead = `<th scope="col" class="ad-name">${S.view === 'company' ? 'Company and people' : 'Role and people'}</th>`
-                + `<th scope="col" class="ad-text">${S.view === 'company' ? 'Role' : 'Company'}</th>`;
+            const second = S.view === 'company' ? 'role' : 'company';
+            lead = `<th scope="col" class="ad-name ad-sortable" data-sort="email"${ariaSort('email')} title="Sort people in each group">${S.view === 'company' ? 'Company and people' : 'Role and people'}${sortInd('email')}</th>`
+                + `<th scope="col" class="ad-text ad-sortable" data-sort="${second}"${ariaSort(second)}>${S.view === 'company' ? 'Role' : 'Company'}${sortInd(second)}</th>`;
         }
         const cols = projects.map(p => {
             const st = S.data.get(p.id);
             const sub = st && st.members ? `${st.members.size} members` : 'Loading';
-            return `<th scope="col" class="ad-proj" title="${esc(p.name)}"><span class="ad-ell">${esc(p.name)}</span><span class="ad-proj-sub">${sub}</span></th>`;
+            const key = `p:${p.id}`;
+            return `<th scope="col" class="ad-proj ad-sortable" data-sort="${esc(key)}"${ariaSort(key)} title="${esc(p.name)}: click to sort by access"><span class="ad-ell">${esc(p.name)}${sortInd(key)}</span><span class="ad-proj-sub">${sub}</span></th>`;
         }).join('');
         const gear = `<th scope="col" class="ad-gear-col"><button type="button" class="fm-plain ad-gear" id="adGearBtn" aria-haspopup="true" aria-expanded="false" aria-label="Choose projects to show" title="Choose projects to show"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke-linejoin="round"/></svg></button></th>`;
         return `<thead><tr>${lead}${cols}${gear}</tr></thead>`;
@@ -362,12 +364,29 @@
         return peopleInProjects().filter(matches);
     }
 
-    function sortedForEmailView(list) {
+    // Rank of a person's access in a project, for sorting: highest first when descending.
+    function accessRank(email, projectId) {
+        const info = cellInfo(email, projectId);
+        switch (info.kind) {
+            case 'admin': return 9;
+            case 'level': return 2 + info.level;
+            case 'none': return 2;
+            case 'out': return 0;
+            default: return 1; // still loading or not readable
+        }
+    }
+
+    /** Sorts people by the chosen column; ties fall back to email. */
+    function sortPeople(list) {
         const key = S.sort.col;
         const dir = S.sort.asc ? 1 : -1;
+        if (key.startsWith('p:')) {
+            const pid = key.slice(2);
+            return list.slice().sort((a, b) => dir * (accessRank(a.key, pid) - accessRank(b.key, pid)) || a.email.localeCompare(b.email));
+        }
         return list.slice().sort((a, b) => {
-            const av = key === 'email' ? a.email : (a[key] || '￿');
-            const bv = key === 'email' ? b.email : (b[key] || '￿');
+            const av = key === 'email' ? a.email : (a[key] || '\uffff');
+            const bv = key === 'email' ? b.email : (b[key] || '\uffff');
             return dir * av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' }) || a.email.localeCompare(b.email);
         });
     }
@@ -377,7 +396,7 @@
         list.forEach(p => { const k = groupKey(p); if (!map.has(k)) map.set(k, []); map.get(k).push(p); });
         return [...map.entries()]
             .sort((a, b) => (!a[0]) - (!b[0]) || a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
-            .map(([k, members]) => [k, members.sort((a, b) => a.email.localeCompare(b.email))]);
+            .map(([k, members]) => [k, sortPeople(members)]);
     }
 
     let renderQueued = false;
@@ -396,7 +415,7 @@
         let body = '';
         let groupCount = 0;
         if (S.view === 'email') {
-            body = sortedForEmailView(people).map(p => personRowHtml(p, projects, false)).join('');
+            body = sortPeople(people).map(p => personRowHtml(p, projects, false)).join('');
         } else {
             const groups = grouped(people);
             groupCount = groups.length;
@@ -638,7 +657,7 @@
             const toggle = e.target.closest('.ad-group-toggle');
             if (toggle) { const k = toggle.dataset.group; S.expanded.has(k) ? S.expanded.delete(k) : S.expanded.add(k); render(); return; }
             const sortTh = e.target.closest('.ad-sortable');
-            if (sortTh) { const c = sortTh.dataset.sort; S.sort = S.sort.col === c ? { col: c, asc: !S.sort.asc } : { col: c, asc: true }; render(); return; }
+            if (sortTh) { const c = sortTh.dataset.sort; S.sort = S.sort.col === c ? { col: c, asc: !S.sort.asc } : { col: c, asc: !c.startsWith('p:') }; render(); return; }
             const cell = e.target.closest('td.ad-cell');
             if (cell) { S.selected = { email: cell.dataset.email, projectId: cell.dataset.project }; render(); focusSelected(); }
         });
