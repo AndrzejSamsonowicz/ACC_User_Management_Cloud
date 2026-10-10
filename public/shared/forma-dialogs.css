@@ -440,7 +440,8 @@ body.fm .import-users-count { font-weight: 400; color: var(--fm-text-2); margin-
 
 /* ---------- Account users: access matrix (access-dashboard.js) ---------- */
 body.fm .ad-overlay { z-index: 1001; }
-body.fm .ad-dialog { width: min(1680px, 100%); max-width: none; height: min(94vh, 1200px); }
+body.fm .ad-overlay.fm-overlay { padding: 0; }
+body.fm .ad-dialog { width: 100vw; max-width: none; height: 100vh; border-radius: 0; }
 body.fm .ad-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; padding: 18px 24px 14px; box-shadow: inset 0 -1px 0 var(--fm-divider); }
 body.fm .ad-head-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 320px; min-width: 0; }
 body.fm .ad-head-actions { display: flex; align-items: center; gap: 8px; }
@@ -528,7 +529,7 @@ body.fm .ad-gear-item input { width: 16px; height: 16px; accent-color: var(--fm-
 body.fm .ad-gear-actions { display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--fm-divider); }
 body.fm .ad-gear-actions button { border: 0; background: none; padding: 0; color: var(--fm-link); font: 700 14px var(--fm-font); cursor: pointer; }
 body.fm .ad-gear-reset { border: 0; border-top: 1px solid var(--fm-divider); background: none; text-align: left; padding: 10px 16px; color: var(--fm-text-3); font: 400 14px var(--fm-font); cursor: pointer; }
-body.fm .ad-panel { width: 420px; flex: none; border-left: 1px solid var(--fm-divider); display: flex; flex-direction: column; min-height: 0; }
+body.fm .ad-panel { width: 460px; flex: none; border-left: 1px solid var(--fm-divider); display: flex; flex-direction: column; min-height: 0; }
 body.fm .ad-panel[hidden] { display: none; }
 body.fm .ad-panel-head { display: flex; gap: 8px; align-items: flex-start; padding: 16px 20px 14px; border-bottom: 1px solid var(--fm-divider); }
 body.fm .ad-panel-head > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
@@ -537,7 +538,9 @@ body.fm .ad-panel-head .ad-muted { font-size: 13px; }
 body.fm .ad-panel-body { flex: 1; overflow-y: auto; padding: 0 20px 16px; }
 body.fm .ad-panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 130px; column-gap: 8px; align-items: center; }
 body.fm .ad-panel-h { height: 40px; display: flex; align-items: center; font-weight: 700; font-size: 13px; border-bottom: 1px solid var(--fm-divider); }
-body.fm .ad-panel-folder { display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0; border-bottom: 1px solid var(--fm-row-line); }
+body.fm .ad-panel-folder { display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0; overflow: hidden; box-sizing: border-box; padding-right: 8px; border-bottom: 1px solid var(--fm-row-line); }
+body.fm .ad-panel-fname { display: flex; flex-direction: column; min-width: 0; padding: 4px 0; }
+body.fm .ad-panel-parent { font-size: 12px; line-height: 16px; color: var(--fm-text-2); }
 body.fm .ad-panel-folder svg { flex: none; }
 body.fm .ad-panel-level { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 44px; font-size: 12px; border-bottom: 1px solid var(--fm-row-line); }
 body.fm .ad-panel-src { display: flex; align-items: center; min-height: 44px; font-size: 13px; color: var(--fm-text-2); border-bottom: 1px solid var(--fm-row-line); }

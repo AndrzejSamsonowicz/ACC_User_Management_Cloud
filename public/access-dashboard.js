@@ -72,6 +72,7 @@
     const runRequest = limit(6);   // Autodesk requests at once
 
     const esc = (v) => escapeHtml(v == null ? '' : String(v));
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const lc = (v) => String(v || '').toLowerCase();
 
     // ---------- loading ----------
@@ -378,10 +379,9 @@
             table.querySelector('tbody').innerHTML = `<tr><td class="ad-empty" colspan="${projects.length + (S.view === 'email' ? 4 : 3)}">No one matches "${esc(S.search)}". Change or clear the search.</td></tr>`;
         }
 
-        const groupWord = S.view === 'company' ? 'companies' : 'roles';
         root.querySelector('#adCount').textContent = S.view === 'email'
-            ? `${people.length} of ${S.people.length} people. ${projects.length} of ${S.projects.length} projects shown.`
-            : `${people.length} people in ${groupCount} ${groupWord}. ${projects.length} of ${S.projects.length} projects shown.`;
+            ? `${people.length} of ${plural(S.people.length, 'person', 'people')}. ${projects.length} of ${plural(S.projects.length, 'project', 'projects')} shown.`
+            : `${plural(people.length, 'person', 'people')} in ${S.view === 'company' ? plural(groupCount, 'company', 'companies') : plural(groupCount, 'role', 'roles')}. ${projects.length} of ${plural(S.projects.length, 'project', 'projects')} shown.`;
         root.querySelector('#adZoomValue').textContent = `${Math.round(S.zoom * 100)}%`;
         root.querySelectorAll('[data-view]').forEach(b => {
             const on = b.dataset.view === S.view;
@@ -399,6 +399,13 @@
         prog.querySelector('.ad-progress-bar').style.width = projects.length ? `${Math.round(100 * (projects.length - loading) / projects.length)}%` : '0';
 
         renderPanel();
+    }
+
+    // Deep folder trees: indent at most this many levels, then say where the folder is.
+    const MAX_INDENT_LEVELS = 4;
+    function shortParentPath(path) {
+        const parts = String(path).split(' / ').slice(0, -1);
+        return parts.length > 3 ? `${parts[0]} / \u2026 / ${parts.slice(-2).join(' / ')}` : parts.join(' / ');
     }
 
     function renderPanel() {
@@ -421,7 +428,7 @@
         else if (!info.folders.length) body = '<p class="ad-panel-note">A member of the project, but no folder is shared with this person, their role or their company.</p>';
         else {
             body = '<div class="ad-panel-grid"><span class="ad-panel-h">Folder</span><span class="ad-panel-h">Access level</span><span class="ad-panel-h">Comes from</span>'
-                + info.folders.map(f => `<span class="ad-panel-folder" style="padding-left:${f.folder.depth * 18}px" title="${esc(f.folder.path)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3C3C3C" stroke-width="1.5" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"/></svg><span class="ad-ell">${esc(f.folder.name)}</span></span>`
+                + info.folders.map(f => `<span class="ad-panel-folder" style="padding-left:${Math.min(f.folder.depth, MAX_INDENT_LEVELS) * 16}px" title="${esc(f.folder.path)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3C3C3C" stroke-width="1.5" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"/></svg><span class="ad-panel-fname"><span class="ad-ell">${esc(f.folder.name)}</span>${f.folder.depth > MAX_INDENT_LEVELS ? `<span class="ad-panel-parent ad-ell">in ${esc(shortParentPath(f.folder.path))}</span>` : ''}</span></span>`
                     + `<span class="ad-panel-level" title="${esc(LEVELS[f.level].name)}">${barsHtml(f.level)}<span>${LEVELS[f.level].group}</span></span>`
                     + `<span class="ad-panel-src">${esc(f.source)}</span>`).join('')
                 + '</div>';
@@ -814,7 +821,7 @@
             S.shown = new Set(Array.isArray(saved) ? saved.filter(id => S.projects.some(p => p.id === id)) : S.projects.map(p => p.id));
             root.querySelector('#adLoading').hidden = true;
             root.querySelector('#adMatrix').hidden = false;
-            root.querySelector('#adSub').textContent = `${S.hubName}: ${S.people.length} people across ${S.projects.length} projects.`;
+            root.querySelector('#adSub').textContent = `${S.hubName}: ${plural(S.people.length, 'person', 'people')} across ${plural(S.projects.length, 'project', 'projects')}.`;
             render();
             loadShownProjects();
         } catch (e) {
