@@ -757,8 +757,12 @@ function findAccountMember(accountId, identity) {
 
 async function requireAccountMember(req, res, next) {
     try {
-        const { accountId } = req.params;
+        // The browser uses Data Management hub IDs ("b.<guid>"); the account ID is
+        // the GUID itself. Normalize once here - the route handlers that run
+        // after this middleware share req.params and build Autodesk URLs from it.
+        const accountId = String(req.params.accountId || '').replace(/^b\./i, '');
         if (!GUID_RE.test(accountId)) return res.status(400).json({ error: 'Invalid account ID' });
+        req.params.accountId = accountId;
         const userToken = req.headers['x-autodesk-token'];
         if (typeof userToken !== 'string' || userToken.length < 20 || userToken.length > 8000) {
             return res.status(401).json({ error: 'Connect to Autodesk first.' });
