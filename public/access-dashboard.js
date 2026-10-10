@@ -121,13 +121,12 @@
         return folders;
     }
 
-    async function loadProject(projectId) {
+    /** Who is in a project (one quick request), shared by every caller. */
+    function ensureMembers(projectId) {
         const st = projectState(projectId);
-        if (st.status !== 'idle') return;
-        st.status = 'members';
-        scheduleRender();
-        try {
-            const users = await runRequest(() => fetchAllProjectUsers(projectId, token()));
+        if (st.membersPromise) return st.membersPromise;
+        st.membersStatus = 'loading';
+        st.membersPromise = runRequest(() => fetchAllProjectUsers(projectId, token())).then(users => {
             st.members = new Map();
             users.forEach(u => {
                 if (!u.email) return;
@@ -140,8 +139,28 @@
                     products: (u.products || []).filter(p => p.access && p.access !== 'none').map(p => PRODUCT_LABELS[p.key] || p.key)
                 });
             });
-            st.status = 'folders';
-            scheduleRender();
+            st.membersStatus = 'done';
+        }).catch(e => {
+            st.membersStatus = 'error';
+            st.error = e.status === 403 ? 'You are not allowed to read this project.' : (e.message || 'Could not be read.');
+        }).finally(scheduleRender);
+        return st.membersPromise;
+    }
+
+    /** Member lists of every project in the hub: needed to know who is in at least one project. */
+    function loadAllMembers() {
+        S.projects.forEach(p => ensureMembers(p.id));
+    }
+
+    /** Folder tree and permissions of a shown project (the slow part). */
+    async function loadProject(projectId) {
+        const st = projectState(projectId);
+        if (st.status !== 'idle') return;
+        st.status = 'folders';
+        scheduleRender();
+        try {
+            await ensureMembers(projectId);
+            if (st.membersStatus !== 'done') throw new Error(st.error || 'Could not be read.');
             st.folders = await loadFolders(projectId, st);
             st.perms = new Map();
             let failed = 0;
@@ -154,7 +173,7 @@
             st.status = 'done';
         } catch (e) {
             st.status = 'error';
-            st.error = e.status === 403 ? 'You are not allowed to read this project.' : (e.message || 'Could not be read.');
+            st.error = st.error || (e.status === 403 ? 'You are not allowed to read this project.' : (e.message || 'Could not be read.'));
         }
         scheduleRender();
         if (S.exportWhenReady && allShownReady()) { S.exportWhenReady = false; exportExcel(); }
@@ -163,6 +182,18 @@
     function loadShownProjects() {
         S.projects.filter(p => S.shown.has(p.id)).forEach(p => runProject(() => loadProject(p.id)));
     }
+
+    const membersLoaded = () => S.projects.filter(p => { const st = S.data.get(p.id); return st && (st.membersStatus === 'done' || st.membersStatus === 'error'); }).length;
+
+    /** People in at least one project of the hub whose member list is known. */
+    function inAnyProject(person) {
+        for (const p of S.projects) {
+            const st = S.data.get(p.id);
+            if (st && st.members && st.members.has(person.key)) return true;
+        }
+        return false;
+    }
+    const peopleInProjects = () => S.people.filter(inAnyProject);
 
     const allShownReady = () => S.projects.filter(p => S.shown.has(p.id))
         .every(p => { const st = S.data.get(p.id); return st && (st.status === 'done' || st.status === 'error'); });
@@ -188,11 +219,11 @@
     /** { kind: 'loading'|'out'|'admin'|'none'|'level'|'error', level, folders[] } for a person in a project. */
     function cellInfo(email, projectId) {
         const st = S.data.get(projectId);
-        if (!st || st.status === 'idle' || st.status === 'members') return { kind: 'loading' };
-        if (st.status === 'error' && !st.members) return { kind: 'error' };
+        if (!st || !st.members) return { kind: st && st.membersStatus === 'error' ? 'error' : 'loading' };
         const member = st.members.get(email);
         if (!member) return { kind: 'out' };
         if (member.isAdmin) return { kind: 'admin', level: 6, member };
+        if (st.status === 'error') return { kind: 'error', member };
         if (st.status !== 'done') return { kind: 'pending', member };
         if (!st.effective.has(email)) {
             const folders = [];
@@ -328,7 +359,7 @@
     }
 
     function visiblePeople() {
-        return S.people.filter(matches);
+        return peopleInProjects().filter(matches);
     }
 
     function sortedForEmailView(list) {
@@ -380,7 +411,7 @@
         }
 
         root.querySelector('#adCount').textContent = S.view === 'email'
-            ? `${people.length} of ${plural(S.people.length, 'person', 'people')}. ${projects.length} of ${plural(S.projects.length, 'project', 'projects')} shown.`
+            ? `${people.length} of ${plural(peopleInProjects().length, 'person', 'people')}. ${projects.length} of ${plural(S.projects.length, 'project', 'projects')} shown.`
             : `${plural(people.length, 'person', 'people')} in ${S.view === 'company' ? plural(groupCount, 'company', 'companies') : plural(groupCount, 'role', 'roles')}. ${projects.length} of ${plural(S.projects.length, 'project', 'projects')} shown.`;
         root.querySelector('#adZoomValue').textContent = `${Math.round(S.zoom * 100)}%`;
         root.querySelectorAll('[data-view]').forEach(b => {
@@ -389,14 +420,23 @@
             b.classList.toggle('is-active', on);
         });
 
-        // Progress
-        const loading = projects.filter(p => { const st = S.data.get(p.id); return !st || (st.status !== 'done' && st.status !== 'error'); }).length;
+        // Progress: member lists of every project first, then folder access of the shown ones
         const prog = root.querySelector('#adProgress');
-        prog.hidden = loading === 0;
-        prog.querySelector('span').textContent = S.exportWhenReady
-            ? `Reading folder access: ${projects.length - loading} of ${projects.length} projects done. The export starts when it finishes.`
-            : `Reading folder access: ${projects.length - loading} of ${projects.length} projects done.`;
-        prog.querySelector('.ad-progress-bar').style.width = projects.length ? `${Math.round(100 * (projects.length - loading) / projects.length)}%` : '0';
+        const membersDone = membersLoaded();
+        const loading = projects.filter(p => { const st = S.data.get(p.id); return !st || (st.status !== 'done' && st.status !== 'error'); }).length;
+        let text = '', pct = 100;
+        if (membersDone < S.projects.length) {
+            text = `Reading who is in which project: ${membersDone} of ${plural(S.projects.length, 'project', 'projects')}. People appear as their projects are read.`;
+            pct = Math.round(100 * membersDone / Math.max(1, S.projects.length));
+        } else if (loading) {
+            text = `Reading folder access: ${projects.length - loading} of ${plural(projects.length, 'project', 'projects')} done.`;
+            pct = Math.round(100 * (projects.length - loading) / Math.max(1, projects.length));
+        }
+        if (text && S.exportWhenReady) text += ' The export starts when it finishes.';
+        prog.hidden = !text;
+        prog.querySelector('span').textContent = text;
+        prog.querySelector('.ad-progress-bar').style.width = `${pct}%`;
+        updateSubtitle();
 
         renderPanel();
     }
@@ -406,6 +446,21 @@
     function shortParentPath(path) {
         const parts = String(path).split(' / ').slice(0, -1);
         return parts.length > 3 ? `${parts[0]} / \u2026 / ${parts.slice(-2).join(' / ')}` : parts.join(' / ');
+    }
+
+    function updateSubtitle() {
+        const sub = document.getElementById('adSub');
+        if (!sub || !S.projects.length) return;
+        const inProjects = peopleInProjects().length;
+        let text = `${S.hubName}: ${plural(inProjects, 'person', 'people')} in at least one of ${plural(S.projects.length, 'project', 'projects')}.`;
+        const left = [];
+        if (membersLoaded() === S.projects.length) {
+            const none = S.people.length - inProjects;
+            if (none) left.push(`${plural(none, 'person', 'people')} in no project`);
+        }
+        if (S.notInvited) left.push(`${S.notInvited} not invited`);
+        if (left.length) text += ` Not shown: ${left.join(' and ')}.`;
+        sub.textContent = text;
     }
 
     function renderPanel() {
@@ -560,7 +615,7 @@
         root.querySelector('#adRefresh').addEventListener('click', () => {
             S.data.clear();
             if (window.FolderPermissions?.resetPermissionsCache) window.FolderPermissions.resetPermissionsCache();
-            loadShownProjects(); render();
+            loadAllMembers(); loadShownProjects(); render();
         });
         root.querySelector('#adExport').addEventListener('click', () => {
             if (allShownReady()) exportExcel();
@@ -683,7 +738,7 @@
         ws.columns = [{ width: 44 }, { width: 24 }, ...projects.map(() => ({ width: 16 }))];
         headerRow(ws, [mode === 'company' ? 'Company / person' : 'Role / person', mode === 'company' ? 'Role' : 'Company', ...projects.map(p => p.name)]);
         const saveView = S.view; S.view = mode;
-        const groups = grouped(S.people.slice());
+        const groups = grouped(peopleInProjects());
         S.view = saveView;
         groups.forEach(([k, members]) => {
             const label = k || (mode === 'company' ? 'No company' : 'No role');
@@ -710,7 +765,7 @@
         const ws = wb.addWorksheet('By email', { views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }] });
         ws.columns = [{ width: 40 }, { width: 28 }, { width: 24 }, ...projects.map(() => ({ width: 16 }))];
         headerRow(ws, ['Email', 'Company', 'Role', ...projects.map(p => p.name)]);
-        S.people.slice().sort((a, b) => a.email.localeCompare(b.email)).forEach(m => {
+        peopleInProjects().sort((a, b) => a.email.localeCompare(b.email)).forEach(m => {
             const r = ws.addRow([m.email, m.company || 'No company', m.role || 'No role', ...projects.map(p => xlCellText(cellInfo(m.key, p.id)))]);
             [1, 2, 3].forEach(i => { r.getCell(i).border = XL_BORDER; });
             if (!m.company) r.getCell(2).font = { color: { argb: 'FF808080' }, italic: true };
@@ -724,7 +779,7 @@
         const ws = wb.addWorksheet('Folder access', { views: [{ state: 'frozen', ySplit: 1 }] });
         ws.columns = [{ width: 40 }, { width: 26 }, { width: 22 }, { width: 28 }, { width: 50 }, { width: 14 }, { width: 46 }, { width: 34 }];
         headerRow(ws, ['Email', 'Company', 'Role', 'Project', 'Folder', 'Access', 'Access level', 'Comes from']);
-        S.people.slice().sort((a, b) => a.email.localeCompare(b.email)).forEach(m => {
+        peopleInProjects().sort((a, b) => a.email.localeCompare(b.email)).forEach(m => {
             projects.forEach(p => {
                 const info = cellInfo(m.key, p.id);
                 if (info.kind === 'admin') {
@@ -748,7 +803,7 @@
         add('Account users: folder access', '', true).font = { bold: true, size: 14 };
         add('Hub', S.hubName);
         add('Exported', new Date().toLocaleString());
-        add('People', String(S.people.length));
+        add('People', `${peopleInProjects().length} in at least one project (not listed: people in no project${S.notInvited ? `, ${S.notInvited} not invited` : ''})`);
         add('Projects included', projects.map(p => p.name).join(', '));
         ws.addRow([]);
         add('Access levels', '', true);
@@ -810,7 +865,9 @@
             const users = await accountUsersManager.fetchAllAccountUsersWith2LeggedAuth(accountId);
             if (!document.getElementById('accessDashboard')) return;
             const seen = new Set();
-            S.people = (users || []).filter(u => u && u.email).map(u => ({
+            const listed = (users || []).filter(u => u && u.email);
+            S.notInvited = listed.filter(u => lc(u.status) === 'not_invited').length;
+            S.people = listed.filter(u => lc(u.status) !== 'not_invited').map(u => ({
                 key: lc(u.email), email: u.email, name: u.name || '',
                 company: (u.company_name || '').trim(), role: (u.default_role || u.role || '').trim()
             })).filter(p => !seen.has(p.key) && seen.add(p.key));
@@ -821,8 +878,8 @@
             S.shown = new Set(Array.isArray(saved) ? saved.filter(id => S.projects.some(p => p.id === id)) : S.projects.map(p => p.id));
             root.querySelector('#adLoading').hidden = true;
             root.querySelector('#adMatrix').hidden = false;
-            root.querySelector('#adSub').textContent = `${S.hubName}: ${plural(S.people.length, 'person', 'people')} across ${plural(S.projects.length, 'project', 'projects')}.`;
             render();
+            loadAllMembers();
             loadShownProjects();
         } catch (e) {
             if (!document.getElementById('accessDashboard')) return;
