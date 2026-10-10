@@ -5,41 +5,21 @@
 log('🔁 update_account_users.js loaded');
 // (escapeHtml is defined in shared/dom-utils.js, loaded before this file)
 
-// Get 2-legged token with account:write scope for user management. Goes
-// through /api/aps/token (server-side) instead of calling Autodesk directly —
-// the browser never sees or sends the APS client secret.
-async function get2LeggedTokenWithWriteScope() {
-    if (typeof CLIENT_ID === 'undefined' || !CLIENT_ID) {
-        throw new Error('CLIENT_ID not available');
-    }
-
-    try {
-        // Based on APS docs, HQ APIs require account:read and account:write scopes.
-        // Cached until near expiry (getCached2LeggedToken in index.html).
-        const token = await getCached2LeggedToken('account:read account:write data:read');
-        log('Got 2-legged token with account:write scope');
-        return token;
-    } catch (error) {
-        console.error('Error getting 2-legged token with write scope:', error);
-        throw new Error(`Authentication error: ${error.message}`);
-    }
-}
+// Account-level Autodesk APIs (HQ members, companies) only accept the app's own
+// token, which stays on the server: every call below goes through accountApi()
+// (index.html), and the server only allows it for active members of the account.
 
 // Fetch all companies for an account (Construction Admin API)
-async function fetchAllCompanies(accountId, twoLeggedToken) {
+async function fetchAllCompanies(accountId) {
     const limit = 100;
     let offset = 0;
     let all = [];
     let keepGoing = true;
 
     while (keepGoing) {
-        const url = `https://developer.api.autodesk.com/construction/admin/v1/accounts/${accountId}/companies?limit=${limit}&offset=${offset}`;
-        const res = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${twoLeggedToken}` }
-        });
+        const res = await accountApi(accountId, 'companies', { query: { limit, offset } });
         if (!res.ok) {
-            const txt = await res.text();
-            throw new Error(`Error fetching companies: ${res.status} ${res.statusText} - ${txt}`);
+            throw new Error(await accountApiError(res, 'Companies could not be loaded'));
         }
         const json = await res.json();
         if (json.results && json.results.length > 0) {
@@ -55,7 +35,7 @@ async function fetchAllCompanies(accountId, twoLeggedToken) {
 }
 
 // Create companies in batch via HQ companies import
-async function createCompanies(accountId, twoLeggedToken, companies) {
+async function createCompanies(accountId, companies) {
     if (!companies || companies.length === 0) return [];
     
     log(`🏢 Creating ${companies.length} companies one by one...`);
@@ -63,8 +43,7 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
     
     for (const company of companies) {
         try {
-            const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/companies`;
-            
+
             // Format according to POST Company documentation
             // Only include non-empty fields to avoid API validation errors
             const payload = {
@@ -84,17 +63,9 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
             if (company.description) payload.description = company.description;
 
             log('🏢 Creating company:', company.name);
-            log('🏢 POST URL:', url);
-            log('🏢 Payload:', JSON.stringify(payload, null, 2));
+log('🏢 Payload:', JSON.stringify(payload, null, 2));
 
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${twoLeggedToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
+            const res = await accountApi(accountId, 'companies', { method: 'POST', body: payload });
 
             log('🏢 Response status:', res.status, res.statusText);
 
@@ -121,63 +92,24 @@ async function createCompanies(accountId, twoLeggedToken, companies) {
     return created;
 }
 
-// Fetch all account users from HQ API (the correct endpoint from documentation)
-async function fetchAllAccountUsers(accountId, userToken) {
-    const limit = 100;
-    let offset = 0;
-    let all = [];
-    let keepGoing = true;
-
-    while (keepGoing) {
-        const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users?limit=${limit}&offset=${offset}`;
-        const res = await fetch(url, {
-            headers: { 
-                'Authorization': `Bearer ${userToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        if (!res.ok) {
-            const txt = await res.text();
-            throw new Error(`Error fetching account users: ${res.status} ${res.statusText} - ${txt}`);
-        }
-        const json = await res.json();
-        if (Array.isArray(json) && json.length > 0) {
-            all = all.concat(json);
-            offset += limit;
-            if (json.length < limit) keepGoing = false;
-        } else if (json.results && json.results.length > 0) {
-            // Some endpoints return { results: [...] }
-            all = all.concat(json.results);
-            offset += limit;
-            if (json.results.length < limit) keepGoing = false;
-        } else {
-            keepGoing = false;
-        }
-        if (offset > 10000) break;
-    }
-    return all;
+// All account members (HQ API) - same reader the Account users dialog uses
+async function fetchAllAccountUsers(accountId) {
+    return accountUsersManager.fetchAllAccountUsers(accountId);
 }
 
 // Patch a single user using HQ API format from documentation
-async function patchUser(accountId, userId, token, body) {
-    const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${userId}`;
-    
-    // Format body according to HQ API documentation
+// Only company and default role can be changed (the server rejects anything
+// else - members can't be deactivated through the app).
+async function patchUser(accountId, userId, body) {
     const cleanBody = {};
     if (body.company_id !== undefined) cleanBody.company_id = body.company_id;
     if (body.default_role !== undefined) cleanBody.default_role = body.default_role;
-    if (body.status !== undefined) cleanBody.status = body.status;
-    
-    const res = await apsFetch(url, {
-        method: 'PATCH',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(cleanBody)
-    });
-    
+
+    const res = await accountApi(accountId, `users/${encodeURIComponent(userId)}`, { method: 'PATCH', body: cleanBody });
+
     if (!res.ok) {
+        // Autodesk's own error text is relayed unchanged (callers match on it,
+        // e.g. "this default_role doesn't exist")
         const txt = await res.text();
         throw new Error(`Patch failed: ${res.status} ${res.statusText} - ${txt}`);
     }
@@ -191,13 +123,12 @@ async function patchUser(accountId, userId, token, body) {
 
 // Import (add) users in batch using HQ API format from documentation
 // Note: API accepts maximum 50 users per call, so we batch large arrays
-async function importUsers(accountId, token, usersArray) {
+async function importUsers(accountId, usersArray) {
     if (!usersArray || usersArray.length === 0) return { success: 0, failure: 0, success_items: [], failure_items: [] };
     
     const BATCH_SIZE = 50; // API limit per documentation
     const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches to avoid rate limits
-    const url = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/import`;
-    
+
     // Split users into batches of 50
     const batches = [];
     for (let i = 0; i < usersArray.length; i += BATCH_SIZE) {
@@ -239,14 +170,7 @@ async function importUsers(accountId, token, usersArray) {
         });
         
         try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
+            const res = await accountApi(accountId, 'users/import', { method: 'POST', body: payload });
             
             if (!res.ok) {
                 const txt = await res.text();
@@ -259,14 +183,7 @@ async function importUsers(accountId, token, usersArray) {
                     
                     // Retry the same batch
                     try {
-                        const retryRes = await fetch(url, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(payload)
-                        });
+                        const retryRes = await accountApi(accountId, 'users/import', { method: 'POST', body: payload });
                         
                         if (!retryRes.ok) {
                             const retryTxt = await retryRes.text();
@@ -402,61 +319,10 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
             throw new Error('Project ID is required');
         }
         
-        // Get tokens - prioritize 3-legged for user operations
-        let twoLeggedToken = null;
-        let userToken = null;
-        
-        // Get 2-legged token for company operations (Construction Admin API)
-        log('🔑 Checking for get2LeggedToken function...');
-        if (typeof get2LeggedToken === 'function') {
-            log('✅ get2LeggedToken function found, calling...');
-            twoLeggedToken = await get2LeggedToken();
-            log('✅ 2-legged token obtained from global function');
-        } else {
-            throw new Error('get2LeggedToken() not available in this page.');
-        }
-        
-        // For HQ API user operations, we need a token with account:write scope
-        // Let's try to get our own token with the correct scopes
-        let hqApiToken = null;
-        try {
-            log('🔑 Getting HQ API token with account:write scope...');
-            hqApiToken = await get2LeggedTokenWithWriteScope();
-            log('✅ HQ API token with write scope obtained');
-        } catch (error) {
-            console.warn('⚠️ Could not get HQ API token with write scope:', error.message);
-            console.warn('⚠️ Will use existing 2-legged token (may have limited permissions)');
-            hqApiToken = twoLeggedToken;
-        }
-
-        // For user operations (HQ API), require 3-legged token
-        log('🔑 Checking for 3-legged token...');
-        log('Debug: typeof currentAccessToken =', typeof currentAccessToken);
-        log('Debug: currentAccessToken =', currentAccessToken ? 'exists' : 'undefined');
-        log('Debug: typeof window.currentAccessToken =', typeof window.currentAccessToken);
-        
-        // Try multiple ways to get the 3-legged token
-        let token3Legged = null;
+        // Account-level calls go through the server (accountApi), which holds
+        // the app token and checks the signed-in Autodesk user is an active
+        // member of this account - no token is fetched in the browser.
         let simulationMode = false;
-        
-        if (typeof currentAccessToken !== 'undefined' && currentAccessToken) {
-            token3Legged = currentAccessToken;
-        } else if (typeof window !== 'undefined' && window.currentAccessToken) {
-            token3Legged = window.currentAccessToken;
-        }
-        
-        if (token3Legged) {
-            userToken = token3Legged;
-            log('✅ 3-legged token available');
-        } else {
-            console.error('❌ 3-legged token not available');
-            console.error('Available global variables:', Object.keys(window).filter(k => k.includes('token') || k.includes('Token') || k.includes('access')));
-        }
-        
-        // Important: According to APS documentation, HQ API user operations (PATCH/POST) require 2-legged tokens
-        // Use 2-legged token with account:write scope for all HQ API operations per documentation
-        userToken = hqApiToken;
-        log('🔑 Using 2-legged token with account:write scope for HQ API operations (per APS documentation)');
 
         // User data always comes from the live table. The server-side
         // /load-project-users fallback was removed along with that endpoint.
@@ -468,20 +334,8 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
         log('📋 Sample user data from load:', JSON.stringify(usersData[0], null, 2));
 
         // Fetch account users (may need 2-legged token for reading)
-        let accountUsers;
-        try {
-            // Try with 3-legged token first
-            accountUsers = await fetchAllAccountUsers(accountId, userToken);
-            log(`✅ Fetched ${accountUsers.length} account users with 3-legged token`);
-        } catch (err) {
-            if (err.message.includes('Only support 2 legged access token')) {
-                log('⚠️ Falling back to 2-legged token for fetching users');
-                accountUsers = await fetchAllAccountUsers(accountId, twoLeggedToken);
-                log(`✅ Fetched ${accountUsers.length} account users with 2-legged token`);
-            } else {
-                throw err;
-            }
-        }
+        const accountUsers = await fetchAllAccountUsers(accountId);
+        log(`✅ Fetched ${accountUsers.length} account users`);
 
         // Build email -> accountUser map (case-insensitive - emails differing only in
         // case are the same Autodesk identity; an exact match made existing members
@@ -492,7 +346,7 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
         });
 
         // Fetch companies and build name -> id map (case-insensitive)
-        let companies = await fetchAllCompanies(accountId, twoLeggedToken);
+        let companies = await fetchAllCompanies(accountId);
         log(`Fetched ${companies.length} companies`);
         const companyMap = new Map();
         companies.forEach(c => {
@@ -592,11 +446,11 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
             log('🏢 Creating companies:', createList.map(c => c.name).join(', '));
             // Use 2-legged token with account:write scope for company creation
             log('🔑 Using 2-legged token with account:write scope for company creation');
-            const createdCompanies = await createCompanies(accountId, hqApiToken, createList);
+            const createdCompanies = await createCompanies(accountId, createList);
             log(`🏢 Successfully created ${createdCompanies.length} out of ${createList.length} companies`);
 
             // Re-fetch companies
-            companies = await fetchAllCompanies(accountId, twoLeggedToken);
+            companies = await fetchAllCompanies(accountId);
             companyMap.clear();
             companies.forEach(c => {
                 if (c.name) companyMap.set(c.name.trim().toLowerCase(), c.id);
@@ -634,16 +488,7 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
         // Otherwise, perform PATCH and POST operations
         const results = { patched: [], added: [], errors: [], invalidRoles: new Map() };
 
-        // Check authentication level for realistic error handling
-        // HQ API operations require 2-legged tokens with account:write scope
-        const hasProperAuth = hqApiToken && userToken === hqApiToken;
-        simulationMode = simulationMode || !hasProperAuth; // Update existing variable
-        
-        if (simulationMode) {
-            console.warn('⚠️ Running in SIMULATION MODE - operations will show what WOULD be done');
-        } else {
-            log('🚀 Attempting real operations with 2-legged token + account:write scope');
-        }
+        log('🚀 Updating account members through the server');
 
         // PATCH existing users through a small worker pool. Rate limiting is
         // handled by apsFetch inside patchUser (backs off on 429 / Retry-After),
@@ -683,9 +528,9 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                         
                         while (!success && retryCount < 3) {
                             try {
-                                log(`🔍 PATCH URL: https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${item.userId}`);
+                                log(`🔍 PATCH account member ${item.userId} (via server)`);
                                 log(`🔍 PATCH Body:`, JSON.stringify(body, null, 2));
-                                const result = await patchUser(accountId, item.userId, userToken, body);
+                                const result = await patchUser(accountId, item.userId, body);
                                 results.patched.push({ email: item.email, changes: body });
                                 log(`✅ Successfully updated ${item.email} with:`, body);
                                 log(`✅ API Response:`, JSON.stringify(result, null, 2));
@@ -695,19 +540,12 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                                 console.error(`❌ Full error:`, patchError);
                                 
                                 if (patchError.message.includes('403') || patchError.message.includes('privilege') || patchError.message.includes('AUTH-010')) {
-                                    // Switch to simulation mode for this and future operations
-                                    simulationMode = true;
-                                    console.warn('⚠️ Switching to SIMULATION MODE due to authentication error:', patchError.message);
-                                    results.patched.push({ 
-                                        email: item.email, 
-                                        simulated: true, 
-                                        changes: body,
-                                        note: 'Would update: ' + Object.keys(body).join(', ') + ' (auth failed)'
-                                    });
-                                    log(`✅ SIMULATION: Would update ${item.email} with:`, body);
-                                    success = true; // Don't retry, just switch to simulation
-                                    
-                                } else if (patchError.message.includes('404') && patchError.message.includes("this default_role doesn't exist")) {
+                                    // Not allowed (not an active member of this account, or the
+                                    // app lacks permission there) - report it, never pretend it worked
+                                    results.errors.push({ email: item.email, operation: 'PATCH', error: 'Not allowed to update this account member: ' + patchError.message });
+                                    success = true; // Don't retry
+
+                                }else if (patchError.message.includes('404') && patchError.message.includes("this default_role doesn't exist")) {
                                     // Invalid role - retry WITHOUT the role field but keep company
                                     const role = item.default_role || body.default_role || 'unknown';
                                     console.warn(`⚠️ Invalid role "${role}" for ${item.email} - retrying without role field`);
@@ -729,7 +567,7 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                                         // Only retry if there's something to update (company)
                                         if (Object.keys(bodyWithoutRole).length > 0) {
                                             console.log(`🔄 Retrying PATCH for ${item.email} without role, updating:`, bodyWithoutRole);
-                                            const retryResult = await patchUser(accountId, item.userId, userToken, bodyWithoutRole);
+                                            const retryResult = await patchUser(accountId, item.userId, bodyWithoutRole);
                                             results.patched.push({ 
                                                 email: item.email, 
                                                 changes: bodyWithoutRole,
@@ -817,7 +655,7 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                 } else {
                     // Try actual operation, but switch to simulation on 403
                     try {
-                        const importResult = await importUsersFunction(accountId, userToken, toAdd);
+                        const importResult = await importUsersFunction(accountId, toAdd);
                         log('Import result:', importResult);
                         
                         // Handle batched import results
@@ -893,7 +731,7 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                                         console.log(`🔍 User has companyId: "${userWithoutRole.companyId || '(none)'}"`);
                                         
                                         // Retry with single user import
-                                        const retryResult = await importUsersFunction(accountId, userToken, [userWithoutRole]);
+                                        const retryResult = await importUsersFunction(accountId, [userWithoutRole]);
                                         
                                         console.log(`📋 Retry result:`, JSON.stringify(retryResult));
                                         
@@ -941,17 +779,9 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
                         log(`✅ Import completed: ${importResult.success} succeeded, ${importResult.failure} failed out of ${toAdd.length} users`);
                     } catch (authError) {
                         if (authError.message.includes('403') || authError.message.includes('privilege') || authError.message.includes('AUTH-010')) {
-                            // Switch to simulation mode
-                            simulationMode = true;
-                            console.warn('⚠️ Switching to SIMULATION MODE for imports due to authentication error');
+                            // Not allowed - report each user as failed, never pretend
                             toAdd.forEach(item => {
-                                results.added.push({ 
-                                    email: item.email, 
-                                    simulated: true,
-                                    details: item,
-                                    note: `Would add user with role: ${item.default_role || 'Team Member'} (auth failed)`
-                                });
-                                log(`✅ SIMULATION: Would add user ${item.email} with role ${item.default_role || 'Team Member'}`);
+                                results.errors.push({ email: item.email, operation: 'IMPORT', error: 'Not allowed to add account members: ' + authError.message });
                             });
                         } else {
                             throw authError;

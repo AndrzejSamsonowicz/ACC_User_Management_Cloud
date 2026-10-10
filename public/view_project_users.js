@@ -1154,34 +1154,14 @@ class ProjectUsersViewer {
             // Show progress modal
             this.showProgressModal(usersToUpdate.length);
             
-            // Step 1: Get 2-legged token with account:write scope. Uses the
-            // shared get2LeggedTokenWithWriteScope() (update_account_users.js),
-            // which goes through /api/aps/token server-side instead of calling
-            // Autodesk directly with the client secret in the browser — this
-            // used to duplicate that logic inline with the secret exposed here.
-            log('🔑 Getting 2-legged token with account:write scope...');
-            const twoLeggedToken = await get2LeggedTokenWithWriteScope();
-            log('✅ Got 2-legged token with account:write scope');
-            
-            // OPTIMIZATION: Fetch all data in parallel (Step 2 & 3)
+            // Account-level data and changes go through the server (accountApi,
+            // index.html): those Autodesk APIs need the app token, which never
+            // leaves the server. Companies and members are fetched in parallel.
             log('📊 Fetching companies and account users in parallel...');
-            const [companiesData, accountUsers] = await Promise.all([
-                // Fetch companies
-                fetch(
-                    `https://developer.api.autodesk.com/construction/admin/v1/accounts/${accountId}/companies?limit=100`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${twoLeggedToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                ).then(r => r.ok ? r.json() : { results: [] }),
-                
-                // Fetch account users
-                fetchAllAccountUsers(accountId, twoLeggedToken)
+            const [companies, accountUsers] = await Promise.all([
+                fetchAllCompanies(accountId),
+                fetchAllAccountUsers(accountId)
             ]);
-            
-            const companies = companiesData.results || companiesData || [];
             
             // Build case-insensitive company name → id map
             const companyMap = new Map();
@@ -1217,17 +1197,7 @@ class ProjectUsersViewer {
                         
                         log(`🏢 Creating company "${companyName}"...`);
                         
-                        const createResponse = await fetch(
-                            `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/companies`,
-                            {
-                                method: 'POST',
-                                headers: {
-                                    'Authorization': `Bearer ${twoLeggedToken}`,
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(payload)
-                            }
-                        );
+                        const createResponse = await accountApi(accountId, 'companies', { method: 'POST', body: payload });
                         
                         if (!createResponse.ok) {
                             const errorText = await createResponse.text();
@@ -1340,22 +1310,14 @@ class ProjectUsersViewer {
                         log(`🔄 [1/2] Updating ACCOUNT user ${user.email}:`, accountUpdatePayload);
                         
                         // Use the global patchUser function from update_account_users.js
-                        await patchUser(accountId, accountUser.id, twoLeggedToken, accountUpdatePayload);
+                        await patchUser(accountId, accountUser.id, accountUpdatePayload);
                         
                         log(`✅ [1/2] Account update successful`);
                         
                         // BUG FIX: If role was updated, re-fetch the account user to get the NEW role ID
                         if (user.changes.role) {
                             log(`🔄 Re-fetching account user to get updated role ID...`);
-                            const refetchResponse = await fetch(
-                                `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users/${accountUser.id}`,
-                                {
-                                    headers: {
-                                        'Authorization': `Bearer ${twoLeggedToken}`,
-                                        'Content-Type': 'application/json'
-                                    }
-                                }
-                            );
+                            const refetchResponse = await accountApi(accountId, `users/${encodeURIComponent(accountUser.id)}`);
                             
                             if (refetchResponse.ok) {
                                 const updatedAccountUser = await refetchResponse.json();

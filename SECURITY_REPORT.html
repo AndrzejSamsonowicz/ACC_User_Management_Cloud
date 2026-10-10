@@ -210,8 +210,8 @@
     <p class="subtitle">Forma User Management Application</p>
     <div class="meta-row">
       <span><strong>Prepared by:</strong> Digibuild</span>
-      <span><strong>Report Date:</strong> 29 September 2026</span>
-      <span><strong>Application Version:</strong> v2.2.0</span>
+      <span><strong>Report Date:</strong> 8 October 2026</span>
+      <span><strong>Application Version:</strong> v2.4.0</span>
       <span><strong>Classification:</strong> Confidential</span>
     </div>
   </header>
@@ -348,7 +348,7 @@
       <tr class="check-row">
         <td class="tick">✔</td>
         <td><strong>Email Verification</strong></td>
-        <td>Enforced server-side — non-admin accounts cannot log in until their email address is verified</td>
+        <td>Enforced server-side on every endpoint that issues Autodesk tokens or reads/writes stored data, not only at sign-in — non-admin accounts with an unverified email, or an expired trial or license, are refused (HTTP 403)</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -378,7 +378,7 @@
       <tr class="check-row">
         <td class="tick">✔</td>
         <td><strong>No Client-Side Credential Storage</strong></td>
-        <td>Session tokens are never written to localStorage or sessionStorage. The Autodesk API client secret is never sent to or held in the browser at all — the OAuth token exchange is performed entirely server-side</td>
+        <td>Session tokens are never written to localStorage or sessionStorage. The Autodesk API client secret is never sent to or held in the browser at all — the OAuth token exchange is performed entirely server-side. Application-level (2-legged) Autodesk tokens are never issued to the browser; the browser only ever holds the signed-in user's own Autodesk token</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -408,7 +408,7 @@
         <td class="tick">✔</td>
         <td><strong>A01 — Broken Access Control</strong></td>
         <td><span class="badge badge-green">Mitigated</span></td>
-        <td>Server-side admin middleware re-verifies caller identity and role on every request; no client-side database access exists; per-user data isolation enforced by scoping every query/write to the caller's own verified ID</td>
+        <td>Server-side admin middleware re-verifies caller identity and role on every request; email verification and license/trial status are re-checked server-side on every working endpoint; no client-side database access exists; per-user data isolation enforced by scoping every query/write to the caller's own verified ID. Autodesk account-level operations run server-side with an application token that never reaches the browser, and only for Forma accounts in which the signed-in Autodesk user is verified (via Autodesk) to be an active member; only fixed operations and fields are forwarded</td>
       </tr>
       <tr class="check-row">
         <td class="tick">✔</td>
@@ -544,7 +544,7 @@
         <li><strong>Region:</strong> European data centre</li>
         <li><strong>Domain:</strong> usermgt.digibuild.ch (HTTPS)</li>
         <li><strong>Process manager:</strong> PM2 (auto-restart, single instance)</li>
-        <li><strong>OS firewall:</strong> Only ports 80, 443, 3000 open</li>
+        <li><strong>OS firewall:</strong> Only ports 80 and 443 reachable from the internet; the application port (3000) is reachable only through the reverse proxy</li>
       </ul>
     </div>
     <div class="card">
@@ -563,6 +563,7 @@
       <ul>
         <li><strong>Global API:</strong> 100 requests / 15 minutes per IP</li>
         <li><strong>Login / registration endpoints:</strong> 20 requests / 15 minutes per IP</li>
+        <li><strong>Client identification:</strong> the connecting IP as recorded by the reverse proxy; client-supplied forwarding headers are not trusted</li>
         <li><strong>License purchase endpoints:</strong> 10 requests / 15 minutes per IP</li>
         <li><strong>Algorithm:</strong> Redis-backed sliding window when Redis is configured; otherwise a per-instance in-memory fixed window (single instance in production)</li>
         <li><strong>Behaviour:</strong> Returns HTTP 429 on breach</li>
@@ -645,7 +646,7 @@
 
   <footer>
     <p>
-      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.2.0 | 29 September 2026<br>
+      <strong>Digibuild — Forma User Management Security Standards Report</strong> | v2.4.0 | 8 October 2026<br>
       This document is confidential and intended solely for the named recipient. Reproduction or distribution without written consent is prohibited.<br>
       Infrastructure security certifications (GCP / Firebase): <em>cloud.google.com/security/compliance</em>
     </p>

@@ -41,7 +41,8 @@ server-side via `/api/aps/token`), OAuth CSRF (`state` parameter now validated),
 scripts. Full detail and current status: `SECURITY_REPORT.html`.
 
 When adding new code that renders data originating outside the app (Autodesk API responses, other
-users' input, etc.) as HTML, use `escapeHtml()` (defined in `public/index.html`'s inline script,
-available globally to scripts loaded after it) or build via DOM APIs (`createElement` /
+users' input, etc.) as HTML, use `escapeHtml()` (defined in `public/shared/dom-utils.js`, loaded
+before the other scripts on `index.html` and `admin.html`; it escapes quotes too, so it is safe
+inside quoted attributes, but never for building inline JavaScript) or build via DOM APIs (`createElement` /
 `textContent` / `dataset` / `addEventListener`) — do not concatenate untrusted values into
 `innerHTML` template strings or inline `onclick` attributes.

@@ -401,7 +401,7 @@
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
     <link rel="stylesheet" href="shared/forma-app.css?v=20261006a">
-    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261007d">
+    <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261008a">
 </head>
 <body class="fm fm-app">
     <!-- Auth loading overlay -->
@@ -973,8 +973,8 @@
         const REDIRECT_URI = `${window.location.origin}/index.html`;
 
         // Authentication URLs
-        // (the token endpoint is now only called server-side, via /api/aps/token —
-        // see getAccessToken()/get2LeggedToken() below)
+        // (the token endpoint is now only called server-side, via /api/aps/token;
+        // account-level calls go through accountApi() below)
         const AUTH_URL = 'https://developer.api.autodesk.com/authentication/v2/authorize';
 
         // First-login EULA/Terms gate. Resolves once the user has checked the box,
@@ -1471,11 +1471,9 @@
             projectsList.innerHTML = '<div class="fm-empty"><span>Loading projects…</span></div>';
             
             try {
-                // Get 2-legged token for Construction Admin API
-                const twoLeggedToken = await get2LeggedToken();
-                
-                // Fetch projects using Construction Admin API
-                const projects = await fetchAllProjects(hubId, twoLeggedToken);
+                // Account's project list (Construction Admin API, via the server -
+                // it needs the app token, see accountApi)
+                const projects = await fetchAllProjects(hubId);
                 
                 // Filter only Autodesk Forma projects (platform value from the API is still "acc")
                 const accProjects = projects.filter(project => project.platform === 'acc');
@@ -1489,43 +1487,18 @@
         }
 
         // Function to fetch all projects with pagination
-        async function fetchAllProjects(accountId, accessToken) {
+        async function fetchAllProjects(accountId) {
             let allProjects = [];
             let offset = 0;
             const limit = 100;
             let hasMoreData = true;
 
             while (hasMoreData) {
-                const queryParams = new URLSearchParams({
-                    'limit': limit.toString(),
-                    'offset': offset.toString()
-                });
-
-                const apiUrl = `https://developer.api.autodesk.com/construction/admin/v1/accounts/${accountId}/projects?${queryParams}`;
-                log(`Fetching projects: ${apiUrl}`);
-
-                const response = await fetch(apiUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                log(`Fetching projects for account ${accountId} at offset ${offset}`);
+                const response = await accountApi(accountId, 'projects', { query: { limit, offset } });
 
                 if (!response.ok) {
-                    let errorData;
-                    try {
-                        errorData = await response.json();
-                        log('Error response:', errorData);
-                    } catch (parseError) {
-                        const textError = await response.text();
-                        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${textError}`);
-                    }
-                    
-                    const errorMessage = errorData.message || 
-                                       errorData.error || 
-                                       errorData.error_description || 
-                                       `HTTP ${response.status}: ${response.statusText}`;
-                    throw new Error(errorMessage);
+                    throw new Error(await accountApiError(response, 'Projects could not be loaded'));
                 }
 
                 const projectsData = await response.json();
@@ -2361,53 +2334,41 @@
             return allUsers;
         }
 
-        // 2-legged tokens are app-level (no user identity) and valid ~1h, yet were
-        // re-requested on every account/project operation - several round trips
-        // per sync, multiplied by project count in multi-project sync. Cache by
-        // scope until shortly before expiry; concurrent callers share one request.
-        const _twoLeggedTokenCache = new Map(); // scope -> { promise, expiresAt }
-
-        async function getCached2LeggedToken(scope) {
-            const cached = _twoLeggedTokenCache.get(scope);
-            if (cached && Date.now() < cached.expiresAt) return cached.promise;
-
-            const entry = { expiresAt: Infinity, promise: null };
-            entry.promise = (async () => {
-                const response = await fetch(`${window.location.origin}/api/aps/token`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({ grantType: 'client_credentials', scope })
-                });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-                }
-                const tokenData = await response.json();
-                // Refresh 2 minutes early; fall back to 50 min if expires_in is missing
-                const ttlSec = Number(tokenData.expires_in) || 3000;
-                entry.expiresAt = Date.now() + Math.max(ttlSec - 120, 30) * 1000;
-                return tokenData.access_token;
-            })();
-            _twoLeggedTokenCache.set(scope, entry);
-            entry.promise.catch(() => _twoLeggedTokenCache.delete(scope)); // don't cache failures
-            return entry.promise;
+        /**
+         * Account-level Autodesk calls (account members, companies, the account's
+         * project list) go through the server: those APIs only accept the app's
+         * own (2-legged) token, which works in every customer account that added
+         * this app, so it is never sent to the browser. The server allows the call
+         * only if the signed-in Autodesk user (identified by the token sent as
+         * X-Autodesk-Token) is an active member of `accountId`.
+         *
+         * `path` is relative to the account, e.g. 'users', 'companies',
+         * 'users/import', `users/${id}`. Returns the Response, like fetch(), with
+         * Autodesk's status and body relayed; 429s are retried by apsFetch.
+         */
+        async function accountApi(accountId, path, { method = 'GET', query, body } = {}) {
+            const firebaseToken = (auth && auth.currentUser) ? await auth.currentUser.getIdToken() : authToken;
+            const headers = {
+                'Authorization': `Bearer ${firebaseToken}`,
+                'X-Autodesk-Token': currentAccessToken || ''
+            };
+            if (body !== undefined) headers['Content-Type'] = 'application/json';
+            const qs = query ? `?${new URLSearchParams(query)}` : '';
+            return apsFetch(`${window.location.origin}/api/aps/accounts/${encodeURIComponent(accountId)}/${path}${qs}`, {
+                method,
+                headers,
+                body: body !== undefined ? JSON.stringify(body) : undefined
+            });
         }
 
-        // Get 2-legged access token for HQ API. Goes through /api/aps/token
-        // (server-side) instead of calling Autodesk directly — the browser
-        // never sees or sends the APS client secret.
-        async function get2LeggedToken() {
-            try {
-                const token = await getCached2LeggedToken('account:read');
-                log('Got 2-legged token for HQ API');
-                return token;
-            } catch (error) {
-                console.error('Error getting 2-legged token:', error);
-                throw new Error(`Authentication error: ${error.message}`);
-            }
+        // Reads an error message out of a failed accountApi()/Autodesk response
+        async function accountApiError(response, fallback) {
+            const text = await response.text().catch(() => '');
+            let data = {};
+            try { data = JSON.parse(text); } catch (e) { /* not JSON */ }
+            return data.error || data.message || data.detail || data.developerMessage
+                || (data.errors && data.errors[0] && data.errors[0].detail)
+                || `${fallback} (HTTP ${response.status}${text && !data.error ? `: ${text.slice(0, 200)}` : ''})`;
         }
 
     </script>
@@ -2419,16 +2380,16 @@
     <script src="d3.v7.min.js"></script>
     <script src="import-from-project.js?v=20261007a"></script>
     <script src="import-from-hub.js?v=20261007c"></script>
-    <script src="update_account_users.js?v=20261006a"></script>
+    <script src="update_account_users.js?v=20261008s"></script>
     <script src="update_project_users.js?v=20261006a"></script>
     <script src="review-sync.js?v=20261007a"></script>
-    <script src="get_account_users.js?v=20261002a"></script>
-    <script src="view_project_users.js?v=20260329172500"></script>
-    <script src="manage_project_users.js?v=20260805"></script>
+    <script src="get_account_users.js?v=20261008s"></script>
+    <script src="view_project_users.js?v=20261008s"></script>
     <script src="update_folder_permission.js?v=20261008b"></script>
     <script src="read_project_folders.js?v=20261006d"></script>
     <script src="folders-indented-tree.js?v=20261006f"></script>
     <script src="folders_permissions.js?v=20260930g"></script>
+    <script src="access-dashboard.js?v=20261008a"></script>
     <script>
         // Initialize user table management when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {

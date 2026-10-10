@@ -235,10 +235,24 @@ app.use((req, res, next) => {
     next();
 });
 
+// The client's real IP, for rate limiting and logs. In production nginx proxies
+// to this app over loopback and sets X-Real-IP to the connecting address
+// ($remote_addr). X-Forwarded-For can't be used as the key: nginx *appends* the
+// real IP to whatever the client sent, so a client choosing a fresh value per
+// request got a fresh rate-limit bucket every time. X-Real-IP is only trusted on
+// loopback connections (i.e. from nginx); anything else uses the socket address.
+function clientIp(req) {
+    const socketIp = (req.socket && req.socket.remoteAddress) || '';
+    const isLoopback = socketIp === '127.0.0.1' || socketIp === '::1' || socketIp === '::ffff:127.0.0.1';
+    const realIp = req.headers['x-real-ip'];
+    if (isLoopback && typeof realIp === 'string' && realIp.trim()) return realIp.trim();
+    return socketIp || 'unknown';
+}
+
 // Request logging middleware with geolocation
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
+    const ip = clientIp(req);
     const method = req.method;
     const url = req.url;
     const userAgent = req.headers['user-agent'] || 'Unknown';
@@ -428,7 +442,7 @@ function rateLimit(options = {}) {
     const message = options.message || 'Too many requests, please try again later.';
     
     return async (req, res, next) => {
-        const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
+        const ip = clientIp(req);
         const key = `ratelimit:${options.prefix || 'global'}:${ip}`;
         
         try {
@@ -490,8 +504,14 @@ function rateLimit(options = {}) {
     };
 }
 
-// Global API rate limiter (100 requests per 15 minutes)
-app.use('/api/', rateLimit({ max: 100, prefix: 'api' }));
+// Global API rate limiter (100 requests per 15 minutes). The account proxy routes
+// (/api/aps/accounts/...) have their own, higher limit below: a sync patches each
+// changed member individually (that's how Autodesk's HQ API works), so a large
+// sync makes hundreds of legitimate requests in a few minutes.
+const globalApiLimiter = rateLimit({ max: 100, prefix: 'api' });
+app.use('/api/', (req, res, next) => (
+    req.path.startsWith('/aps/accounts/') ? next() : globalApiLimiter(req, res, next)
+));
 
 // Stricter rate limit for auth endpoints (5 attempts per 15 minutes)
 const authLimiter = rateLimit({ 
@@ -542,19 +562,24 @@ app.get('/api/aps-client-id', authenticateUser, async (req, res) => {
 });
 
 // Proxies the Autodesk OAuth token exchange so the APS client secret never has
-// to be sent to, stored in, or used from the browser. Supports three grant
-// types: authorization_code (3-legged login), refresh_token (silent reconnect
-// using the refresh token stored server-side - see storeApsRefreshToken), and
-// client_credentials (2-legged, for HQ/Admin API calls). Autodesk rotates the
-// refresh token on every use; the new one is (re-)stored here whenever one
-// comes back. The refresh token itself is never sent to the browser - only
-// access_token/expires_in/token_type are, regardless of grant type.
-app.post('/api/aps/token', authenticateUser, async (req, res) => {
+// to be sent to, stored in, or used from the browser. Supports two grant types:
+// authorization_code (3-legged login) and refresh_token (silent reconnect using
+// the refresh token stored server-side - see storeApsRefreshToken). Autodesk
+// rotates the refresh token on every use; the new one is (re-)stored here
+// whenever one comes back. The refresh token itself is never sent to the
+// browser - only access_token/expires_in/token_type are.
+//
+// client_credentials (app-level, 2-legged) tokens are deliberately NOT issued
+// here any more: one publisher app is installed in every customer's Forma
+// account, so such a token works on all of them. Account-level calls go through
+// the /api/aps/accounts/... routes below instead, which keep that token on the
+// server and only act on accounts the caller is an active member of.
+app.post('/api/aps/token', authenticateUser, requireActiveAccess, async (req, res) => {
     try {
         const userId = req.user.uid;
-        const { grantType, code, redirectUri, scope } = req.body;
+        const { grantType, code, redirectUri } = req.body;
 
-        if (grantType !== 'authorization_code' && grantType !== 'client_credentials' && grantType !== 'refresh_token') {
+        if (grantType !== 'authorization_code' && grantType !== 'refresh_token') {
             return res.status(400).json({ success: false, message: 'Invalid grantType' });
         }
 
@@ -576,14 +601,12 @@ app.post('/api/aps/token', authenticateUser, async (req, res) => {
             }
             params.append('code', code);
             params.append('redirect_uri', redirectUri);
-        } else if (grantType === 'refresh_token') {
+        } else {
             const storedRefreshToken = await getStoredApsRefreshToken(userId);
             if (!storedRefreshToken) {
                 return res.status(400).json({ success: false, message: 'No Autodesk connection stored for this account' });
             }
             params.append('refresh_token', storedRefreshToken);
-        } else {
-            params.append('scope', typeof scope === 'string' && scope ? scope : 'account:read');
         }
 
         const tokenResponse = await fetch('https://developer.api.autodesk.com/authentication/v2/token', {
@@ -616,8 +639,247 @@ app.post('/api/aps/token', authenticateUser, async (req, res) => {
     }
 });
 
+// ============================================
+// Account API proxy (Autodesk account-level calls)
+// ============================================
+// Account-level Autodesk APIs (HQ account members and companies, the account's
+// project list) only accept app-level (2-legged) tokens. That token works in
+// every customer account that installed this app, so it never leaves the server:
+// the browser calls these routes instead, and each request is allowed only if
+// the caller is an *active member of that account* on Autodesk:
+//   1. the browser sends its own Autodesk sign-in token (X-Autodesk-Token);
+//   2. Autodesk's userinfo tells us who that is (Autodesk ID + email);
+//   3. the account's member list (HQ users/search, app token) must contain them
+//      with status "active".
+// Only fixed routes and fields are forwarded - never arbitrary paths or bodies.
+// Member updates accept company and default role only, never status, so members
+// can't be deactivated through the app.
+const APS_BASE = 'https://developer.api.autodesk.com';
+const APP_TOKEN_SCOPE = 'account:read account:write data:read';
+const ACCOUNT_AUTH_CACHE_MS = 10 * 60 * 1000;
+const ACCOUNT_AUTH_CACHE_MAX = 5000;
+const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function httpError(statusCode, message) {
+    return Object.assign(new Error(message), { statusCode });
+}
+
+// fetch() with retry on 429/503, honoring Retry-After (capped at 60s).
+async function apsServerFetch(url, options = {}, maxRetries = 5) {
+    for (let attempt = 0; ; attempt++) {
+        const response = await fetch(url, options);
+        if ((response.status !== 429 && response.status !== 503) || attempt >= maxRetries) return response;
+        const retryAfter = parseFloat(response.headers.get('retry-after'));
+        const waitMs = Number.isFinite(retryAfter) && retryAfter >= 0
+            ? Math.min(retryAfter * 1000, 60000)
+            : Math.min(2 ** (attempt + 1) * 500, 16000) + Math.random() * 250;
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+}
+
+// The app's own 2-legged token, cached until shortly before expiry; concurrent
+// callers share one request.
+let appTokenEntry = null;
+function getAppToken() {
+    if (appTokenEntry && Date.now() < appTokenEntry.expiresAt) return appTokenEntry.promise;
+    const entry = { expiresAt: Infinity, promise: null };
+    entry.promise = (async () => {
+        if (!process.env.APS_CLIENT_ID || !process.env.APS_CLIENT_SECRET) {
+            throw httpError(500, 'APS credentials are not configured on this server');
+        }
+        const params = new URLSearchParams({
+            client_id: process.env.APS_CLIENT_ID,
+            client_secret: process.env.APS_CLIENT_SECRET,
+            grant_type: 'client_credentials',
+            scope: APP_TOKEN_SCOPE
+        });
+        const response = await apsServerFetch(`${APS_BASE}/authentication/v2/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.access_token) throw httpError(502, `Autodesk app token request failed (${response.status})`);
+        entry.expiresAt = Date.now() + Math.max((Number(data.expires_in) || 3000) - 120, 30) * 1000;
+        return data.access_token;
+    })();
+    appTokenEntry = entry;
+    entry.promise.catch(() => { if (appTokenEntry === entry) appTokenEntry = null; });
+    return entry.promise;
+}
+
+// Small TTL cache of promises (failures are not cached).
+function cachedPromise(cache, key, factory) {
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < ACCOUNT_AUTH_CACHE_MS) return hit.promise;
+    if (cache.size >= ACCOUNT_AUTH_CACHE_MAX) cache.clear();
+    const promise = factory();
+    cache.set(key, { promise, at: Date.now() });
+    promise.catch(() => { if (cache.get(key)?.promise === promise) cache.delete(key); });
+    return promise;
+}
+
+const autodeskIdentityCache = new Map(); // sha256(user token) -> { promise, at }
+const accountMemberCache = new Map();    // `${accountId}|${autodeskId}` -> { promise, at }
+
+// Who the caller's Autodesk sign-in token belongs to.
+function getAutodeskIdentity(userToken) {
+    const key = crypto.createHash('sha256').update(userToken).digest('hex');
+    return cachedPromise(autodeskIdentityCache, key, async () => {
+        const response = await fetch('https://api.userprofile.autodesk.com/userinfo', {
+            headers: { Authorization: `Bearer ${userToken}` }
+        });
+        if (!response.ok) throw httpError(401, 'Your Autodesk sign-in has expired. Sign in to Autodesk again.');
+        const profile = await response.json();
+        if (!profile.sub || !profile.email) throw httpError(401, 'Could not read your Autodesk profile. Sign in to Autodesk again.');
+        return { autodeskId: String(profile.sub), email: String(profile.email).toLowerCase() };
+    });
+}
+
+// The caller's member record in the account, or null if they aren't a member.
+function findAccountMember(accountId, identity) {
+    return cachedPromise(accountMemberCache, `${accountId}|${identity.autodeskId}`, async () => {
+        const token = await getAppToken();
+        const query = new URLSearchParams({ email: identity.email, limit: '25' });
+        const response = await apsServerFetch(`${APS_BASE}/hq/v1/accounts/${accountId}/users/search?${query}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.status === 403 || response.status === 404) {
+            throw httpError(403, 'This app is not added to that Forma account, or the account does not exist.');
+        }
+        if (!response.ok) throw httpError(502, `Could not check your membership in that Forma account (${response.status})`);
+        const results = await response.json();
+        const list = Array.isArray(results) ? results : (results.results || []);
+        return list.find(u => (u.uid && String(u.uid) === identity.autodeskId)
+            || (u.email && String(u.email).toLowerCase() === identity.email)) || null;
+    });
+}
+
+async function requireAccountMember(req, res, next) {
+    try {
+        const { accountId } = req.params;
+        if (!GUID_RE.test(accountId)) return res.status(400).json({ error: 'Invalid account ID' });
+        const userToken = req.headers['x-autodesk-token'];
+        if (typeof userToken !== 'string' || userToken.length < 20 || userToken.length > 8000) {
+            return res.status(401).json({ error: 'Connect to Autodesk first.' });
+        }
+        const identity = await getAutodeskIdentity(userToken);
+        const member = await findAccountMember(accountId, identity);
+        if (!member || member.status !== 'active') {
+            return res.status(403).json({ error: 'You are not an active member of this Forma account.' });
+        }
+        req.accountMember = member;
+        next();
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status >= 500) console.error('Account access check failed:', error);
+        res.status(status).json({ error: status >= 500 ? 'Could not check your access to this Forma account' : error.message });
+    }
+}
+
+// Forward one call to Autodesk with the app token and relay its status and body.
+async function proxyToAutodesk(res, url, { method = 'GET', body } = {}) {
+    const token = await getAppToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const response = await apsServerFetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const text = await response.text();
+    const contentType = response.headers.get('content-type') || '';
+    res.status(response.status)
+        .type(contentType.includes('json') ? 'application/json' : 'text/plain')
+        .send(text);
+}
+
+function pageParams(query, maxLimit) {
+    const limit = Math.min(maxLimit, Math.max(1, parseInt(query.limit, 10) || 100));
+    const offset = Math.min(100000, Math.max(0, parseInt(query.offset, 10) || 0));
+    return new URLSearchParams({ limit: String(limit), offset: String(offset) });
+}
+
+// Copies only the listed string fields (trimmed, length-capped); throws on a
+// field of the wrong type.
+function pickStrings(src, fields, maxLen = 255) {
+    const out = {};
+    for (const f of fields) {
+        if (src[f] === undefined || src[f] === null || src[f] === '') continue;
+        if (typeof src[f] !== 'string') throw httpError(400, `${f} must be text`);
+        out[f] = src[f].trim().slice(0, maxLen);
+    }
+    return out;
+}
+
+const accountApiLimiter = rateLimit({ max: 3000, prefix: 'account-api' });
+const accountRoute = [accountApiLimiter, authenticateUser, requireActiveAccess, requireAccountMember];
+
+function accountHandler(fn) {
+    return async (req, res) => {
+        try {
+            await fn(req, res);
+        } catch (error) {
+            const status = error.statusCode || 500;
+            if (status >= 500) console.error('Account API error:', error);
+            res.status(status).json({ error: status >= 500 ? 'Autodesk request failed' : error.message });
+        }
+    };
+}
+
+// Account members (HQ API returns a plain array per page)
+app.get('/api/aps/accounts/:accountId/users', ...accountRoute, accountHandler(async (req, res) => {
+    await proxyToAutodesk(res, `${APS_BASE}/hq/v1/accounts/${req.params.accountId}/users?${pageParams(req.query, 100)}`);
+}));
+
+// One account member (e.g. to read the new default_role_id after a role change)
+app.get('/api/aps/accounts/:accountId/users/:userId', ...accountRoute, accountHandler(async (req, res) => {
+    if (!GUID_RE.test(req.params.userId)) throw httpError(400, 'Invalid user ID');
+    await proxyToAutodesk(res, `${APS_BASE}/hq/v1/accounts/${req.params.accountId}/users/${req.params.userId}`);
+}));
+
+// Account companies ({ results, pagination })
+app.get('/api/aps/accounts/:accountId/companies', ...accountRoute, accountHandler(async (req, res) => {
+    await proxyToAutodesk(res, `${APS_BASE}/construction/admin/v1/accounts/${req.params.accountId}/companies?${pageParams(req.query, 100)}`);
+}));
+
+// The account's projects ({ results, pagination })
+app.get('/api/aps/accounts/:accountId/projects', ...accountRoute, accountHandler(async (req, res) => {
+    await proxyToAutodesk(res, `${APS_BASE}/construction/admin/v1/accounts/${req.params.accountId}/projects?${pageParams(req.query, 200)}`);
+}));
+
+// Create one company
+const COMPANY_FIELDS = ['name', 'trade', 'address_line_1', 'address_line_2', 'city', 'state_or_province',
+    'postal_code', 'country', 'phone', 'website_url', 'description'];
+app.post('/api/aps/accounts/:accountId/companies', ...accountRoute, accountHandler(async (req, res) => {
+    const company = pickStrings(req.body || {}, COMPANY_FIELDS);
+    if (!company.name) throw httpError(400, 'Company name is required');
+    if (!company.trade) company.trade = 'General Contractor';
+    await proxyToAutodesk(res, `${APS_BASE}/hq/v1/accounts/${req.params.accountId}/companies`, { method: 'POST', body: company });
+}));
+
+// Update one member's company and/or default role. Status is deliberately not
+// accepted: members can't be deactivated or reactivated through the app.
+app.patch('/api/aps/accounts/:accountId/users/:userId', ...accountRoute, accountHandler(async (req, res) => {
+    if (!GUID_RE.test(req.params.userId)) throw httpError(400, 'Invalid user ID');
+    const body = req.body || {};
+    const extra = Object.keys(body).filter(k => k !== 'company_id' && k !== 'default_role');
+    if (extra.length) throw httpError(400, `Only company_id and default_role can be changed (got: ${extra.join(', ')})`);
+    const patch = pickStrings(body, ['company_id', 'default_role']);
+    if (!Object.keys(patch).length) throw httpError(400, 'Nothing to update');
+    await proxyToAutodesk(res, `${APS_BASE}/hq/v1/accounts/${req.params.accountId}/users/${req.params.userId}`, { method: 'PATCH', body: patch });
+}));
+
+// Add up to 50 members (Autodesk's per-call limit)
+const IMPORT_USER_FIELDS = ['first_name', 'last_name', 'company_id', 'default_role', 'job_title', 'nickname', 'company'];
+app.post('/api/aps/accounts/:accountId/users/import', ...accountRoute, accountHandler(async (req, res) => {
+    const users = req.body;
+    if (!Array.isArray(users) || users.length === 0 || users.length > 50) throw httpError(400, 'Send 1 to 50 users per request');
+    const payload = users.map(u => {
+        if (!u || typeof u.email !== 'string' || !validator.isEmail(u.email.trim())) throw httpError(400, 'Each user needs a valid email');
+        return { email: u.email.trim(), ...pickStrings(u, IMPORT_USER_FIELDS) };
+    });
+    await proxyToAutodesk(res, `${APS_BASE}/hq/v1/accounts/${req.params.accountId}/users/import`, { method: 'POST', body: payload });
+}));
+
 // Endpoint to save users main list to Firestore (encrypted)
-app.post('/save', authenticateUser, async (req, res) => {
+app.post('/save', authenticateUser, requireActiveAccess, async (req, res) => {
     try {
         const userId = req.user.uid;
         const usersData = req.body;
@@ -641,7 +903,7 @@ app.post('/save', authenticateUser, async (req, res) => {
 });
 
 // Endpoint to load users main list from Firestore (decrypted)
-app.get('/load', authenticateUser, async (req, res) => {
+app.get('/load', authenticateUser, requireActiveAccess, async (req, res) => {
     try {
         const userId = req.user.uid;
         
@@ -788,7 +1050,7 @@ async function pruneExpiredActivity(accountId) {
 // Record activity entries. Body: { entries: [{ at, tool, type, actorName, hub,
 // project, member, memberType, folder, details }] } - at most 200 per call (the
 // client batches; the global /api rate limit is 100 requests per 15 minutes).
-app.post('/api/activity', authenticateUser, async (req, res) => {
+app.post('/api/activity', authenticateUser, requireActiveAccess, async (req, res) => {
     try {
         const entries = req.body && req.body.entries;
         if (!Array.isArray(entries) || entries.length === 0 || entries.length > ACTIVITY_MAX_WRITE) {
@@ -832,7 +1094,7 @@ app.post('/api/activity', authenticateUser, async (req, res) => {
 // Read the account's activity, newest first. Query: limit (1-500, default 100),
 // after (the previous page's `next` - a document id, so entries that share a
 // timestamp at a page boundary are never skipped).
-app.get('/api/activity', authenticateUser, async (req, res) => {
+app.get('/api/activity', authenticateUser, requireActiveAccess, async (req, res) => {
     try {
         const limit = Math.min(ACTIVITY_MAX_READ, Math.max(1, parseInt(req.query.limit, 10) || 100));
         const accountId = await getActivityAccountId(req.user.uid);
@@ -906,6 +1168,68 @@ async function authenticateAdmin(req, res, next) {
     } catch (error) {
         console.error('Admin authentication error:', error);
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+}
+
+// Whether a signed-in user may use the app: admins always; everyone else needs a
+// verified email plus an unexpired license or trial. Shared by /api/validate-login
+// (the login screen) and requireActiveAccess (every endpoint that does real work),
+// so the two can never disagree. Returns { ok } or { ok: false, error, redirectTo }.
+function accessVerdict({ isAdmin, emailVerified, userData }) {
+    if (isAdmin) return { ok: true };
+    if (!emailVerified) {
+        return { ok: false, error: 'Please verify your email before logging in. Check your inbox for the verification link.' };
+    }
+    if (!userData) return { ok: false, error: 'User data not found' };
+    const now = new Date();
+    const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
+    const trialEndDate = userData.trialEndDate ? userData.trialEndDate.toDate() : null;
+    const isTrial = userData.isTrial || false;
+    const hasValidLicense = licenseExpiry && licenseExpiry > now;
+    const hasValidTrial = isTrial && trialEndDate && trialEndDate > now;
+    if (!hasValidLicense && !hasValidTrial) {
+        return {
+            ok: false,
+            error: isTrial ? 'Trial period expired. Please purchase a license to continue.' : 'License expired',
+            redirectTo: 'purchase.html'
+        };
+    }
+    return { ok: true };
+}
+
+// Server-side access gate for endpoints that do real work (Autodesk tokens, the
+// activity log, saved lists). Previously only /api/validate-login checked email
+// verification and license/trial - the login screen - so an unverified or expired
+// account could call these endpoints directly. Use after authenticateUser.
+// Verdicts are cached per user for a minute: a sync calls these endpoints many
+// times, and a license change taking up to 60s to apply is acceptable.
+const ACCESS_CACHE_MS = 60 * 1000;
+const accessCache = new Map(); // uid -> { verdict, at }
+
+async function requireActiveAccess(req, res, next) {
+    try {
+        const uid = req.user.uid;
+        const cached = accessCache.get(uid);
+        let verdict = cached && Date.now() - cached.at < ACCESS_CACHE_MS ? cached.verdict : null;
+        if (!verdict) {
+            const [adminDoc, userDoc] = await Promise.all([
+                db.collection('admins').doc(uid).get(),
+                db.collection('users').doc(uid).get()
+            ]);
+            verdict = accessVerdict({
+                isAdmin: adminDoc.exists,
+                emailVerified: !!req.user.email_verified,
+                userData: userDoc.exists ? userDoc.data() : null
+            });
+            accessCache.set(uid, { verdict, at: Date.now() });
+        }
+        if (!verdict.ok) {
+            return res.status(403).json({ success: false, error: verdict.error, redirectTo: verdict.redirectTo });
+        }
+        next();
+    } catch (error) {
+        console.error('Access check failed:', error);
+        return res.status(500).json({ success: false, error: 'Could not verify account access' });
     }
 }
 
@@ -1025,6 +1349,7 @@ app.post('/api/admin/revoke-license', authenticateAdmin, async (req, res) => {
             });
         }
         
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ success: true, message: 'License revoked successfully' });
     } catch (error) {
         console.error('Error revoking license:', error);
@@ -1060,6 +1385,7 @@ app.post('/api/admin/extend-license', authenticateAdmin, async (req, res) => {
             });
         }
 
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ success: true, newExpiry: newExpiry.toISOString() });
     } catch (error) {
         console.error('Error extending license:', error);
@@ -1140,6 +1466,7 @@ app.post('/api/admin/activate-license', authenticateAdmin, async (req, res) => {
             }
         });
         
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ 
             success: true, 
             licenseKey: licenseKey,
@@ -1184,6 +1511,7 @@ app.post('/api/admin/deactivate-license', authenticateAdmin, async (req, res) =>
             }
         });
         
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ 
             success: true, 
             message: 'License deactivated successfully'
@@ -1542,7 +1870,13 @@ async function validateAndClaimLicense(transaction, licenseKey, userId) {
 app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) => {
     try {
         const userId = req.user.uid;
-        const email = inputValidation.validateEmail(req.body.email, 'email');
+        // The profile email comes from the verified Firebase token, not the request
+        // body - otherwise the stored (and admin-displayed) email could differ from
+        // the account's real sign-in address.
+        if (!req.user.email) {
+            return res.status(400).json({ success: false, error: 'Your sign-in account has no email address' });
+        }
+        const email = inputValidation.validateEmail(req.user.email, 'email');
         const licenseKey = req.body.licenseKey
             ? inputValidation.validateAlphanumeric(req.body.licenseKey, 'licenseKey', false)
             : null;
@@ -1596,6 +1930,7 @@ app.post('/api/register-user', authLimiter, authenticateUser, async (req, res) =
             console.error('Analytics logging failed (non-critical):', analyticsError);
         }
 
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ success: true });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to create user profile');
@@ -1648,6 +1983,7 @@ app.post('/api/apply-license-key', authLimiter, authenticateUser, async (req, re
             console.error('Analytics logging failed (non-critical):', analyticsError);
         }
 
+        accessCache.clear(); // license state changed - re-check access on next request
         res.json({ success: true, licenseExpiry: expiryDate.toDate().toISOString() });
     } catch (error) {
         const sanitized = sanitizeError(error, 'Failed to apply license key');
@@ -1674,32 +2010,19 @@ app.post('/api/validate-login', authLimiter, authenticateUser, async (req, res) 
         const licenseExpiry = userData.licenseExpiry ? userData.licenseExpiry.toDate() : null;
         const trialEndDate = userData.trialEndDate ? userData.trialEndDate.toDate() : null;
         const isTrial = userData.isTrial || false;
-        const now = new Date();
-
-        // Require email verification for non-admin users
-        if (!isAdmin && !req.user.email_verified) {
-            return res.json({
-                success: false,
-                error: 'Please verify your email before logging in. Check your inbox for the verification link.'
-            });
-        }
 
         // Keep Firestore in sync with the actual Auth verification status (display-only field)
         if (req.user.email_verified && !userData.emailVerified) {
             await db.collection('users').doc(userId).update({ emailVerified: true });
         }
 
-        // Check access for non-admin users
-        // Allow access if: 1) User has valid license OR 2) User is in trial period
-        const hasValidLicense = licenseExpiry && licenseExpiry > now;
-        const hasValidTrial = isTrial && trialEndDate && trialEndDate > now;
-
-        if (!isAdmin && !hasValidLicense && !hasValidTrial) {
-            return res.json({ 
-                success: false, 
-                error: isTrial ? 'Trial period expired. Please purchase a license to continue.' : 'License expired',
-                redirectTo: 'purchase.html'
-            });
+        // Email verification + license/trial - same rule requireActiveAccess enforces
+        const verdict = accessVerdict({ isAdmin, emailVerified: !!req.user.email_verified, userData });
+        accessCache.set(userId, { verdict, at: Date.now() });
+        if (!verdict.ok) {
+            const body = { success: false, error: verdict.error };
+            if (verdict.redirectTo) body.redirectTo = verdict.redirectTo;
+            return res.json(body);
         }
         
         // Update last login

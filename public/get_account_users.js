@@ -3,12 +3,7 @@
 // plus fetchAllAccountUsers*, which other modules use to read the account's users.
 class AccountUsersManager {
     constructor() {
-        this.currentAccessToken = null;
         this.createModal();
-    }
-
-    setAccessToken(token) {
-        this.currentAccessToken = token;
     }
 
     createModal() {
@@ -154,58 +149,20 @@ class AccountUsersManager {
         }
     }
 
-    async fetchAllAccountUsers(accountId, providedToken = null) {
-        // If a token is provided, use it; otherwise use the current token
-        // This allows external callers to provide their own 2-legged token
-        const tokenToUse = providedToken || this.currentAccessToken;
-
+    // All members of the account (HQ API), read through the server - the HQ API
+    // needs the app token, which stays on the server (see accountApi in index.html)
+    async fetchAllAccountUsers(accountId) {
         let allUsers = [];
         let offset = 0;
         const limit = 100;
         let hasMoreData = true;
 
         while (hasMoreData) {
-            const queryParams = new URLSearchParams({
-                'limit': limit.toString(),
-                'offset': offset.toString()
-            });
-
-            const apiUrl = `https://developer.api.autodesk.com/hq/v1/accounts/${accountId}/users?${queryParams}`;
-            log(`Fetching account users: ${apiUrl}`);
-
-            const response = await fetch(apiUrl, {
-                headers: {
-                    'Authorization': `Bearer ${tokenToUse}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            log(`API Response Status: ${response.status} ${response.statusText}`);
+            log(`Fetching account users for ${accountId} at offset ${offset}`);
+            const response = await accountApi(accountId, 'users', { query: { limit, offset } });
 
             if (!response.ok) {
-                let errorData;
-                try {
-                    errorData = await response.json();
-                    log('Error response data:', errorData);
-                    if (errorData.errors && Array.isArray(errorData.errors)) {
-                        log('Detailed errors:', errorData.errors);
-                        errorData.errors.forEach((error, index) => {
-                            log(`Error ${index + 1}:`, error);
-                        });
-                    }
-                } catch (parseError) {
-                    const textError = await response.text();
-                    log('Error response (text):', textError);
-                    throw new Error(`API error ${response.status}: ${response.statusText} - ${textError}`);
-                }
-
-                const errorMessage = errorData.message ||
-                                   errorData.error ||
-                                   errorData.error_description ||
-                                   errorData.detail ||
-                                   (errorData.errors && errorData.errors[0] && errorData.errors[0].detail) ||
-                                   `HTTP ${response.status}: ${response.statusText}`;
-                throw new Error(errorMessage);
+                throw new Error(await accountApiError(response, 'Account users could not be loaded'));
             }
 
             const usersData = await response.json();
@@ -271,16 +228,11 @@ class AccountUsersManager {
         this.applyFilters();
     }
 
-    // Method to fetch account users with 2-legged token (for use by other modules)
+    // Kept under its old name for the modules that call it (import-from-hub.js,
+    // update_project_users.js, access-dashboard.js); the app token it used to fetch
+    // in the browser now stays on the server.
     async fetchAllAccountUsersWith2LeggedAuth(accountId) {
-        try {
-            // Use the global get2LeggedToken function from index.html
-            const twoLeggedToken = await get2LeggedToken();
-            return await this.fetchAllAccountUsers(accountId, twoLeggedToken);
-        } catch (error) {
-            console.error('Error fetching account users with 2-legged auth:', error);
-            throw error;
-        }
+        return this.fetchAllAccountUsers(accountId);
     }
 
     closeModal() {
@@ -300,16 +252,8 @@ class AccountUsersManager {
 const accountUsersManager = new AccountUsersManager();
 
 // Global function to be called from main page
-// Always uses 2-legged OAuth for account users
 async function showAccountUsers(accountId, accountName, accessToken) {
-    try {
-        // Get 2-legged token for account users (HQ API requires 2-legged)
-        // Use the global get2LeggedToken function from index.html
-        const twoLeggedToken = await get2LeggedToken();
-        accountUsersManager.setAccessToken(twoLeggedToken);
-        accountUsersManager.showAccountUsers(accountId, accountName);
-    } catch (error) {
-        console.error('Error getting 2-legged token for account users:', error);
-        alert(`Failed to authenticate: ${error.message}`);
-    }
+    // The access matrix (access-dashboard.js) replaces this list when it is loaded.
+    if (typeof window.openAccessDashboard === 'function') return window.openAccessDashboard(accountId, accountName);
+    accountUsersManager.showAccountUsers(accountId, accountName);
 }
