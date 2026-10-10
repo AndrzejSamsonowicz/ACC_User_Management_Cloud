@@ -394,8 +394,21 @@
     function grouped(list) {
         const map = new Map();
         list.forEach(p => { const k = groupKey(p); if (!map.has(k)) map.set(k, []); map.get(k).push(p); });
+        // Groups follow the sort too: by name (first column), or by how many of
+        // their people are in the sorted project; "No company" / "No role" stay last.
+        const key = S.sort.col;
+        const dir = S.sort.asc ? 1 : -1;
+        const byName = (a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' });
+        const inProject = (members) => {
+            const st = S.data.get(key.slice(2));
+            return st && st.members ? members.filter(m => st.members.has(m.key)).length : -1;
+        };
+        let order;
+        if (key === 'email') order = (a, b) => dir * byName(a, b);
+        else if (key.startsWith('p:')) order = (a, b) => dir * (inProject(a[1]) - inProject(b[1])) || byName(a, b);
+        else order = byName;
         return [...map.entries()]
-            .sort((a, b) => (!a[0]) - (!b[0]) || a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
+            .sort((a, b) => (!a[0]) - (!b[0]) || order(a, b))
             .map(([k, members]) => [k, sortPeople(members)]);
     }
 
