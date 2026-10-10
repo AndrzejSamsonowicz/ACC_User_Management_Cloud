@@ -205,30 +205,3 @@
     .fm-stepper, .fm-header-note { display: none; }
     .fm-tray { padding: 12px 16px; flex-wrap: wrap; }
 }
-
-/* Activity page: replaces the main area while open */
-.fm-main.is-activity > :not(#activityView) { display: none !important; }
-.fm-select { width: auto; min-width: 180px; padding-right: 8px; cursor: pointer; }
-.fm-toolbar-end { margin-left: auto; display: flex; gap: 8px; }
-.fm-trow.fm-act-row { grid-template-columns: 150px 110px 180px 160px minmax(0, 1fr); column-gap: 16px; padding: 0 12px; }
-@media (max-width: 1400px) {
-    /* The activity type already says which tool; give the room to the details */
-    .fm-trow.fm-act-row { grid-template-columns: 150px 180px 160px minmax(0, 1fr); }
-    .fm-trow.fm-act-row > :nth-child(2) { display: none; }
-}
-.fm-act-date { color: var(--fm-text-2); white-space: nowrap; }
-.fm-act-details { padding: 13px 0; line-height: 20px; }
-.fm-act-obj { color: var(--fm-link); }
-.fm-act-extra { color: var(--fm-text-2); }
-.fm-act-more { padding: 0 32px 32px; }
-.fm-act-more .fm-btn[hidden] { display: none; }
-@media (max-width: 900px) {
-    .fm-trow.fm-act-row { grid-template-columns: 1fr; row-gap: 2px; padding: 10px 0; }
-    .fm-trow-head.fm-act-row { display: none; }
-    .fm-trow.fm-act-row > :nth-child(2), .fm-trow.fm-act-row > :nth-child(3), .fm-trow.fm-act-row > :nth-child(4) { display: none; }
-    .fm-activity .fm-search { width: 100%; }
-    .fm-activity .fm-search .fm-input, .fm-activity .fm-select { width: 100%; box-sizing: border-box; }
-    .fm-act-details { padding: 0; }
-    .fm-toolbar-end { margin-left: 0; }
-    .fm-search .fm-input, .fm-select { width: 100%; }
-}

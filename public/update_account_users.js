@@ -80,7 +80,6 @@ log('🏢 Payload:', JSON.stringify(payload, null, 2));
             const result = await res.json();
             log('✅ Successfully created company:', company.name, result);
             created.push(result);
-            window.ActivityLog?.record({ tool: 'Account users', type: 'Company created', member: result?.name || company.name });
             
         } catch (error) {
             console.error(`❌ Error creating company "${company.name}":`, error);
@@ -793,28 +792,6 @@ async function _updateAccountUsersForAccount(accountId, options = {performOps: f
             console.error('Import users error:', err.message || err);
             console.error('Error stack:', err.stack);
             results.errors.push({ operation: 'IMPORT', error: err.message || String(err) });
-        }
-
-        // Activity log: only real changes (not simulated, skipped or no-op patches)
-        if (window.ActivityLog) {
-            const companyNameById = new Map(companies.map(c => [c.id, c.name]));
-            results.patched.forEach(p => {
-                if (p.simulated || p.skipped || !p.changes || Object.keys(p.changes).length === 0) return;
-                const details = [
-                    p.changes.default_role && `Default role: ${p.changes.default_role}`,
-                    p.changes.company_id && `Company: ${companyNameById.get(p.changes.company_id) || 'changed'}`
-                ].filter(Boolean).join('; ');
-                ActivityLog.record({ tool: 'Account users', type: 'Account member updated', member: p.email, details });
-            });
-            results.added.forEach(a => {
-                if (a.simulated || !a.email) return;
-                const source = toAdd.find(u => u.email && u.email.toLowerCase() === a.email.toLowerCase());
-                const details = [
-                    source?.companyName && `Company: ${source.companyName}`,
-                    source?.default_role && `Default role: ${source.default_role}`
-                ].filter(Boolean).join('; ');
-                ActivityLog.record({ tool: 'Account users', type: 'Account member added', member: a.email, details });
-            });
         }
 
         return results;

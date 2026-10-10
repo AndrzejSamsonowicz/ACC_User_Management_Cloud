@@ -265,12 +265,6 @@
         <td><span class="tick">✔</span> TLS in transit; nothing stored at rest here</td>
       </tr>
       <tr>
-        <td><strong>Activity Log</strong></td>
-        <td>Changes made in Autodesk Forma through the app: who made them, affected members, companies, roles, projects and folders</td>
-        <td>Google Firestore (cloud), one record per change, deleted automatically after 12 months</td>
-        <td><span class="tick">✔</span> AES-256-GCM at rest (names, emails, project/folder names, details); only date, tool and activity type are stored in clear for sorting and filtering</td>
-      </tr>
-      <tr>
         <td><strong>Audit Logs</strong></td>
         <td>Login timestamps, IP addresses, action logs</td>
         <td>Server logs (VM)</td>
@@ -295,7 +289,7 @@
       <h4>Encryption at Rest</h4>
       <ul>
         <li><strong>Algorithm:</strong> AES-256-GCM (authenticated encryption — ciphertext integrity is cryptographically verified on every read, tampered data is rejected rather than silently decrypted)</li>
-        <li><strong>Key derivation:</strong> scrypt, combined with a dedicated server-side encryption secret plus a unique random salt per record (activity log: one random salt per tenant account, with a fresh IV and authentication tag per entry)</li>
+        <li><strong>Key derivation:</strong> scrypt, combined with a dedicated server-side encryption secret plus a unique random salt per record</li>
         <li><strong>IV:</strong> Fresh random Initialisation Vector for every encryption operation</li>
         <li><strong>Storage:</strong> Encrypted ciphertext, salt, IV and authentication tag stored in Firestore; the encryption secret is never stored alongside the data it protects</li>
         <li><strong>Key management:</strong> Encryption key stored as environment variable, never hardcoded</li>

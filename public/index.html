@@ -400,7 +400,7 @@
         .project-select-cb:disabled { cursor: not-allowed; }
     </style>
     <link rel="stylesheet" href="shared/forma-theme.css?v=20260930b">
-    <link rel="stylesheet" href="shared/forma-app.css?v=20261006a">
+    <link rel="stylesheet" href="shared/forma-app.css?v=20261010a">
     <link rel="stylesheet" href="shared/forma-dialogs.css?v=20261010a">
 </head>
 <body class="fm fm-app">
@@ -449,7 +449,6 @@
         <nav class="fm-nav" aria-label="Main">
             <button type="button" class="fm-nav-item is-active" id="navProjects"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 014.5 5H9l2 2h8.5A1.5 1.5 0 0121 8.5v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z" stroke-linejoin="round"/></svg>Projects</button>
             <button type="button" class="fm-nav-item" id="navAccountUsers" disabled title="Choose a hub first"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><path d="M15.5 5.2a3 3 0 010 5.6M17.5 14.3c1.8.7 3 2.3 3.4 4.7" stroke-linecap="round"/></svg>Account users</button>
-            <button type="button" class="fm-nav-item" id="navActivity"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 107.5-7.5 7.6 7.6 0 00-5.6 2.5L4.5 9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 4.8V9h4.2M12 8v4.3l2.8 1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Activity</button>
             <div class="fm-nav-bottom">
                 <button type="button" class="fm-nav-item" id="navConnection" onclick="showCredentialsModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" stroke-linecap="round"/></svg>Autodesk connection</button>
             </div>
@@ -538,32 +537,6 @@
                 </div>
             </section>
 
-            <!-- Activity log (changes this app made in Forma) -->
-            <section id="activityView" class="fm-activity" hidden>
-                <div class="fm-page">
-                    <div class="fm-page-head">
-                        <h1 class="fm-page-title">Activity</h1>
-                    </div>
-                    <p class="fm-lead">Every change made in Forma from this app, by everyone on your account. Entries are kept for 12 months.</p>
-                    <div class="fm-toolbar">
-                        <label class="fm-search">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3" stroke-linecap="round"/></svg>
-                            <input type="text" id="activitySearch" class="fm-input" placeholder="Search activity" aria-label="Search activity">
-                        </label>
-                        <select id="activityTypeFilter" class="fm-input fm-select" aria-label="Filter by activity type"><option value="">All activity types</option></select>
-                        <select id="activityActorFilter" class="fm-input fm-select" aria-label="Filter by member"><option value="">All members</option></select>
-                        <span id="activityCount" class="fm-muted"></span>
-                        <span class="fm-toolbar-end">
-                            <button type="button" class="fm-btn" id="activityRefreshBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4.5v4h-4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Refresh</span></button>
-                            <button type="button" class="fm-btn" id="activityExportBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Export</span></button>
-                        </span>
-                    </div>
-                    <div id="activityError" class="fm-alert fm-alert-error" role="alert" hidden></div>
-                </div>
-                <div id="activityList" class="fm-table" aria-live="polite"></div>
-                <div class="fm-act-more"><button type="button" class="fm-btn" id="activityLoadMore" hidden>Load older activity</button></div>
-            </section>
-
             <div class="fm-tray" id="projectTray" hidden>
                 <div class="fm-tray-info">
                     <strong><span class="num" id="traySelCount">0</span> <span id="traySelNoun">projects</span> selected</strong>
@@ -589,7 +562,6 @@
     <!-- Shared helpers (escapeHtml, etc.) — loaded once here, relied on globally
          by every other script this page loads (see public/shared/dom-utils.js) -->
     <script src="shared/dom-utils.js?v=20261006a"></script>
-    <script src="shared/activity-log.js?v=20261006a"></script>
 
     <script>
         // ========================================================================
@@ -916,20 +888,8 @@
                 const hidden = document.getElementById('viewAccountUsersBtn');
                 if (typeof hidden.onclick === 'function') hidden.onclick();
             });
-            // Activity is a separate page in the main area; Projects brings back
-            // whatever the main area showed before (connect step or project list).
-            const setMainView = (view) => {
-                const main = document.querySelector('.fm-main');
-                main.classList.toggle('is-activity', view === 'activity');
-                document.getElementById('activityView').hidden = view !== 'activity';
-                document.getElementById('navProjects').classList.toggle('is-active', view !== 'activity');
-                document.getElementById('navActivity').classList.toggle('is-active', view === 'activity');
-                main.scrollTo({ top: 0 });
-            };
-            document.getElementById('navProjects').addEventListener('click', () => setMainView('projects'));
-            document.getElementById('navActivity').addEventListener('click', () => {
-                setMainView('activity');
-                if (window.ActivityLog) ActivityLog.show();
+            document.getElementById('navProjects').addEventListener('click', () => {
+                document.querySelector('.fm-main').scrollTo({ top: 0 });
             });
 
             const setTab = (showSelected) => {
@@ -1375,10 +1335,6 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const profile = await response.json();
                 currentAutodeskUserEmail = profile.email || null;
-                // Shown as "who did it" in the activity log, like Forma's own log
-                window.currentAutodeskUserName = profile.name
-                    || [profile.given_name, profile.family_name].filter(Boolean).join(' ')
-                    || profile.email || '';
                 log('✓ Current Autodesk user:', currentAutodeskUserEmail);
             } catch (error) {
                 console.error('Error fetching current Autodesk user profile:', error);
@@ -2380,12 +2336,12 @@
     <script src="d3.v7.min.js"></script>
     <script src="import-from-project.js?v=20261007a"></script>
     <script src="import-from-hub.js?v=20261007c"></script>
-    <script src="update_account_users.js?v=20261008s"></script>
-    <script src="update_project_users.js?v=20261006a"></script>
+    <script src="update_account_users.js?v=20261010a"></script>
+    <script src="update_project_users.js?v=20261010a"></script>
     <script src="review-sync.js?v=20261007a"></script>
     <script src="get_account_users.js?v=20261008s"></script>
     <script src="view_project_users.js?v=20261008s"></script>
-    <script src="update_folder_permission.js?v=20261008b"></script>
+    <script src="update_folder_permission.js?v=20261010a"></script>
     <script src="read_project_folders.js?v=20261006d"></script>
     <script src="folders-indented-tree.js?v=20261006f"></script>
     <script src="folders_permissions.js?v=20260930g"></script>
