@@ -50,7 +50,7 @@
         shown: new Set(),        // project ids shown as columns
         view: 'company',         // 'company' | 'role' | 'email'
         sort: { col: 'email', asc: true },   // By email view
-        collapsed: new Set(),    // group keys folded in grouped views
+        expanded: new Set(),     // group keys opened in grouped views (all start folded)
         search: '',
         zoom: 1,
         selected: null,          // { email, projectId }
@@ -251,6 +251,11 @@
         return groups.some(words => words.every(w => hay.includes(w)));
     }
 
+    // Companies and roles start folded; while searching, every matching group is open.
+    function isFolded(key) {
+        return !S.expanded.has(key) && !S.search.trim();
+    }
+
     function groupKey(person) {
         if (S.view === 'company') return person.company || '';
         return person.role || '';
@@ -279,7 +284,7 @@
     function groupRowHtml(key, members, projects) {
         const none = !key;
         const label = none ? (S.view === 'company' ? 'No company' : 'No role') : key;
-        const folded = S.collapsed.has(key);
+        const folded = isFolded(key);
         const reach = projects.map(p => {
             const st = S.data.get(p.id);
             if (!st || !st.members) return '<td class="ad-group-cell"></td>';
@@ -364,7 +369,7 @@
             const groups = grouped(people);
             groupCount = groups.length;
             body = groups.map(([k, members]) => groupRowHtml(k, members, projects)
-                + (S.collapsed.has(k) ? '' : members.map(m => personRowHtml(m, projects, true)).join(''))).join('');
+                + (isFolded(k) ? '' : members.map(m => personRowHtml(m, projects, true)).join(''))).join('');
         }
         const table = root.querySelector('#adTable');
         table.innerHTML = colgroupHtml(projects) + headerHtml(projects) + `<tbody>${body}</tbody>`;
@@ -554,7 +559,7 @@
             if (allShownReady()) exportExcel();
             else { S.exportWhenReady = true; render(); }
         });
-        root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { S.view = b.dataset.view; S.collapsed.clear(); closeGear(); render(); }));
+        root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { S.view = b.dataset.view; S.expanded.clear(); closeGear(); render(); }));
         const search = root.querySelector('#adSearch');
         search.addEventListener('input', () => { S.search = search.value; scheduleRender(); });
         search.addEventListener('keydown', (e) => { if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; S.search = ''; render(); } });
@@ -569,7 +574,7 @@
         matrix.addEventListener('click', (e) => {
             if (e.target.closest('#adGearBtn')) { document.getElementById('adGearPop') ? closeGear() : openGear(); return; }
             const toggle = e.target.closest('.ad-group-toggle');
-            if (toggle) { const k = toggle.dataset.group; S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); render(); return; }
+            if (toggle) { const k = toggle.dataset.group; S.expanded.has(k) ? S.expanded.delete(k) : S.expanded.add(k); render(); return; }
             const sortTh = e.target.closest('.ad-sortable');
             if (sortTh) { const c = sortTh.dataset.sort; S.sort = S.sort.col === c ? { col: c, asc: !S.sort.asc } : { col: c, asc: true }; render(); return; }
             const cell = e.target.closest('td.ad-cell');
@@ -789,7 +794,7 @@
         S.accountId = accountId;
         S.hubName = accountName || '';
         S.hubId = window.currentHubId || accountId;
-        S.selected = null; S.search = ''; S.collapsed.clear(); S.exportWhenReady = false;
+        S.selected = null; S.search = ''; S.expanded.clear(); S.exportWhenReady = false;
         if (S.loadedFor !== accountId) { S.data.clear(); S.loadedFor = accountId; }
         buildDialog();
         const root = document.getElementById('accessDashboard');
